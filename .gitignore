@@ -1,0 +1,8 @@
+# Ignore LOKAD's proprietary scripts and data
+dumpScripts_139279/
+dumpScripts_139279.zip
+
+# Ignore Gemini's context file
+GEMINI.md
+
+.env

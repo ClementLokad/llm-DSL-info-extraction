@@ -1,0 +1,9 @@
+openai>=1.0.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+numpy>=1.24.0  # Pour la manipulation des embeddings
+faiss-cpu>=1.7.4  # Pour la base de données vectorielle
+pandas>=2.0.0  # Pour la manipulation des données
+tiktoken>=0.5.1  # Pour le comptage de tokens OpenAI
+typing-extensions>=4.7.0  # Pour le support des types avancés
+pytest>=7.4.0  # Pour les tests unitaires
