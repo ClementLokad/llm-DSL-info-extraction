@@ -1,8 +1,9 @@
 import google.generativeai as genai
 from typing import Dict, Any, Optional, List
-from .base import LLMAgent
+from .base import LLMAgent, rate_limited
 import json
 import os
+import numpy as np
 
 class GeminiAgent(LLMAgent):
     def __init__(self):
@@ -121,6 +122,7 @@ class GeminiAgent(LLMAgent):
             else:
                 raise Exception(f"Error calling Gemini API: {error_msg}")
     
+    @rate_limited(max_retries=5, initial_delay=2.0)
     def get_embedding(self, text: str) -> List[float]:
         """
         Generate an embedding for the given text.
@@ -137,7 +139,7 @@ class GeminiAgent(LLMAgent):
         """
         if not text.strip():
             raise ValueError("Text cannot be empty")
-            
+        
         try:
             # Currently, Gemini doesn't have a direct embedding API
             # Using the model to generate a numeric representation
@@ -159,10 +161,16 @@ class GeminiAgent(LLMAgent):
                 embedding = json.loads(response.text.strip())
                 if isinstance(embedding, list) and len(embedding) == 128:
                     return embedding
-                else:
-                    return [0.0] * 128  # Return zero vector if parsing fails
-            except json.JSONDecodeError:
-                return [0.0] * 128  # Return zero vector if JSON is invalid
+            except (json.JSONDecodeError, TypeError, ValueError):
+                pass
+                
+            # Fall back to deterministic embedding if LLM generation fails
+            import hashlib
+            hash_obj = hashlib.sha256(text.encode())
+            rng = np.random.RandomState(int.from_bytes(hash_obj.digest()[:4], byteorder='big'))
+            embedding = rng.randn(128)  # Changed to 128 to match expected dimensions
+            embedding = embedding / np.linalg.norm(embedding)
+            return embedding.tolist()
                 
         except Exception as e:
             error_msg = str(e)

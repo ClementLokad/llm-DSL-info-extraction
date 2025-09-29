@@ -1,5 +1,36 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
+import time
+import functools
+
+def rate_limited(max_retries: int = 5, initial_delay: float = 2.0):
+    """Decorator to handle rate limiting and retries for LLM API calls.
+    
+    Args:
+        max_retries: Maximum number of retry attempts
+        initial_delay: Initial delay between retries in seconds
+    """
+    def decorator(func: Callable):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    result = func(*args, **kwargs)
+                    # Short pause after successful call
+                    time.sleep(0.5)
+                    return result
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    if ("rate limit" in error_msg or "quota" in error_msg) and attempt < max_retries - 1:
+                        wait_time = initial_delay * (2 ** attempt)
+                        print(f"Rate limit hit. Waiting {wait_time} seconds...")
+                        time.sleep(wait_time)
+                        continue
+                    if attempt == max_retries - 1:
+                        raise Exception("Failed after multiple retries: " + str(e))
+                    raise
+        return wrapper
+    return decorator
 
 class LLMAgent(ABC):
     """Abstract interface for LLM agents"""
