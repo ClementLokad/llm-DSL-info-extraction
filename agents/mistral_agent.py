@@ -7,14 +7,31 @@ class MistralAgent(LLMAgent):
     """Implementation of an agent using Mistral AI"""
     
     def __init__(self):
+        """
+        Initialize the Mistral agent.
+        """
+        super().__init__()
+        self.base_url = "https://api.mistral.ai/v1"
         self.api_key = None
-        self.base_url = "https://api.mistral.ai/v1"  # URL to be adjusted according to official documentation
         
     def initialize(self) -> None:
-        """Initialize the agent with Mistral API key"""
+        """
+        Initialize the connection to the Mistral API.
+        
+        Raises:
+            ValueError: If the API key is missing or invalid
+            RuntimeError: If the connection to the API fails
+        """
         self.api_key = os.getenv('MISTRAL_API_KEY')
+        
         if not self.api_key:
             raise ValueError("MISTRAL_API_KEY not found in environment variables")
+            
+        # Test the API key with a simple request
+        try:
+            self._make_request('models', {})[0]
+        except Exception as e:
+            raise RuntimeError(f"Failed to connect to Mistral API: {str(e)}")
             
     def _make_request(self, endpoint: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Utility method to make requests to Mistral API"""

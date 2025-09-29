@@ -7,12 +7,31 @@ class GPTAgent(LLMAgent):
     """Implementation of an agent using OpenAI's GPT"""
     
     def __init__(self):
+        """
+        Initialize the GPT agent.
+        """
+        super().__init__()
         self.client = None
+        self.api_key = None
         
     def initialize(self) -> None:
-        """Initialize the OpenAI client with the API key"""
-        openai.api_key = os.getenv('OPENAI_API_KEY')
-        self.client = openai.Client()
+        """
+        Initialize the connection to the OpenAI API.
+        
+        Raises:
+            ValueError: If the API key is missing or invalid
+            RuntimeError: If the connection to the API fails
+        """
+        self.api_key = os.getenv('OPENAI_API_KEY')
+        
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY not found in environment variables")
+            
+        try:
+            openai.api_key = self.api_key
+            self.client = openai.Client()
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize OpenAI client: {str(e)}")
         
     def process_question(self, question: str, context: Optional[List[str]] = None) -> str:
         if not self.client:
