@@ -32,6 +32,31 @@ def rate_limited(max_retries: int = 5, initial_delay: float = 2.0):
         return wrapper
     return decorator
 
+class BaseEmbedder(ABC):
+    """Abstract interface for embedding models"""
+    
+    @abstractmethod
+    def embed(self, text: str) -> List[float]:
+        """Generate an embedding for a single text"""
+        pass
+    
+    @abstractmethod
+    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for multiple texts"""
+        pass
+    
+    @property
+    @abstractmethod
+    def dimension(self) -> int:
+        """Return the embedding dimension"""
+        pass
+    
+    @property
+    @abstractmethod
+    def model_name(self) -> str:
+        """Return the model name for identification"""
+        pass
+
 class LLMAgent(ABC):
     """Abstract interface for LLM agents"""
     

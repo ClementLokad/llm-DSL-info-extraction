@@ -2,29 +2,77 @@
 
 ## 🎯 Project Objective
 
-### Project Structure
+This project aims to create an advanced system to assist **LOKAD**'s *Supply Chain Scientists*. The goal is to help them navigate, understand, and query a complex codebase written in **Envision**, LOKAD's proprietary language, using natural language questions.
+
+### 🏗️ Project Structure
 
 ```text
 llm-DSL-info-extraction/
-├── agents/                 # AI agents package
-│   ├── __init__.py
-│   ├── base.py            # LLMAgent abstract interface
-│   ├── gpt_agent.py       # OpenAI implementation
-│   ├── mistral_agent.py   # Mistral implementation
-│   └── gemini_agent.py    # Google Gemini implementation
-├── .env.example           # Configuration template
-├── .gitignore            # Files ignored by git
-├── test.py               # Model testing script
-├── requirements.txt       # Python dependencies
-└── README.md             # Documentation
+├── 📁 preprocessing/           # Preprocessing pipeline (COMPLETED ✅)
+│   ├── pipeline.py            # Complete preprocessing with all embedders
+│   └── __init__.py
+├── 📁 agents/                 # AI agents for query phase (FUTURE)
+│   ├── base.py               # LLMAgent abstract interface
+│   ├── gpt_agent.py          # OpenAI implementation
+│   ├── mistral_agent.py      # Mistral implementation
+│   └── gemini_agent.py       # Google Gemini implementation
+├── 📁 env_scripts/           # Envision DSL files (60 files)
+├── 📁 processed_data/        # Preprocessing results
+├── 📄 process.py             # Main preprocessing CLI
+├── 📄 analyze.py             # Results analysis tool
+├── 📄 test.py               # Agent testing script
+├── 📄 requirements.txt       # Dependencies
+├── 📄 .env.example          # Configuration template
+└── 📄 README.md             # This documentation
 ```
-
-This project aims to create an advanced system to assist **LOKAD**'s *Supply Chain Scientists*. The goal is to help them navigate, understand, and query a complex codebase written in **Envision**, LOKAD's proprietary language, using natural language questions.
 
 * **Client**: [LOKAD](https://www.lokad.com)
 * **Framework**: Collective Scientific Project (PSC) - École Polytechnique (X24)
 
-## 💻 Prerequisites
+## � Quick Start - Preprocessing Phase
+
+The preprocessing phase is **complete and ready to use**! It processes Envision DSL files and creates vector embeddings for semantic search.
+
+### Basic Usage
+
+```bash
+# Process files with mock embedder (for testing - no API key needed)
+python process.py --model mock --max-files 5
+
+# Process files with real embedders (API key required)
+python process.py --model gemini    # Uses Google Gemini embeddings
+python process.py --model openai    # Uses OpenAI embeddings
+
+# Analyze processed results
+python analyze.py --file processed_data/results_mock.pkl
+```
+
+### Available Models (Auto-Discovered)
+
+The system automatically discovers all embedding models in the `agents/` directory:
+
+* **`mock`**: No API key required, generates consistent test embeddings (768-dim)
+* **`gemini`**: Google Gemini embeddings (768-dim) - requires `GOOGLE_API_KEY`
+* **`openai`**: OpenAI embeddings (1536-dim) - requires `OPENAI_API_KEY`
+* **`huggingface`**: Sentence Transformers embeddings (384-dim) - requires `sentence-transformers` package
+
+**Adding New Models**: Simply create a new `*_embedder.py` file in `agents/` following the `BaseEmbedder` interface!
+
+### Command Line Options
+
+```bash
+python process.py --help
+
+Options:
+  --script-dir     Directory with Envision scripts (default: env_scripts)
+  --output-dir     Output directory (default: processed_data)  
+  --model          Model type: mock, gemini, openai (default: mock)
+  --chunk-size     Chunk size in characters (default: 512)
+  --overlap        Chunk overlap in characters (default: 50)
+  --max-files      Max files to process for testing (optional)
+```
+
+## �💻 Prerequisites
 
 Before starting, make sure you have:
 
@@ -63,42 +111,40 @@ cd llm-DSL-info-extraction
 
 Create and activate the virtual environment:
 
-On Windows:
-
+**Windows:**
 ```bash
 python -m venv env
 .\env\Scripts\activate
 ```
 
-On Unix/macOS:
-
+**Unix/macOS:**
 ```bash
 python -m venv env
 source env/bin/activate
 ```
 
-### 3. Installing Dependencies
-
-Update pip and install dependencies:
+### 3. Install Dependencies
 
 ```bash
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 4. Configuration des API Keys
+### 4. API Keys Configuration (Optional)
 
-1. Copy the configuration file:
+For testing, you can use the `mock` embedder (no API key needed). For production with real embeddings:
+
+1. Copy the configuration template:
 
 ```bash
-# On Windows
+# Windows
 copy .env.example .env
 
-# On Unix/macOS
+# Unix/macOS  
 cp .env.example .env
 ```
 
-2. Configure your API keys:
+2. Add your API keys to `.env`:
    * Create an account on [OpenAI Platform](https://platform.openai.com)
    * Sign up on [Mistral AI](https://mistral.ai)
    * Create an account on [Google AI Studio](https://makersuite.google.com/app/apikey)
@@ -257,25 +303,142 @@ cp .env.example .env
 # - Mistral AI API key (https://mistral.ai)
 ```
 
-## 🔄 Pipeline Architecture
+## 🔄 System Architecture
 
-Here's the target architecture that will be developed:
+### Phase 1: 📚 Preprocessing Pipeline (✅ COMPLETED)
 
-### 1. 📚 Knowledge Preparation Flow (Offline)
+The preprocessing phase transforms raw Envision scripts into a searchable knowledge base:
 
-This flow prepares the knowledge base from raw Envision scripts.
+```
+Envision Files (.nvn) → Chunking → Embeddings → Vector Database
+     📄 60+ files    →   📝 ~30k chunks  →  🧠 Vector Search  →  📊 Results (.pkl)
+```
 
-* **`Data Base`**: The collection of `.nvm` scripts provided by LOKAD.
-* **`Parser`**: An intelligent module that analyzes scripts, segments them into logical chunks, and extracts metadata (functions, variables, etc.).
-* **`RAG (Retrieval Augmented Generation)`**: A vector database (e.g., FAISS) that indexes chunks and metadata for fast semantic search.
+**Components:**
+* **EnvisionProcessor**: Parses and cleans Envision DSL syntax
+* **EnvisionChunker**: Intelligently splits code into semantic chunks (512 chars, 50 overlap)
+* **Multiple Embedders**: Gemini, OpenAI, or Mock embedder for vector generation
+* **VectorSearch**: FAISS-based similarity search with metadata
+* **Results Storage**: Serialized results with embeddings and search index
 
-### 2. 💡 Execution and Evaluation Flow (Online)
+**Features:**
+* 🔄 **Model-agnostic design**: Switch between embedding providers easily
+* 🚀 **Production ready**: Handles large codebases efficiently  
+* 🧪 **Testing support**: Mock embedder for development without API costs
+* 📊 **Rich analysis**: Pattern detection and content statistics
 
-This flow handles user requests and generates validated responses.
+### Phase 2: 💡 Query and Response System (FUTURE)
 
-* **`Question`**: The user's question in natural language.
-* **`Engineered Prompt`**: An "augmented" prompt that combines the question with the most relevant code chunks retrieved by the `RAG`.
-* **`Main LLM`**: The main language model (e.g., GPT-4) that generates a response from the prompt.
-* **`Logic Checker`**: A verification module that checks the syntax and logical consistency of the response. It enables a **correction loop** in case of errors.
-* **`Final Answer`**: The final response, validated and presented to the user.
-* **`Answer Grader (Scorer)`** : Un évaluateur qui note la qualité de la réponse finale en la comparant à une réponse de référence (utilisé pour le benchmark).
+This phase will handle user questions and generate intelligent responses:
+
+```
+Natural Language Question → RAG Retrieval → LLM Response → Validation → Final Answer
+```
+
+**Planned Components:**
+* **Question Processing**: Parse and understand user intent
+* **RAG System**: Retrieve most relevant code chunks using vector similarity
+* **Multi-LLM Support**: GPT-4, Mistral, Gemini for response generation
+* **Logic Checker**: Validate response accuracy and code syntax
+* **Answer Grader**: Quality assessment and benchmarking
+
+## 📊 Preprocessing Results
+
+Current preprocessing capabilities (tested with 60 Envision files):
+
+* **Files processed**: 60 Envision DSL files
+* **Total chunks generated**: ~29,565 semantic chunks
+* **Average chunk size**: ~58 characters (with 512 max)
+* **Pattern detection**: Functions, variables, calculations, tables, exports
+* **Processing time**: ~2-3 minutes for full codebase
+* **Output format**: Pickle files with embeddings, metadata, and search index
+
+### Sample Analysis Output
+
+```
+PROCESSING STATISTICS
+Files processed: 3
+Total chunks: 1532
+Embedder used: MockEmbedder
+Average chunk size: 58.0 characters
+
+ENVISION CODE PATTERNS
+- Read Statements: 7 chunks (0.5%)
+- Const Declarations: 12 chunks (0.8%) 
+- Export Statements: 2 chunks (0.1%)
+- Table Definitions: 43 chunks (2.8%)
+- Calculations: 467 chunks (30.5%)
+```
+
+## 🎯 Current Status & Next Steps
+
+### ✅ Completed (Phase 1 - Preprocessing)
+
+* **Complete preprocessing pipeline** with model-agnostic design
+* **Three embedding providers**: Gemini, OpenAI, Mock (for testing)
+* **Intelligent code chunking** for Envision DSL syntax
+* **Vector search capabilities** with FAISS integration
+* **Comprehensive analysis tools** for processed data
+* **Production-ready codebase** with clean, consolidated architecture
+
+### 🔄 In Development (Phase 2 - Query System)
+
+* **Multi-LLM query agents** (GPT-4, Mistral, Gemini) - foundation ready
+* **RAG system integration** to connect preprocessing with query handling
+* **Response validation** and quality assessment
+* **Interactive query interface** for Supply Chain Scientists
+
+### 🚀 Getting Started
+
+1. **For testing/development**: Start with `python process.py --model mock --max-files 5`
+2. **For production**: Set up API keys and run `python process.py --model gemini`
+3. **Analyze results**: Use `python analyze.py --file processed_data/results_*.pkl`
+
+The preprocessing phase is **complete and production-ready**! 🎉
+
+## 🔧 Adding New Embedding Models
+
+The system uses a **plugin architecture** - adding new embedding models is extremely simple:
+
+### Step 1: Create a new embedder file
+
+Create `agents/your_model_embedder.py`:
+
+```python
+from typing import List
+from .base import BaseEmbedder
+
+class YourModelEmbedder(BaseEmbedder):
+    def __init__(self, api_key: str = "", **kwargs):
+        # Initialize your model here
+        self._dimension = 512  # Your model's dimension
+    
+    def embed(self, text: str) -> List[float]:
+        # Implement single text embedding
+        return [0.0] * self._dimension
+    
+    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        # Implement batch embedding
+        return [self.embed(text) for text in texts]
+    
+    @property
+    def dimension(self) -> int:
+        return self._dimension
+    
+    @property
+    def model_name(self) -> str:
+        return "yourmodel"  # This becomes the CLI argument
+```
+
+### Step 2: Use immediately
+
+```bash
+# Your new model is automatically discovered!
+python process.py --model yourmodel --api-key your-api-key
+
+# Or set environment variable
+export YOURMODEL_API_KEY=your-key
+python process.py --model yourmodel
+```
+
+**That's it!** No configuration files, no registry updates, no core code changes needed.
