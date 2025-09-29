@@ -1,9 +1,23 @@
-# Ignore LOKAD's proprietary scripts and data
-dumpScripts_139279/
+# Ignore LOKAD's proprietary scripts
 dumpScripts_139279.zip
+
+# Data and model directories
+env_scripts/
+processed_data/
 
 # Ignore Gemini's context file
 GEMINI.md
 
+# Python virtual environment
 .env
 env/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test files
+# test_preprocessing.py
+# test.py
+*.pytest_cache/
