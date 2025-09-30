@@ -32,8 +32,8 @@ class GPTAgent(LLMAgent):
             self.client = openai.Client()
         except Exception as e:
             raise RuntimeError(f"Failed to initialize OpenAI client: {str(e)}")
-        
-    def process_question(self, question: str, context: Optional[List[str]] = None) -> str:
+
+    def process_prompt(self, prompt: str, context: Optional[List[str]] = None) -> str:
         if not self.client:
             raise RuntimeError("Agent not initialized. Call initialize() first.")
             
@@ -43,7 +43,7 @@ class GPTAgent(LLMAgent):
             context_text = "\n".join(context)
             messages.append({"role": "system", "content": f"Code context:\n{context_text}"})
             
-        messages.append({"role": "user", "content": question})
+        messages.append({"role": "user", "content": prompt})
         
         # Call GPT API
         response = self.client.chat.completions.create(

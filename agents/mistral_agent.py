@@ -42,8 +42,8 @@ class MistralAgent(LLMAgent):
         response = requests.post(f"{self.base_url}/{endpoint}", headers=headers, json=payload)
         response.raise_for_status()
         return response.json()
-        
-    def process_question(self, question: str, context: Optional[List[str]] = None) -> str:
+
+    def process_prompt(self, prompt: str, context: Optional[List[str]] = None) -> str:
         if not self.api_key:
             raise RuntimeError("Agent not initialized. Call initialize() first.")
             
@@ -52,7 +52,7 @@ class MistralAgent(LLMAgent):
             context_text = "\n".join(context)
             messages.append({"role": "system", "content": f"Code context:\n{context_text}"})
             
-        messages.append({"role": "user", "content": question})
+        messages.append({"role": "user", "content": prompt})
         
         payload = {
             "model": "mistral-large-latest",  # to be adjusted based on available models

@@ -1,4 +1,3 @@
-import os
 from dotenv import load_dotenv
 from agents.gpt_agent import GPTAgent
 from agents.mistral_agent import MistralAgent

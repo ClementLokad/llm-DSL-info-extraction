@@ -75,13 +75,13 @@ class GeminiAgent(LLMAgent):
             self.model.generate_content("Hello")
         except Exception as e:
             raise ConnectionError(f"Failed to connect to Gemini API: {str(e)}")
-        
-    def process_question(self, question: str, context: Optional[List[str]] = None) -> str:
+
+    def process_prompt(self, prompt: str, context: Optional[List[str]] = None) -> str:
         """
-        Process a question using the Gemini API.
-        
+        Process a prompt using the Gemini API.
+
         Args:
-            question (str): The question to process
+            prompt (str): The prompt to process
             context (Optional[List[str]]): Optional list of code chunks to provide context
             
         Returns:
@@ -91,18 +91,18 @@ class GeminiAgent(LLMAgent):
             ValueError: If the question is empty
             Exception: For any other API call errors
         """
-        if not question.strip():
+        if not prompt.strip():
             raise ValueError("Question cannot be empty")
             
         try:
             # Build prompt with context if provided
-            prompt = question
+            completed_prompt = prompt
             if context:
                 context_text = "\n".join(context)
-                prompt = f"Given this code context:\n\n{context_text}\n\nQuestion: {question}"
+                completed_prompt = f"Given this context:\n\n{context_text}\n\nQuestion: {prompt}"
             
             response = self.model.generate_content(
-                prompt,
+                completed_prompt,
                 generation_config=self.generation_config
             )
             
