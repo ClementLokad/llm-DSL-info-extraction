@@ -54,7 +54,7 @@ def main():
             
             try:
                 # Send question to agent and get response
-                response = agent.process_question(user_input)
+                response = agent.process_prompt(user_input)
                 print(f"\n{MODEL_NAME.upper()}: {response}")
                 
             except Exception as e:
