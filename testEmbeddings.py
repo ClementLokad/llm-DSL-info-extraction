@@ -34,11 +34,11 @@ class CosineSimilarityEmbedder():
             embedder = pickle.load(file)
         return embedder
         
-# model = SentenceTransformer("./all-MiniLM-L6-v2")
-# embedder = CosineSimilarityEmbedder(model)
-# embedder.build_index(["texte_test.txt"])
-# embedder.save_index("test_embedder")
+model = SentenceTransformer("./all-MiniLM-L6-v2")
+embedder = CosineSimilarityEmbedder(model)
+embedder.build_index(["texte_test.txt"])
+embedder.save_index("test_embedder")
 
-embedder = CosineSimilarityEmbedder.load_index("test_embedder")
+#embedder = CosineSimilarityEmbedder.load_index("test_embedder")
 print(embedder.search(["Paris", "football", "Science"], 2))
 
