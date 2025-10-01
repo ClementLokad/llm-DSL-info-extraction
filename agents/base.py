@@ -38,7 +38,7 @@ class Embedder(ABC):
     """Abstract interface for embedders"""
 
     @abstractmethod
-    def get_embedding(self, text: str) -> List[float]:
+    def get_embedding(self, text: List[str]):
         """Generate an embedding for the given text
         
         Args:
@@ -50,7 +50,7 @@ class Embedder(ABC):
         pass
     
     @abstractmethod
-    def tokenize(self, text: str) -> List[str]:
+    def tokenize(self, text: str):
         """Tokenize the given text into a list of tokens
 
         Args:
@@ -62,7 +62,7 @@ class Embedder(ABC):
         pass
 
     @abstractmethod
-    def embed(self, tokens: List[str]) -> List[float]:
+    def embed(self, tokens: List[str]):
         """Embed the given tokens and return a vector representation
 
         Args:
