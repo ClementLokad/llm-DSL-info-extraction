@@ -8,9 +8,10 @@ processed_data/
 # Ignore Gemini's context file
 GEMINI.md
 
-# Python virtual environment
+# Python virtual environment and all env-related directories
 .env
-env/
+env*/
+*env*/
 
 # Python cache files
 __pycache__/

@@ -1,18 +1,23 @@
-from typing import List, Dict, Any, Optional
+from typing import Optional
 import openai
-from .base import LLMAgent
+from .base import LLMAgent, rate_limited
 import os
+
 
 class GPTAgent(LLMAgent):
     """Implementation of an agent using OpenAI's GPT"""
     
-    def __init__(self):
+    def __init__(self, model: str = "gpt-4o-mini"):
         """
         Initialize the GPT agent.
+        
+        Args:
+            model: The GPT model to use (default: gpt-4o-mini)
         """
         super().__init__()
         self.client = None
         self.api_key = None
+        self._model = model
         
     def initialize(self) -> None:
         """
@@ -28,61 +33,49 @@ class GPTAgent(LLMAgent):
             raise ValueError("OPENAI_API_KEY not found in environment variables")
             
         try:
-            openai.api_key = self.api_key
-            self.client = openai.Client()
+            self.client = openai.Client(api_key=self.api_key)
+            # Test connection with a simple request
+            self.client.models.list()
         except Exception as e:
             raise RuntimeError(f"Failed to initialize OpenAI client: {str(e)}")
+    
+    @rate_limited()
+    def generate_response(self, question: str, context: Optional[str] = None) -> str:
+        """
+        Generate a response using GPT.
         
-    def process_question(self, question: str, context: Optional[List[str]] = None) -> str:
+        Args:
+            question: The question to ask
+            context: Optional context to provide
+            
+        Returns:
+            str: The generated response
+        """
         if not self.client:
             raise RuntimeError("Agent not initialized. Call initialize() first.")
             
-        # Prepare context
+        # Prepare messages
         messages = []
+        
         if context:
-            context_text = "\n".join(context)
-            messages.append({"role": "system", "content": f"Code context:\n{context_text}"})
+            messages.append({
+                "role": "system", 
+                "content": f"Use the following context to answer the question:\n{context}"
+            })
             
         messages.append({"role": "user", "content": question})
         
         # Call GPT API
         response = self.client.chat.completions.create(
-            model="gpt-4",  # or other model as needed
+            model=self._model,
             messages=messages,
             temperature=0.7,
+            max_tokens=1000
         )
         
         return response.choices[0].message.content
-        
-    def get_embedding(self, text: str) -> List[float]:
-        if not self.client:
-            raise RuntimeError("Agent not initialized. Call initialize() first.")
-            
-        response = self.client.embeddings.create(
-            model="text-embedding-ada-002",
-            input=text
-        )
-        
-        return response.data[0].embedding
-        
-    def extract_metadata(self, code_chunk: str) -> Dict[str, Any]:
-        if not self.client:
-            raise RuntimeError("Agent not initialized. Call initialize() first.")
-            
-        prompt = f"""Analyze this code chunk and extract metadata:
-        {code_chunk}
-        
-        Return the metadata as a JSON with:
-        - functions: list of function names
-        - variables: list of important variables
-        - dependencies: list of imports/dependencies
-        - description: brief description of what the code does"""
-        
-        response = self.client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,  # We want a deterministic response
-        )
-        
-        # Note: In a real case, we should properly parse the JSON response
-        return eval(response.choices[0].message.content)
+    
+    @property
+    def model_name(self) -> str:
+        """Return the model name"""
+        return f"GPT-{self._model}"
