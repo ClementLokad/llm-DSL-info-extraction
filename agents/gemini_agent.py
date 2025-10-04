@@ -1,7 +1,7 @@
 import google.generativeai as genai
 from typing import Optional
 from .base import LLMAgent, rate_limited
-import os
+from config_manager import get_config
 
 
 class GeminiAgent(LLMAgent):
@@ -54,7 +54,8 @@ class GeminiAgent(LLMAgent):
             List of available model names
         """
         if not api_key:
-            api_key = os.getenv('GOOGLE_API_KEY')
+            config = get_config()
+            api_key = config.get_api_key('GOOGLE_API_KEY')
             
         if not api_key:
             raise ValueError("GOOGLE_API_KEY not found in environment variables")
@@ -84,7 +85,8 @@ class GeminiAgent(LLMAgent):
 
     def initialize(self) -> None:
         """Initialize the connection to the Gemini API"""
-        self.api_key = os.getenv('GOOGLE_API_KEY')
+        config = get_config()
+        self.api_key = config.get_api_key('GOOGLE_API_KEY')
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY not found in environment variables")
             

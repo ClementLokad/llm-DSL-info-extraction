@@ -1,7 +1,7 @@
 from typing import Optional
 import openai
 from .base import LLMAgent, rate_limited
-import os
+from config_manager import get_config
 
 
 class GPTAgent(LLMAgent):
@@ -27,7 +27,8 @@ class GPTAgent(LLMAgent):
             ValueError: If the API key is missing or invalid
             RuntimeError: If the connection to the API fails
         """
-        self.api_key = os.getenv('OPENAI_API_KEY')
+        config = get_config()
+        self.api_key = config.get_api_key('OPENAI_API_KEY')
         
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables")

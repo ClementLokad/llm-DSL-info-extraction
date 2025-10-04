@@ -1,0 +1,307 @@
+# =============================================================================
+# APPLICATION CONFIGURATION - NON-SENSITIVE PARAMETERS
+# =============================================================================
+# This file contains application settings, algorithms parameters, and other
+# non-sensitive configuration that can be safely committed to version control.
+# All numeric constants and parameters should be defined here, not in code.
+
+# =============================================================================
+# GLOBAL FILE AND DIRECTORY CONSTANTS
+# =============================================================================
+paths:
+  # Base directories
+  logs_dir: "logs"
+  cache_dir: "cache"
+  debug_dir: "debug"
+  profiles_dir: "profiles"
+  data_dir: "data"
+  
+  # File extensions
+  log_extension: ".log"
+  pickle_extension: ".pkl" 
+  index_extension: ".index"
+  json_extension: ".json"
+  csv_extension: ".csv"
+
+# =============================================================================
+# PARSER CONFIGURATION
+# =============================================================================
+parser:
+  type: "envision"
+  supported_extensions: [".nvn"]
+  
+  # Regex compilation settings
+  multiline_patterns: true
+  case_sensitive: false
+  
+  # Section delimiter settings
+  section_delimiter:
+    min_chars: 20
+    valid_chars: ["~", "=", "-"]
+    pattern_prefix: "///"
+
+# =============================================================================
+# CHUNKER CONFIGURATION
+# =============================================================================
+chunker:
+  type: "semantic"
+  
+  # Core chunking parameters (all numeric values externalized)
+  max_chunk_tokens: 512
+  overlap_lines: 2    # Line-based overlap for split chunks (default: 2 lines)
+  preserve_boundaries: true
+  
+  # Semantic chunking strategies
+  strategies:
+    group_by_section: true
+    group_related_assignments: true
+    keep_read_statements_separate: true
+    include_context_comments: true
+  
+  # Block type priorities (lower number = higher priority)
+  block_priorities:
+    comment_block: 1
+    read_statement: 2
+    table_definition: 3
+    assignment: 4
+    show_statement: 5
+  
+  # Token estimation settings
+  chars_per_token: 4
+  # min_chunk_size: 10
+
+# =============================================================================
+# EMBEDDER CONFIGURATION
+# =============================================================================
+embedder:
+  # Default embedder type
+  default_type: "sentence_transformer"
+  
+  # Text preparation settings
+  text_preparation:
+    chars_per_token_code: 3      # Code has more tokens per char than prose
+    truncation_ratio: 0.8       # Keep 80% of lines when truncating
+    min_lines_preserve: 1        # Always keep at least 1 line
+    max_variable_names: 3        # Limit variable names shown in context
+    max_table_names: 5           # Limit table names shown in context
+  
+  # Sentence Transformer settings
+  sentence_transformer:
+    model_name: "all-MiniLM-L6-v2"
+    device: "auto"  # auto, cpu, cuda
+    trust_remote_code: false  # Security: only allow standard models
+    normalize_embeddings: true
+    batch_size: 32
+    max_seq_length: 512
+    show_progress_bar: true 
+  
+  # OpenAI embedder settings
+  openai:
+    model_name: "text-embedding-3-small"
+    dimensions: 1536
+    batch_size: 100
+    max_retries: 3
+    timeout: 30
+  
+  # Google/Gemini embedder settings
+  gemini:
+    model_name: "text-embedding-004"
+    dimensions: 768
+    batch_size: 100
+    max_retries: 3
+    timeout: 30
+
+# =============================================================================
+# RETRIEVER CONFIGURATION
+# =============================================================================
+retriever:
+  type: "faiss"
+  
+  # Index storage configuration
+  index_path: "./data/faiss_index"  # Directory where FAISS index files are stored
+  
+  # Index file names (all file constants externalized from global paths)
+  files:
+    chunks_filename: "chunks"              # File storing the code chunks data (extension from paths.pickle_extension)
+    index_filename: "faiss"                # FAISS vector index file (extension from paths.index_extension)
+    metadata_filename: "metadata"          # Index metadata and configuration (extension from paths.pickle_extension)
+  
+  # FAISS index settings
+  faiss:
+    # =========================================================================
+    # INDEX TYPE SELECTION
+    # =========================================================================
+    # Available index types:
+    # - IndexFlatIP: Exact search using Inner Product (cosine similarity for normalized embeddings)
+    #   * Pros: 100% accuracy, simple to use
+    #   * Cons: Slow for large datasets (O(n) search time)
+    #   * Best for: < 10K vectors, prototyping, when accuracy is critical
+    #
+    # - IndexIVFFlat: Inverted File with exact vectors (approximate search)
+    #   * Pros: Much faster than Flat, good accuracy (~95-99%)
+    #   * Cons: Requires training, memory overhead for clusters
+    #   * Best for: 10K-1M vectors, balanced speed/accuracy
+    #
+    # - IndexHNSWFlat: Hierarchical Navigable Small World graph
+    #   * Pros: Very fast search, memory efficient
+    #   * Cons: Slower index building, approximate results (~95-98%)
+    #   * Best for: > 100K vectors, when speed is priority
+    index_type: "IndexFlatIP"  # Main index type setting
+    
+    # =========================================================================
+    # SEARCH PARAMETERS 
+    # =========================================================================
+    # Number of most similar chunks to return per query
+    # Higher values give more results but may include less relevant matches
+    # Typical values: 5-20 for most applications
+    top_k: 10
+    
+    # Minimum similarity score threshold (0.0 to 1.0)
+    # Only return chunks with similarity >= this value
+    # 0.7 = good balance (strongly related), 0.5 = more permissive, 0.9 = very strict
+    search_threshold: 0.7
+    
+    # =========================================================================
+    # PERFORMANCE SETTINGS
+    # =========================================================================
+    # Enable GPU acceleration if available (requires faiss-gpu package)
+    # GPU can be 10-100x faster than CPU for large datasets
+    # Set to false if no GPU available or for debugging
+    use_gpu: true
+    
+    # =========================================================================
+    # IVF INDEX PARAMETERS (only used with IndexIVFFlat)
+    # =========================================================================
+    # Number of clusters to search during query (1 <= nprobe <= nlist)
+    # Higher nprobe = better accuracy but slower search
+    # Rule of thumb: nprobe = nlist/10 for balanced performance
+    # Examples: nprobe=1 (~80% accuracy), nprobe=10 (~95% accuracy)
+    nprobe: 10
+    
+    # Number of clusters to create during index building
+    # Higher nlist = better clustering but more memory usage
+    # Rule of thumb: nlist = sqrt(total_vectors) or 4*sqrt(total_vectors)
+    # For 10K vectors: nlist=100, for 100K vectors: nlist=1000
+    nlist: 100
+    
+    # =========================================================================
+    # HNSW INDEX PARAMETERS (only used with IndexHNSWFlat)
+    # =========================================================================
+    # Number of candidates to explore during search (runtime parameter)
+    # Higher ef_search = better accuracy but slower search
+    # Must be >= top_k, typical values: 16-200
+    # Can be optimized dynamically based on dataset size
+    ef_search: 64
+    
+    # Number of bi-directional links for each node (build-time parameter)
+    # Higher M = better accuracy but more memory usage
+    # Typical values: 8-64, default 16 is good balance
+    # More connections = better recall but larger index
+    m: 16
+    
+    # Number of candidates during index construction (build-time parameter)
+    # Higher ef_construction = better index quality but slower building
+    # Should be >= M, typical values: 64-500
+    # Rule of thumb: ef_construction = 2 * M to 10 * M
+    ef_construction: 200
+
+# =============================================================================
+# PREPROCESSING PIPELINE CONFIGURATION
+# =============================================================================
+pipeline:
+  # Processing parameters
+  batch_size: 50
+  max_workers: 4
+  show_progress: true
+  
+  # File processing
+  supported_extensions: [".nvn"]
+  encoding: "utf-8"
+  skip_empty_files: true
+  
+  # Output settings
+  save_intermediate_results: true
+  output_format: "json"  # json, pickle, csv
+  
+  # Validation settings
+  validate_chunks: true
+  validate_embeddings: true
+  min_chunks_per_file: 1
+  max_chunks_per_file: 1000
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+logging:
+  version: 1
+  disable_existing_loggers: false
+  
+  formatters:
+    standard:
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
+    
+    detailed:
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
+      datefmt: "%Y-%m-%d %H:%M:%S"
+  
+  handlers:
+    console:
+      class: logging.StreamHandler
+      level: INFO
+      formatter: standard
+      stream: ext://sys.stdout
+    
+    file:
+      class: logging.FileHandler
+      level: DEBUG
+      formatter: detailed
+      filename: logs/preprocessing.log  # TODO: Use paths.logs_dir + "/preprocessing" + paths.log_extension
+      mode: a
+  
+  loggers:
+    preprocessing:
+      level: DEBUG
+      handlers: [console, file]
+      propagate: false
+  
+  root:
+    level: INFO
+    handlers: [console]
+
+# =============================================================================
+# DEVELOPMENT & TESTING SETTINGS
+# =============================================================================
+development:
+  # Test data settings
+  test_data_size: 100
+  use_sample_data: false
+  
+  # Performance profiling
+  enable_profiling: false
+  profile_output_dir: "./profiles"
+  
+  # Debug settings
+  verbose_logging: false
+  save_debug_info: false
+  debug_output_dir: "./debug"
+
+# =============================================================================
+# PRODUCTION OPTIMIZATION
+# =============================================================================
+production:
+  # Performance optimization
+  optimize_memory: true
+  use_multiprocessing: true
+  cache_embeddings: true
+  cache_dir: "./cache"  # TODO: Use paths.cache_dir
+  
+  # Resource limits
+  max_memory_gb: 8
+  max_file_size_mb: 100
+  processing_timeout: 300
+  
+  # Error handling
+  continue_on_error: true
+  max_errors_per_batch: 5
+  error_log_file: "logs/errors.log"  # TODO: Use paths.logs_dir + "/errors" + paths.log_extension

@@ -18,6 +18,13 @@ cd llm-DSL-info-extraction
 
 python -m venv env
 .\env\Scripts\activate    # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Setup configuration
+cp .env.example .env
+# Edit .env with your API keys
 pip install -r requirements.txt
 
 cp .env.example .env      # Add your API keys

@@ -1,10 +1,11 @@
 import os
-from dotenv import load_dotenv
+from config_manager import get_config
 from agents.gpt_agent import GPTAgent
 from agents.mistral_agent import MistralAgent
 from agents.gemini_agent import GeminiAgent
 
-load_dotenv()
+# Load configuration
+config = get_config()
 
 # Configuration - Change this to test different models
 MODEL_NAME = 'gemini'

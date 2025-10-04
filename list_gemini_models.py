@@ -5,12 +5,10 @@ Script to list available Gemini models and test connectivity.
 
 import os
 import sys
-from dotenv import load_dotenv
+from config_manager import get_config
 
 # Add the project root to the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-load_dotenv()
 
 def main():
     """List available Gemini models"""
@@ -18,7 +16,8 @@ def main():
     print()
     
     # Check if API key is set
-    api_key = os.getenv('GOOGLE_API_KEY')
+    config = get_config()
+    api_key = config.get_api_key('GOOGLE_API_KEY')
     if not api_key:
         print("❌ GOOGLE_API_KEY not found in environment variables")
         print("💡 Make sure to set your API key in the .env file")
