@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 import logging
 
-from preprocessing.core.base_parser import CodeBlock
+from pipeline.core.base_parser import CodeBlock
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,17 @@ class CodeChunk:
             from config_manager import get_config
             chars_per_token = get_config().get('chunker.chars_per_token', 4)
             self.size_tokens = len(self.content) // chars_per_token
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the CodeChunk to a dictionary for JSON serialization."""
+        return {
+            'content': self.content,
+            'chunk_type': self.chunk_type,
+            'original_blocks': [block.to_dict() for block in self.original_blocks],
+            'context': self.context,
+            'size_tokens': self.size_tokens,
+            'metadata': self.metadata
+        }
 
 class BaseChunker(ABC):
     """

@@ -2,6 +2,6 @@
 Parsers for different code languages and DSLs.
 """
 
-from preprocessing.parsers.envision_parser import EnvisionParser
+from pipeline.parsers.envision_parser import EnvisionParser
 
 __all__ = ["EnvisionParser"]

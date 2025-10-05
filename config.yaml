@@ -6,6 +6,13 @@
 # All numeric constants and parameters should be defined here, not in code.
 
 # =============================================================================
+# AGENT CONFIGURATION
+# =============================================================================
+agent:
+  # Default agent to use for queries
+  default_model: "mistral"  # Options: "gemini", "gpt", "mistral"
+
+# =============================================================================
 # GLOBAL FILE AND DIRECTORY CONSTANTS
 # =============================================================================
 paths:
@@ -88,7 +95,7 @@ embedder:
   # Sentence Transformer settings
   sentence_transformer:
     model_name: "all-MiniLM-L6-v2"
-    device: "auto"  # auto, cpu, cuda
+    device: "cpu"  # auto, cpu, cuda
     trust_remote_code: false  # Security: only allow standard models
     normalize_embeddings: true
     batch_size: 32
@@ -117,9 +124,6 @@ embedder:
 retriever:
   type: "faiss"
   
-  # Index storage configuration
-  index_path: "./data/faiss_index"  # Directory where FAISS index files are stored
-  
   # Index file names (all file constants externalized from global paths)
   files:
     chunks_filename: "chunks"              # File storing the code chunks data (extension from paths.pickle_extension)
@@ -128,6 +132,8 @@ retriever:
   
   # FAISS index settings
   faiss:
+    # Index storage configuration
+    index_path: "./data/faiss_index"  # Directory where FAISS index files are stored
     # =========================================================================
     # INDEX TYPE SELECTION
     # =========================================================================
@@ -191,19 +197,19 @@ retriever:
     # Higher ef_search = better accuracy but slower search
     # Must be >= top_k, typical values: 16-200
     # Can be optimized dynamically based on dataset size
-    ef_search: 64
+    hnsw_ef_search: 64
     
     # Number of bi-directional links for each node (build-time parameter)
     # Higher M = better accuracy but more memory usage
     # Typical values: 8-64, default 16 is good balance
     # More connections = better recall but larger index
-    m: 16
+    hnsw_m: 16
     
     # Number of candidates during index construction (build-time parameter)
     # Higher ef_construction = better index quality but slower building
     # Should be >= M, typical values: 64-500
     # Rule of thumb: ef_construction = 2 * M to 10 * M
-    ef_construction: 200
+    hnsw_ef_construction: 200
 
 # =============================================================================
 # PREPROCESSING PIPELINE CONFIGURATION
@@ -268,40 +274,3 @@ logging:
   root:
     level: INFO
     handlers: [console]
-
-# =============================================================================
-# DEVELOPMENT & TESTING SETTINGS
-# =============================================================================
-development:
-  # Test data settings
-  test_data_size: 100
-  use_sample_data: false
-  
-  # Performance profiling
-  enable_profiling: false
-  profile_output_dir: "./profiles"
-  
-  # Debug settings
-  verbose_logging: false
-  save_debug_info: false
-  debug_output_dir: "./debug"
-
-# =============================================================================
-# PRODUCTION OPTIMIZATION
-# =============================================================================
-production:
-  # Performance optimization
-  optimize_memory: true
-  use_multiprocessing: true
-  cache_embeddings: true
-  cache_dir: "./cache"  # TODO: Use paths.cache_dir
-  
-  # Resource limits
-  max_memory_gb: 8
-  max_file_size_mb: 100
-  processing_timeout: 300
-  
-  # Error handling
-  continue_on_error: true
-  max_errors_per_batch: 5
-  error_log_file: "logs/errors.log"  # TODO: Use paths.logs_dir + "/errors" + paths.log_extension

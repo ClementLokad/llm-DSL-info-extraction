@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 import logging
 
-from preprocessing.core.base_chunker import CodeChunk
+from pipeline.core.base_chunker import CodeChunk
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,15 @@ class RetrievalResult:
     
     def __repr__(self):
         return f"RetrievalResult(score={self.score:.3f}, rank={self.rank}, chunk_type={self.chunk.chunk_type})"
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the RetrievalResult to a dictionary for JSON serialization."""
+        return {
+            'chunk': self.chunk.to_dict(),
+            'score': self.score,
+            'rank': self.rank,
+            'metadata': self.metadata
+        }
 
 class BaseRetriever(ABC):
     """

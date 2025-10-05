@@ -1,0 +1,206 @@
+{
+  "title": "Envision DSL Information Extraction - Example Questions",
+  "description": "Collection of example questions that can be asked to the agent about supply chain optimization scripts",
+  "version": "1.0",
+  "total_questions": 25,
+  "questions": [
+    {
+      "id": 1,
+      "question": "What fields are included in the ItemSim catalog structure?",
+      "answer": "The ItemSim catalog includes: ItemCode (text), BuyPrice (number), SellPrice (number), MOQ (minimum order quantity), Volume, supplier information, and seasonal patterns. These fields are used for product catalog management and pricing strategies.",
+      "script_reference": "67982.nvn",
+      "script_section": "ItemSim catalog definition section - defines the core product data structure with pricing and inventory parameters"
+    },
+    {
+      "id": 2,
+      "question": "How is MOV (Minimum Order Value) validation implemented in the data processing pipeline?",
+      "answer": "MOV validation is implemented as part of the data processing pipeline that handles Catalog, Orders, PO (Purchase Orders), Suppliers, and Stock tables. The validation ensures minimum order values are met according to supplier requirements.",
+      "script_reference": "68000.nvn",
+      "script_section": "Data processing pipeline section - includes MOV validation logic for purchase order compliance"
+    },
+    {
+      "id": 3,
+      "question": "What optimization modules are available in the dashboard navigation?",
+      "answer": "The dashboard includes modules for inventory optimization, data validation, and dispatch optimization. Navigation includes logos, markdown sections, and links to different optimization modules for comprehensive supply chain management.",
+      "script_reference": "72915.nvn",
+      "script_section": "Dashboard UI section - navigation links and optimization module organization"
+    },
+    {
+      "id": 4,
+      "question": "What input tables are required for inventory optimization analysis?",
+      "answer": "Required input tables include: Items (with Sku, Category, SellPrice, BuyPrice, StockOnHand, LeadTime, ReorderCycle, IsClean), TopItemsParameters, Orders, PO (Purchase Orders), Stock, and WeeklyFc (Weekly Forecast) tables.",
+      "script_reference": "68017.nvn",
+      "script_section": "READ INPUT TABLES section - comprehensive data requirements for inventory optimization"
+    },
+    {
+      "id": 5,
+      "question": "How are category growth targets managed in the forecasting system?",
+      "answer": "Category growth targets are managed through a hierarchical system with GeneralChoice, CatGrowth parameters, and validation flags (IsValidated). The system allows for both general and category-specific growth settings with enforcement options.",
+      "script_reference": "82199.nvn",
+      "script_section": "SlicedFormCat and CatEnforcing sections - category growth management and validation logic"
+    },
+    {
+      "id": 6,
+      "question": "What are the key components of long-term purchase simulation?",
+      "answer": "Long-term simulation includes: Items catalog with supplier info, Orders history, PO tracking, Stock levels, WeeklyFc forecasts, and economic parameters. It analyzes investment and stock evolution based on purchasing logic over extended periods.",
+      "script_reference": "76705.nvn",
+      "script_section": "READ INPUT TABLES section - comprehensive data inputs for long-term purchasing simulation"
+    },
+    {
+      "id": 7,
+      "question": "What modules are available in the French homepage demo?",
+      "answer": "Available modules include: Optimisation d'achat (Purchase optimization), Cohérence données (Data consistency), Optimisation réassort (Replenishment optimization), Vue Produit (Product view), Indicateurs opérationnels (Operational indicators), Prévision (Forecasting), Documentation, and Organisation.",
+      "script_reference": "87829.nvn",
+      "script_section": "Homepage module definitions - complete French interface module structure"
+    },
+    {
+      "id": 8,
+      "question": "How is seasonal pattern analysis handled in the catalog system?",
+      "answer": "Seasonal patterns are integrated into the ItemSim catalog structure as part of the product data model. This allows for seasonal demand variations to be considered in inventory planning and purchasing decisions.",
+      "script_reference": "67982.nvn",
+      "script_section": "ItemSim definition - seasonal patterns as part of catalog data structure"
+    },
+    {
+      "id": 9,
+      "question": "What forecasting parameters are used in weekly demand prediction?",
+      "answer": "Weekly forecasting uses: DemandQty, IsPast (historical flag), IsSLT, IsWOO, FutureWeekRank, Alpha (smoothing), Dispersion, Baseline, and CumDemand (cumulative demand as random variable) for comprehensive demand modeling.",
+      "script_reference": "68017.nvn",
+      "script_section": "WeeklyFC table definition - statistical forecasting parameters for demand prediction"
+    },
+    {
+      "id": 10,
+      "question": "How are supplier relationships managed in the system?",
+      "answer": "Supplier management includes supplier information in the Items catalog, supplier-specific MOQ and volume requirements, lead time management, and supplier compliance through MOV validation in the purchase order process.",
+      "script_reference": "68000.nvn",
+      "script_section": "Suppliers table and MOV validation - comprehensive supplier relationship management"
+    },
+    {
+      "id": 11,
+      "question": "What stock metrics are tracked for inventory optimization?",
+      "answer": "Stock metrics include: StockOnHand (current inventory), StockOnOrder (pending deliveries), LeadTime, ReorderCycle, and fill rate calculations. The system tracks imminent out-of-stock situations and avoidable stockouts.",
+      "script_reference": "68017.nvn",
+      "script_section": "Stock and Items tables - comprehensive inventory tracking metrics"
+    },
+    {
+      "id": 12,
+      "question": "How are purchase orders structured and tracked?",
+      "answer": "Purchase orders include: Sku (product ID), OrderDate, DeliveryDate, Quantity, and PONumber for tracking. The system maintains historical PO data for analysis and future purchase optimization.",
+      "script_reference": "76705.nvn",
+      "script_section": "PO table definition - purchase order structure and tracking system"
+    },
+    {
+      "id": 13,
+      "question": "What visualization elements are used in the dashboard interface?",
+      "answer": "Dashboard visualizations include: logos, markdown sections, tabs (OverallView, CategoryView), labels with icons (store-and-boxes, shelf), color coding, and href links for navigation between different optimization modules.",
+      "script_reference": "68017.nvn",
+      "script_section": "Dashboard display section - UI elements and visualization components"
+    },
+    {
+      "id": 14,
+      "question": "How is data quality validation implemented?",
+      "answer": "Data quality validation uses IsClean boolean flags in multiple tables (Items, Orders), health logging (HealthLog), and data consistency checks across the pipeline to ensure reliable analysis results.",
+      "script_reference": "76705.nvn",
+      "script_section": "Data quality flags - IsClean validation and health logging system"
+    },
+    {
+      "id": 15,
+      "question": "What economic parameters drive purchasing decisions?",
+      "answer": "Economic parameters include: BuyPrice, SellPrice, AgressivenessFactor (0-5 scale), FRTarget (fill rate target), overallInvestment budget, and category-specific aggressiveness factors for optimized purchasing strategies.",
+      "script_reference": "76705.nvn",
+      "script_section": "Economic parameters and aggressiveness factors - financial optimization drivers"
+    },
+    {
+      "id": 16,
+      "question": "How are product categories organized and ranked?",
+      "answer": "Categories use CategoryDisplayRank for prioritization, Category groupings, and ItemDisplayRank for product hierarchy. The system supports multi-level category management with specific display ordering.",
+      "script_reference": "68017.nvn",
+      "script_section": "TopItemsParameters table - category organization and ranking system"
+    },
+    {
+      "id": 17,
+      "question": "What time-based analysis features are available?",
+      "answer": "Time-based analysis includes: OrderDate tracking, date-based expectations, FutureWeekRank for forward planning, IsPast flags for historical analysis, and Monday-based weekly periods for consistent time alignment.",
+      "script_reference": "68017.nvn",
+      "script_section": "Date handling and time-based analysis - temporal data management"
+    },
+    {
+      "id": 18,
+      "question": "How are lot multipliers and order quantities managed?",
+      "answer": "Order quantities are managed through LotMultiplier constraints in the Items catalog, MOQ (minimum order quantity) requirements, and quantity tracking in purchase orders to ensure supplier compliance and efficient ordering.",
+      "script_reference": "76705.nvn",
+      "script_section": "Items table with LotMultiplier - order quantity management and constraints"
+    },
+    {
+      "id": 19,
+      "question": "What import and module system is used for code organization?",
+      "answer": "The system uses import statements for modular organization: Global Parameters (GP), Functions (F), Colors (C), PathSchemas (PS) modules. This enables code reuse and consistent parameter management across scripts.",
+      "script_reference": "82199.nvn",
+      "script_section": "Import statements - modular code organization and parameter management"
+    },
+    {
+      "id": 20,
+      "question": "How are random variables used in demand forecasting?",
+      "answer": "Random variables (ranvar) are used for CumDemand (cumulative demand) and Demand modeling to capture uncertainty in forecasting. This probabilistic approach enables better risk assessment in inventory planning.",
+      "script_reference": "68017.nvn",
+      "script_section": "WeeklyFC ranvar fields - probabilistic demand modeling"
+    },
+    {
+      "id": 21,
+      "question": "What safety stock and reorder parameters are tracked?",
+      "answer": "Safety stock parameters include: ReorderCycle (reorder frequency), LeadTime (supplier delivery time), and Alpha (smoothing factor) for demand forecasting. These parameters optimize inventory levels while maintaining service levels.",
+      "script_reference": "68017.nvn",
+      "script_section": "Items table reorder parameters - safety stock and reorder point management"
+    },
+    {
+      "id": 22,
+      "question": "How are container simulations handled in purchasing?",
+      "answer": "Container simulations use IsContainerSimulation boolean flag, nbWeeks planning horizon, and specific economic parameters to model container-based purchasing strategies for optimized shipping and inventory management.",
+      "script_reference": "76705.nvn",
+      "script_section": "TargetsLastSim container simulation - shipping and container optimization"
+    },
+    {
+      "id": 23,
+      "question": "What URL and navigation system is implemented?",
+      "answer": "Navigation uses dashUrl() functions, href attributes, CategoryURL parameters, and LinkHomeDashboard for consistent dashboard linking. The system supports both internal navigation and external links.",
+      "script_reference": "87829.nvn",
+      "script_section": "Navigation and URL management - dashboard linking system"
+    },
+    {
+      "id": 24,
+      "question": "How are form submissions and user inputs handled?",
+      "answer": "Form handling uses 'read upload' statements for SlicedForm, SlicedFormGeneral, SlicedFormCat inputs with validation flags (IsValidated) and comment fields for user feedback and parameter adjustments.",
+      "script_reference": "82199.nvn",
+      "script_section": "Form upload handling - user input processing and validation"
+    },
+    {
+      "id": 25,
+      "question": "What statistical measures are used in demand analysis?",
+      "answer": "Statistical measures include: Alpha (exponential smoothing), Dispersion (variability measure), Baseline (base demand level), LowerBar/HighBar confidence intervals, and Cache values for comprehensive demand pattern analysis.",
+      "script_reference": "76705.nvn",
+      "script_section": "WeeklyFc statistical parameters - advanced demand analytics and confidence intervals"
+    }
+  ],
+  "scripts_analyzed": [
+    "67982.nvn - ItemSim catalog with product data and seasonal patterns",
+    "68000.nvn - Data processing pipeline with MOV validation",
+    "68017.nvn - Inventory optimization with comprehensive input tables",
+    "72915.nvn - Dashboard UI with navigation and optimization modules",
+    "76705.nvn - Long-term purchase simulation with economic parameters",
+    "82199.nvn - High-level forecasting cockpit with category management",
+    "87829.nvn - French homepage demo with module organization"
+  ],
+  "coverage_areas": [
+    "Catalog Management",
+    "Inventory Optimization", 
+    "Purchase Order Processing",
+    "Demand Forecasting",
+    "Supplier Management",
+    "Data Validation",
+    "Dashboard Navigation",
+    "Economic Parameters",
+    "Statistical Analysis",
+    "Container Logistics",
+    "Category Management",
+    "User Interface Design"
+  ]
+}

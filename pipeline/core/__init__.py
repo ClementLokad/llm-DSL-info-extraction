@@ -2,10 +2,10 @@
 Core preprocessing interfaces and base classes.
 """
 
-from preprocessing.core.base_parser import BaseParser, CodeBlock
-from preprocessing.core.base_chunker import BaseChunker, CodeChunk
-from preprocessing.core.base_embedder import BaseEmbedder
-from preprocessing.core.base_retriever import BaseRetriever, RetrievalResult
+from pipeline.core.base_parser import BaseParser, CodeBlock
+from pipeline.core.base_chunker import BaseChunker, CodeChunk
+from pipeline.core.base_embedder import BaseEmbedder
+from pipeline.core.base_retriever import BaseRetriever, RetrievalResult
 
 __all__ = [
     "BaseParser", "CodeBlock",

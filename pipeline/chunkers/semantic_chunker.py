@@ -8,8 +8,8 @@ meaningful chunks that respect functional boundaries and logical groupings.
 from typing import List, Dict, Any, Optional
 import logging
 
-from preprocessing.core.base_chunker import BaseChunker, CodeChunk
-from preprocessing.core.base_parser import CodeBlock
+from pipeline.core.base_chunker import BaseChunker, CodeChunk
+from pipeline.core.base_parser import CodeBlock
 
 logger = logging.getLogger(__name__)
 

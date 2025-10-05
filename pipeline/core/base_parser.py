@@ -41,6 +41,19 @@ class CodeBlock:
             self.dependencies = []
         if self.metadata is None:
             self.metadata = {}
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the CodeBlock to a dictionary for JSON serialization."""
+        return {
+            'content': self.content,
+            'block_type': self.block_type,
+            'name': self.name,
+            'line_start': self.line_start,
+            'line_end': self.line_end,
+            'file_path': self.file_path,
+            'dependencies': self.dependencies,
+            'metadata': self.metadata
+        }
 
 class BaseParser(ABC):
     """

@@ -167,7 +167,14 @@ class ConfigManager:
     
     def get_retriever_config(self) -> Dict[str, Any]:
         """Get retriever configuration section."""
-        return self.config.get('retriever', {})
+        retriever_config = self.config.get('retriever', {})
+        
+        # Flatten FAISS-specific config to top level for compatibility
+        faiss_config = retriever_config.get('faiss', {})
+        if faiss_config:
+            retriever_config = {**retriever_config, **faiss_config}
+        
+        return retriever_config
     
     def get_pipeline_config(self) -> Dict[str, Any]:
         """Get pipeline configuration section."""
@@ -176,6 +183,10 @@ class ConfigManager:
     def get_logging_config(self) -> Dict[str, Any]:
         """Get logging configuration section."""
         return self.config.get('logging', {})
+    
+    def get_default_agent(self) -> str:
+        """Get default agent from configuration."""
+        return self.config.get('agent', {}).get('default_model', 'mistral')
     
     def __repr__(self) -> str:
         """String representation of configuration manager."""

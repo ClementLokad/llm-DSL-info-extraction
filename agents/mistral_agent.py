@@ -59,6 +59,9 @@ class MistralAgent(LLMAgent):
         if not self.api_key:
             raise RuntimeError("Agent not initialized. Call initialize() first.")
             
+        if not question or not question.strip():
+            raise ValueError("Question cannot be empty")
+            
         messages = []
         
         if context:

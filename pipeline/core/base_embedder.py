@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional, Union
 import numpy as np
 import logging
 
-from preprocessing.core.base_chunker import CodeChunk
+from pipeline.core.base_chunker import CodeChunk
 
 logger = logging.getLogger(__name__)
 

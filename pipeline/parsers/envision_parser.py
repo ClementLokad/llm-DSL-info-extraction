@@ -9,7 +9,7 @@ import re
 from typing import List, Dict, Any, Optional
 import logging
 
-from preprocessing.core.base_parser import BaseParser, CodeBlock
+from pipeline.core.base_parser import BaseParser, CodeBlock
 
 logger = logging.getLogger(__name__)
 

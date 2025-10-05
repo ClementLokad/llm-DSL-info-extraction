@@ -10,8 +10,8 @@ import numpy as np
 import logging
 import time
 
-from preprocessing.core.base_embedder import BaseEmbedder
-from preprocessing.core.base_chunker import CodeChunk
+from pipeline.core.base_embedder import BaseEmbedder
+from pipeline.core.base_chunker import CodeChunk
 
 logger = logging.getLogger(__name__)
 

@@ -11,8 +11,8 @@ import logging
 import pickle
 import os
 
-from preprocessing.core.base_retriever import BaseRetriever, RetrievalResult
-from preprocessing.core.base_chunker import CodeChunk
+from pipeline.core.base_retriever import BaseRetriever, RetrievalResult
+from pipeline.core.base_chunker import CodeChunk
 
 logger = logging.getLogger(__name__)
 
@@ -204,21 +204,39 @@ class FAISSRetriever(BaseRetriever):
         # Perform search
         scores, indices = self.index.search(query_embedding, top_k)
         
-        # Convert results
+        # Convert results with enhanced deduplication
         results = []
+        seen_chunks = set()
+        
         for i, (score, idx) in enumerate(zip(scores[0], indices[0])):
             if idx != -1:  # -1 means no more results
                 chunk = self._chunks[idx]
+                
+                # Enhanced deduplication based on multiple factors
+                chunk_key = (
+                    chunk.content[:200].strip(),  # First 200 chars for better differentiation
+                    chunk.metadata.get('chunk_name', ''),  # Same chunk name
+                    chunk.file_path if hasattr(chunk, 'file_path') else ''  # Same file
+                )
+                
+                if chunk_key in seen_chunks:
+                    continue
+                seen_chunks.add(chunk_key)
+                
                 result = RetrievalResult(
                     chunk=chunk,
                     score=float(score),
-                    rank=i + 1,
+                    rank=len(results) + 1,  # Rank based on deduplicated position
                     metadata={
                         'faiss_index': int(idx),
                         'similarity_metric': self.similarity_metric
                     }
                 )
                 results.append(result)
+                
+                # Stop if we have enough unique results
+                if len(results) >= top_k:
+                    break
         
         return results
     
