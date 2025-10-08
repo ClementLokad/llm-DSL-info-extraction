@@ -2,7 +2,8 @@ from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
 import pickle
-import agents.base as base
+import base as base
+import os
 
 class Embedder(base.Embedder):
     
@@ -52,14 +53,15 @@ class CosineSimilarityIndex(base.RAG):
         with open(file_name, 'br') as file:
             index = pickle.load(file)
         return index
-        
-model = SentenceTransformer("all-MiniLM-L6-v2")
-embedder = Embedder(model)
-index = CosineSimilarityIndex(embedder)
-index.initialize(["texte_test.txt"])
-index.save_index("saved_models/test_embedder")
 
-index = CosineSimilarityIndex.load_index("saved_models/test_embedder")
+if __name__ == '__main__' :
+    # model = SentenceTransformer("all-MiniLM-L6-v2")
+    # embedder = Embedder(model)
+    # index = CosineSimilarityIndex(embedder)
+    # index.initialize(["texte_test.txt"])
+    # index.save_index(os.getcwd()+"\\saved_models\\test_embedder")
 
-print(index.retrieve(["Paris", "football", "Science"], 2))
+    index = CosineSimilarityIndex.load_index(os.getcwd()+"/saved_models/test_embedder")
+
+    print(index.retrieve(["Paris", "football", "Science"], 2))
 

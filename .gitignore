@@ -8,4 +8,4 @@ GEMINI.md
 .env
 .venv/
 env/
-save_models
+saved_models
