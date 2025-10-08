@@ -1,108 +1,131 @@
 import google.generativeai as genai
-from typing import Dict, Any, Optional, List
-from .base import LLMAgent
-import json
-import os
+from typing import Optional
+from .base import LLMAgent, rate_limited
+from config_manager import get_config
+
 
 class GeminiAgent(LLMAgent):
-    def __init__(self):
-        """
-        Initialize the Gemini agent by retrieving the API key from environment variables.
+    """Implementation of an agent using Google's Gemini
+    
+    Recommended stable Gemini models (as of October 2025):
+    - "gemini-2.5-flash"         # Fast, stable multimodal model (default)
+    - "gemini-2.5-pro"           # Most capable stable model
+    - "gemini-2.0-flash"         # Alternative fast model
+    - "gemini-pro-latest"        # Latest stable pro model
+    - "gemini-flash-latest"      # Latest stable flash model
+    
+    Note: Model availability changes frequently. Use list_available_models() 
+    to see current available models for your API key.
+    
+    Usage:
+        # List available models
+        GeminiAgent.list_available_models()
         
-        Raises:
-            ValueError: If the API key is missing or invalid
-            ConnectionError: If the connection to the API fails
+        # Use specific model
+        agent = GeminiAgent(model="gemini-2.5-flash")
+    """
+    
+    def __init__(self, model: str = "gemini-2.5-flash"):
+        """Initialize the Gemini agent
+        
+        Args:
+            model: The Gemini model to use (see class docstring for available models)
         """
         super().__init__()
         self.api_key = None
         self.model = None
+        self._model_name = model
         self.generation_config = {
             "temperature": 0.7,
             "top_p": 0.95,
             "top_k": 40,
-            "max_output_tokens": 2048,
+            "max_output_tokens": 1000,
         }
-        
-    def list_available_models(self) -> List[str]:
+
+    @classmethod
+    def list_available_models(cls, api_key: Optional[str] = None):
         """
-        Get a list of all available Gemini models.
+        List all available Gemini models.
         
-        Returns:
-            List[str]: List of model names
+        Args:
+            api_key: Optional API key. If not provided, uses GOOGLE_API_KEY from environment.
             
-        Raises:
-            ConnectionError: If the connection to the API fails
+        Returns:
+            List of available model names
         """
+        if not api_key:
+            config = get_config()
+            api_key = config.get_api_key('GOOGLE_API_KEY')
+            
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY not found in environment variables")
+            
         try:
-            return [model.name for model in genai.list_models()]
+            genai.configure(api_key=api_key)
+            models = list(genai.list_models())
+            
+            print("🤖 Available Gemini Models:")
+            print("=" * 50)
+            
+            for model in models:
+                # Filter for generative models
+                if 'generateContent' in model.supported_generation_methods:
+                    model_name = model.name.replace('models/', '')
+                    print(f"✅ {model_name}")
+                    if hasattr(model, 'description') and model.description:
+                        print(f"   Description: {model.description}")
+                    print()
+                    
+            return [model.name.replace('models/', '') for model in models 
+                   if 'generateContent' in model.supported_generation_methods]
+                   
         except Exception as e:
-            raise ConnectionError(f"Failed to retrieve models list: {str(e)}")
+            print(f"❌ Error listing models: {str(e)}")
+            return []
 
     def initialize(self) -> None:
-        """
-        Initialize the connection to the Gemini API.
-        
-        Raises:
-            ValueError: If the API key is missing or invalid
-            ConnectionError: If the connection to the API fails
-        """
-        # Get API key from environment
-        self.api_key = os.getenv('GOOGLE_API_KEY')
-        if not self.api_key or not isinstance(self.api_key, str):
-            raise ValueError("GOOGLE_API_KEY not found in environment variables or invalid")
+        """Initialize the connection to the Gemini API"""
+        config = get_config()
+        self.api_key = config.get_api_key('GOOGLE_API_KEY')
+        if not self.api_key:
+            raise ValueError("GOOGLE_API_KEY not found in environment variables")
             
         try:
             genai.configure(api_key=self.api_key)
-            
-            # Available Gemini models (as of September 2025):
-            # Text and Code Models:
-            # - models/gemini-pro-latest           # Latest stable version
-            # - models/gemini-2.5-pro             # Base model
-            # - models/gemini-2.5-pro-preview-03-25  # Preview version
-            # - models/gemini-2.5-flash           # Faster, lighter version
-            # - models/gemini-2.5-flash-lite      # Most lightweight version
-            # 
-            # Embedding Models:
-            # - models/embedding-001              # Latest stable embedding
-            # - models/embedding-gecko-001        # Legacy embedding
-            # - models/text-embedding-004         # Latest text embedding
-            # - models/gemini-embedding-001       # Gemini-specific embedding
-            #
-            # Note: Model availability may change. Use list_available_models() to get current list.
-            
-            self.model = genai.GenerativeModel('gemini-2.5-flash')
+            self.model = genai.GenerativeModel(self._model_name)
             # Test connection with a simple prompt
-            self.model.generate_content("Hello")
+            test_response = self.model.generate_content("Hello")
+            if not test_response.text:
+                raise Exception("Model returned empty response")
         except Exception as e:
+            # If the model fails, try to suggest available models
+            print(f"❌ Failed to initialize model '{self._model_name}'")
+            print("🔍 Trying to list available models...")
+            try:
+                available_models = self.list_available_models(self.api_key)
+                if available_models:
+                    print(f"💡 Try using one of these models instead:")
+                    print(f"   agent = GeminiAgent(model='{available_models[0]}')")
+            except:
+                pass
             raise ConnectionError(f"Failed to connect to Gemini API: {str(e)}")
-
-    def process_prompt(self, prompt: str, context: Optional[List[str]] = None) -> str:
-        """
-        Process a prompt using the Gemini API.
-
-        Args:
-            prompt (str): The prompt to process
-            context (Optional[List[str]]): Optional list of code chunks to provide context
-            
-        Returns:
-            str: The response generated by the model
-            
-        Raises:
-            ValueError: If the question is empty
-            Exception: For any other API call errors
-        """
-        if not prompt.strip():
+    
+    @rate_limited()
+    def generate_response(self, question: str, context: Optional[str] = None) -> str:
+        """Generate a response using Gemini"""
+        if not question.strip():
             raise ValueError("Question cannot be empty")
             
+        if not self.model:
+            raise RuntimeError("Agent not initialized. Call initialize() first.")
+            
         try:
-            # Build prompt with context if provided
-            completed_prompt = prompt
+            prompt = question
             if context:
-                context_text = "\n".join(context)
-                completed_prompt = f"Given this context:\n\n{context_text}\n\nQuestion: {prompt}"
+                prompt = f"Given this context:\n\n{context}\n\nQuestion: {question}"
             
             response = self.model.generate_content(
-                completed_prompt,
+                prompt,
                 generation_config=self.generation_config
             )
             
@@ -116,169 +139,11 @@ class GeminiAgent(LLMAgent):
             if "quota" in error_msg.lower():
                 raise Exception("Gemini API quota exceeded. Please try again later.")
             elif "rate" in error_msg.lower():
-                print(error_msg)
                 raise Exception("Gemini API rate limit reached. Please try again in a few seconds.")
             else:
                 raise Exception(f"Error calling Gemini API: {error_msg}")
     
-    def get_embedding(self, text: str) -> List[float]:
-        """
-        Generate an embedding for the given text.
-        
-        Args:
-            text (str): The text to generate an embedding for
-            
-        Returns:
-            List[float]: The generated embedding
-            
-        Raises:
-            ValueError: If text is empty
-            Exception: For any API errors
-        """
-        if not text.strip():
-            raise ValueError("Text cannot be empty")
-            
-        try:
-            # Currently, Gemini doesn't have a direct embedding API
-            # Using the model to generate a numeric representation
-            prompt = f"""Analyze this text and generate a 128-dimensional embedding vector.
-            Each dimension should be a float between -1 and 1.
-            Text to analyze: {text}
-            Output only the JSON array of numbers."""
-            
-            response = self.model.generate_content(
-                prompt,
-                generation_config={**self.generation_config, "temperature": 0.1}
-            )
-            
-            if not response.text:
-                raise Exception("Empty response received from API")
-                
-            try:
-                # Try to parse the response as a list of floats
-                embedding = json.loads(response.text.strip())
-                if isinstance(embedding, list) and len(embedding) == 128:
-                    return embedding
-                else:
-                    return [0.0] * 128  # Return zero vector if parsing fails
-            except json.JSONDecodeError:
-                return [0.0] * 128  # Return zero vector if JSON is invalid
-                
-        except Exception as e:
-            error_msg = str(e)
-            if "quota" in error_msg.lower():
-                raise Exception("Gemini API quota exceeded. Please try again later.")
-            elif "rate" in error_msg.lower():
-                raise Exception("Gemini API rate limit reached. Please try again in a few seconds.")
-            else:
-                raise Exception(f"Error generating embedding: {error_msg}")
-        
-    def extract_metadata(self, code_chunk: str) -> Dict[str, Any]:
-        """
-        Extract metadata from a code chunk using Gemini's code understanding capabilities.
-        
-        Args:
-            code_chunk (str): The code chunk to analyze
-            
-        Returns:
-            Dict[str, Any]: The extracted metadata including functions, variables, etc.
-            
-        Raises:
-            ValueError: If code_chunk is empty
-            Exception: For any API errors
-        """
-        if not code_chunk.strip():
-            raise ValueError("Code chunk cannot be empty")
-            
-        try:
-            # Create a structured prompt for code analysis
-            prompt = f"""Analyze this code chunk and extract metadata in JSON format:
-
-{code_chunk}
-
-Generate a JSON object containing:
-1. Functions: List of function names with their parameters and return types
-2. Variables: List of variable names and their types
-3. Classes: List of class names and their methods
-4. Dependencies: List of imports and dependencies
-5. Documentation: Any docstrings or comments found
-
-Output only valid JSON."""
-
-            response = self.model.generate_content(
-                prompt,
-                generation_config={**self.generation_config, "temperature": 0.1}  # Lower temperature for more precise output
-            )
-            
-            if not response.text:
-                raise Exception("Empty response received from API")
-            
-            try:
-                # Try to parse the response as JSON
-                metadata = json.loads(response.text.strip())
-                return metadata
-            except json.JSONDecodeError:
-                # If JSON parsing fails, return a basic structure
-                return {
-                    "functions": [],
-                    "variables": [],
-                    "classes": [],
-                    "dependencies": [],
-                    "documentation": []
-                }
-                
-        except Exception as e:
-            error_msg = str(e)
-            if "quota" in error_msg.lower():
-                raise Exception("Gemini API quota exceeded. Please try again later.")
-            elif "rate" in error_msg.lower():
-                raise Exception("Gemini API rate limit reached. Please try again in a few seconds.")
-            else:
-                raise Exception(f"Error extracting metadata: {error_msg}")
-            
-    def set_temperature(self, temperature: float) -> None:
-        """
-        Configure the temperature for text generation.
-        
-        Args:
-            temperature (float): Value between 0 (more deterministic) and 1 (more creative)
-            
-        Raises:
-            ValueError: If temperature is not between 0 and 1
-        """
-        if not 0 <= temperature <= 1:
-            raise ValueError("Temperature must be between 0 and 1")
-        self.generation_config["temperature"] = temperature
-        
-    def set_model(self, model_name: str) -> None:
-        """
-        Switch to a different Gemini model.
-        
-        Args:
-            model_name (str): Name of the model to use. Can be either the short name
-                            (e.g., 'gemini-pro-latest') or full name (e.g., 'models/gemini-pro-latest')
-        
-        Raises:
-            ValueError: If the model is not available
-            ConnectionError: If connection to the API fails
-        """
-        try:
-            # Add 'models/' prefix if not present
-            if not model_name.startswith('models/'):
-                model_name = f'models/{model_name}'
-            
-            # Check if model is available
-            available_models = self.list_available_models()
-            if model_name not in available_models:
-                raise ValueError(f"Model '{model_name}' not available. Available models: {', '.join(available_models)}")
-            
-            # Create new model instance
-            self.model = genai.GenerativeModel(model_name)
-            
-            # Test the model
-            self.model.generate_content("Test")
-            
-        except Exception as e:
-            if "not available" in str(e):
-                raise ValueError(str(e))
-            raise ConnectionError(f"Failed to switch to model '{model_name}': {str(e)}")
+    @property
+    def model_name(self) -> str:
+        """Return the model name"""
+        return f"Gemini-{self._model_name}"

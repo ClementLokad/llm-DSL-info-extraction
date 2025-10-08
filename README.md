@@ -1,281 +1,535 @@
-# 🤖 LOKAD Code Analysis AI Assistant
+# 🚀 LLM DSL Information Extraction System
 
-## 🎯 Project Objective
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![FAISS](https://img.shields.io/badge/FAISS-Vector_Search-green.svg)](https://faiss.ai)
+[![AI](https://img.shields.io/badge/AI-GPT%20%7C%20Gemini%20%7C%20Mistral-orange.svg)](https://openai.com)
 
-### Project Structure
+> *Un système sophistiqué d'analyse et d'interrogation de code DSL utilisant l'IA sémantique*
+
+---
+
+## 🎯 Vue d'ensemble du projet
+
+Le **LLM DSL Information Extraction System** est une pipeline complète et modulaire conçue pour analyser, traiter et interroger intelligemment des codebases de langages spécifiques à un domaine (DSL), spécialement optimisée pour **Envision DSL** de Lokad.
+
+### 🔥 Fonctionnalités clés
+
+- 🔍 **Parsing intelligent** - Analyse sémantique des fichiers `.nvn` (Envision DSL)
+- 🧩 **Chunking contextuel** - Segmentation intelligente préservant la cohérence
+- 🎯 **Recherche vectorielle** - Index FAISS haute performance avec similarité cosinus
+- 🤖 **Agents IA multiples** - Support GPT-4, Gemini, et Mistral avec rate limiting
+- ⚙️ **Configuration externalisée** - Tous les paramètres dans `config.yaml`
+- 🧪 **Tests exhaustifs** - Suite de tests par phases avec couverture complète
+- 📊 **Interface CLI professionnelle** - Modes interactif, query, verbose, quiet
+- 💾 **Sessions traçables** - Sauvegarde automatique des requêtes avec métriques
+
+### 🎭 Cas d'usage
+
+- **Exploration de codebase** - Comprendre rapidement une base de code DSL complexe
+- **Documentation automatique** - Génération de documentation à partir du code
+- **Assistance au développement** - Réponses contextuelles sur la logique métier
+- **Analyse de dépendances** - Identification des relations entre composants
+
+---
+
+## 🏗️ Architecture système
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                    🚀 DSL QUERY SYSTEM                         │
+├─────────────────────────────────────────────────────────────────┤
+│  📋 CLI Interface (main.py, test.py, build_index.py)          │
+├─────────────────────────────────────────────────────────────────┤
+│  🤖 AI Agents Layer                                           │
+│  ├── 🧠 GPT Agent      ├── 🔮 Gemini Agent   ├── ⚡ Mistral    │
+├─────────────────────────────────────────────────────────────────┤
+│  🔧 Processing Pipeline                                        │
+│  ├── 📄 Parser  ├── 🧩 Chunker  ├── 🎯 Embedder  ├── 🔍 Retriever │
+├─────────────────────────────────────────────────────────────────┤
+│  💾 Data Layer                                                │
+│  ├── 📁 Source Files    ├── 🗃️ FAISS Index    ├── 📊 Sessions  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 📂 Structure du projet
 
 ```text
 llm-DSL-info-extraction/
-├── agents/                 # AI agents package
-│   ├── __init__.py
-│   ├── base.py            # LLMAgent abstract interface
-│   ├── gpt_agent.py       # OpenAI implementation
-│   ├── mistral_agent.py   # Mistral implementation
-│   └── gemini_agent.py    # Google Gemini implementation
-├── .env.example           # Configuration template
-├── .gitignore            # Files ignored by git
-├── test.py               # Model testing script
-├── requirements.txt       # Python dependencies
-└── README.md             # Documentation
+├── 🎮 main.py                    # Interface utilisateur principale
+├── 🔨 build_index.py            # Construction d'index FAISS
+├── 🧪 test.py                   # Suite de tests complète
+├── ⚙️ config.yaml               # Configuration système
+├── 🔧 config_manager.py         # Gestionnaire de configuration
+├── 📄 requirements.txt          # Dépendances Python
+├── 🔐 .env                      # Clés API (sensible)
+├── 📖 README.md                 # Documentation principale
+│
+├── 🤖 agents/                   # Agents IA
+│   ├── 📋 AGENTS.md             # Documentation agents
+│   ├── 🔧 base.py               # Interface abstraite
+│   ├── 🧠 gpt_agent.py          # Agent OpenAI GPT
+│   ├── 🔮 gemini_agent.py       # Agent Google Gemini
+│   ├── ⚡ mistral_agent.py      # Agent Mistral AI
+│   └── 🧪 test_agents.py        # Tests des agents
+│
+├── 🔄 pipeline/                 # Pipeline de traitement
+│   ├── 📋 PIPELINE.md           # Documentation pipeline
+│   ├── 🏗️ core/                # Classes de base
+│   │   ├── 📄 base_parser.py    # Interface parser
+│   │   ├── 🧩 base_chunker.py   # Interface chunker
+│   │   ├── 🎯 base_embedder.py  # Interface embedder
+│   │   ├── 🔍 base_retriever.py # Interface retriever
+│   │   └── 📊 session.py        # Gestion des sessions
+│   ├── 📄 parsers/              # Analyseurs syntaxiques
+│   │   └── 🔧 envision_parser.py # Parser Envision DSL
+│   ├── 🧩 chunkers/             # Segmenteurs sémantiques
+│   │   └── 🎯 semantic_chunker.py # Chunker contextuel
+│   ├── 🎯 embedders/            # Générateurs d'embeddings
+│   │   ├── 🤖 sentence_transformer_embedder.py
+│   │   ├── 🧠 openai_embedder.py
+│   │   └── 🔮 gemini_embedder.py
+│   ├── 🔍 retrievers/           # Moteurs de recherche
+│   │   └── ⚡ faiss_retriever.py # Recherche FAISS
+│   └── 🧪 tests/               # Tests par composant
+│
+├── 💾 data/                     # Données et index
+│   ├── 🗃️ faiss_index/         # Index FAISS sauvegardé
+│   └── 📊 sessions/            # Sessions de requêtes
+│
+├── 📁 env_scripts/             # Fichiers source .nvn
+└── 📄 env_txt/                 # Fichiers source .txt
 ```
 
-This project aims to create an advanced system to assist **LOKAD**'s *Supply Chain Scientists*. The goal is to help them navigate, understand, and query a complex codebase written in **Envision**, LOKAD's proprietary language, using natural language questions.
+---
 
-* **Client**: [LOKAD](https://www.lokad.com)
-* **Framework**: Collective Scientific Project (PSC) - École Polytechnique (X24)
+## 🚀 Démarrage rapide
 
-## 💻 Prerequisites
-
-Before starting, make sure you have:
-
-* Python 3.10 or higher installed
-* pip (Python package manager)
-* Git
-* OpenAI API key (to use GPT-4)
-* Mistral AI API key (to use Mistral)
-* Google AI Studio API key (to use Gemini)
-
-### Getting API Keys
-
-1. **OpenAI (for GPT)**
-   * Create an account on [OpenAI Platform](https://platform.openai.com)
-   * Go to the API Keys section to create your key
-
-2. **Mistral AI**
-   * Sign up on [Mistral AI](https://mistral.ai)
-   * Generate your API key in account settings
-
-3. **Google AI Studio (for Gemini)**
-   * Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
-   * Create a project if needed
-   * Generate an API key in the "API & Services" section
-
-## 🚀 Installation and Setup
-
-### 1. Clone the repository
+### 1. 📦 Installation
 
 ```bash
+# Cloner le repository
 git clone https://github.com/ClementLokad/llm-DSL-info-extraction.git
 cd llm-DSL-info-extraction
-```
 
-### 2. Python Environment Setup
-
-Create and activate the virtual environment:
-
-On Windows:
-
-```bash
+# Créer et activer l'environnement virtuel
 python -m venv env
-.\env\Scripts\activate
-```
+.\env\Scripts\Activate.ps1  # Windows PowerShell
+# source env/bin/activate    # Linux/Mac
 
-On Unix/macOS:
-
-```bash
-python -m venv env
-source env/bin/activate
-```
-
-### 3. Installing Dependencies
-
-Update pip and install dependencies:
-
-```bash
-python -m pip install --upgrade pip
+# Installer les dépendances
 pip install -r requirements.txt
 ```
 
-### 4. Configuration des API Keys
-
-1. Copy the configuration file:
+### 2. ⚙️ Configuration
 
 ```bash
-# On Windows
-copy .env.example .env
-
-# On Unix/macOS
+# Copier et configurer les variables d'environnement
 cp .env.example .env
+
+# Éditer .env avec vos clés API
+GOOGLE_API_KEY=your-gemini-api-key-here
+OPENAI_API_KEY=your-openai-api-key-here  
+MISTRAL_API_KEY=your-mistral-api-key-here
 ```
 
-2. Configure your API keys:
-   * Create an account on [OpenAI Platform](https://platform.openai.com)
-   * Sign up on [Mistral AI](https://mistral.ai)
-   * Create an account on [Google AI Studio](https://makersuite.google.com/app/apikey)
-   * Edit the `.env` file with your keys:
-
-```env
-OPENAI_API_KEY=your-openai-api-key
-MISTRAL_API_KEY=your-mistral-api-key
-GOOGLE_API_KEY=your-google-api-key
-```
-
-### 5. Testing the Models
-
-A test script is provided to verify the proper functioning of the different models:
+### 3. 🔨 Construction de l'index de recherche
 
 ```bash
+# Construction automatique (recommandée)
+python build_index.py
+
+# Options avancées
+python build_index.py --force        # Force la reconstruction
+python build_index.py --quiet        # Mode silencieux
+python build_index.py --check        # Vérifier l'état de l'index
+```
+
+### 4. 🎮 Lancement du système
+
+```bash
+# Mode interactif (par défaut)
+python main.py
+
+# Requête directe
+python main.py --query "What is MOV in the suppliers table?"
+
+# Mode verbose avec détails
+python main.py --verbose --query "explain business logic"
+
+# Mode quiet pour scripts
+python main.py --quiet --query "data flow"
+
+# Vérifier le statut du système
+python main.py --status
+```
+
+---
+
+## 💻 Exemples d'utilisation
+
+### 🎯 Mode interactif
+
+```bash
+python main.py --interactive
+```
+
+```text
+🚀 INITIALIZING DSL QUERY SYSTEM
+============================================================
+🔧 Initializing pipeline components...
+   ✅ Parser: ['.nvn']
+   ✅ Chunker: max_tokens=512
+   ✅ Embedder: model=all-MiniLM-L6-v2
+   ✅ Retriever: metric=cosine
+🤖 Initializing AI agent...
+   ✅ Mistral-mistral-large-latest initialized
+📚 Loading knowledge index...
+✅ Index loaded: {vectors: 2847, chunks: 2847, dimensions: 384}
+✅ System initialized and ready
+============================================================
+
+💬 DSL Query System - Interactive Mode
+Type 'help' for commands, 'quit' to exit
+
+👤 You: What is the MOV field in suppliers?
+🤖 DSL: Based on the code analysis, MOV appears to be a numeric field 
+representing "Minimum Order Value" - the smallest monetary amount 
+required per supplier order. It's validated with `Suppliers.MOV > 0` 
+to ensure positive values...
+```
+
+### 📊 Mode verbose avec analyse détaillée
+
+```bash
+python main.py --verbose --query "explain the business logic for customer tiers"
+```
+
+```text
+🔍 PROCESSING QUERY
+============================================================
+📝 Query: explain the business logic for customer tiers
+🤖 Agent: mistral
+📊 Top-K chunks: 5
+------------------------------------------------------------
+🔤 Query embedding: (384,) dimensions (0.124s)
+🔍 Retrieved 5 chunks in 0.001s
+
+📋 RETRIEVED CHUNKS ANALYSIS:
+================================================================================
+[1] Score: 0.8432
+    Content: when Sales.Revenue > 1000 then "Premium"
+             when Sales.Revenue > 500 then "Gold"  
+             when Sales.Revenue > 100 then "Silver"
+             else "Bronze"
+    Metadata: {'section': 'business_rules', 'type': 'conditional'}
+[2] Score: 0.7891
+    Content: Sales.CustomerTier = // Customer tier classification...
+--------------------------------------------------------------------------------
+📝 Prepared context from 5 chunks in 0.000s
+🤖 Querying MistralAgent...
+📄 Input prompt length: 1247 characters
+💬 LLM responded in 2.341s
+
+🎯 FINAL RESULTS:
+================================================================================
+📊 PROCESSING SUMMARY:
+   • Query: explain the business logic for customer tiers
+   • Retrieved chunks: 5
+   • Context length: 1247 chars
+   • Response length: 856 chars
+
+⏱️ TIMING BREAKDOWN:
+   • embedding: 0.124s
+   • retrieval: 0.001s
+   • context_preparation: 0.000s
+   • llm_query: 2.341s
+   • total: 2.471s
+
+💬 LLM RESPONSE:
+--------------------------------------------------------------------------------
+The customer tier classification system uses a revenue-based hierarchy...
+💾 Session saved to: data/sessions/session_20251005_143521.json
+```
+
+### 🧪 Tests et validation
+
+```bash
+# Tests complets du système
 python test.py
+
+# Tests par catégorie
+python test.py --categories config,agents,pipeline
+
+# Export des résultats
+python test.py --export test_results.json
+
+# Mode quiet pour CI/CD
+python test.py --quiet
 ```
 
-To choose which model to test, modify the `MODEL_NAME` variable in `test.py`:
+```text
+🧪 DSL QUERY SYSTEM - COMPREHENSIVE TEST SUITE
+================================================================
+📊 Test Results Summary:
+   • Config Tests: ✅ 2/2 passed (100.0%)
+   • Agent Tests: ✅ 1/1 passed (100.0%)  
+   • Pipeline Tests: ✅ 1/1 passed (100.0%)
+   • Index Tests: ✅ 2/2 passed (100.0%)
+   • Quality Tests: ✅ 2/2 passed (100.0%)
+   • Integration Tests: ✅ 1/1 passed (100.0%)
+
+🎯 OVERALL SUCCESS RATE: 9/9 tests passed (100.0%)
+⏱️ Total execution time: 3.247s
+💾 Results exported to: test_results.json
+```
+
+---
+
+## 🔧 Configuration avancée
+
+### 📋 Structure config.yaml
+
+```yaml
+# Configuration principale dans config.yaml
+agent:
+  default_model: "mistral"  # "gemini", "gpt", "mistral"
+
+parser:
+  type: "envision"
+  supported_extensions: [".nvn"]
+
+chunker:
+  type: "semantic"
+  max_chunk_tokens: 512
+  strategies:
+    group_by_section: true
+    group_related_assignments: true
+
+embedder:
+  default_type: "sentence_transformer"
+  sentence_transformer:
+    model_name: "all-MiniLM-L6-v2"
+    device: "cpu"  # "auto", "cpu", "cuda"
+
+retriever:
+  type: "faiss"
+  faiss:
+    index_type: "IndexFlatIP"  # Exact search
+    top_k: 10
+    search_threshold: 0.7
+```
+
+### 🎯 Optimisation des performances
+
+```yaml
+# Pour datasets volumineux (>100K chunks)
+retriever:
+  faiss:
+    index_type: "IndexHNSWFlat"  # Approximate but fast
+    hnsw_m: 16
+    hnsw_ef_search: 64
+    use_gpu: true  # Requires faiss-gpu
+
+# Pour haute précision
+retriever:
+  faiss:
+    index_type: "IndexFlatIP"  # Exact search
+    search_threshold: 0.8  # Plus strict
+```
+
+---
+
+## 🧠 Philosophie d'implémentation
+
+### 🏗️ Architecture modulaire et évolutive
+
+Le système suit une **architecture en couches** avec des **interfaces abstraites** permettant l'extension facile :
+
+- **🔌 Extensibilité** - Nouveaux parsers, embedders, retrievers par simple héritage
+- **⚙️ Configuration externalisée** - Tous les paramètres dans `config.yaml`
+- **🧪 Test-driven** - Chaque composant testé individuellement et en intégration
+- **📊 Observabilité** - Sessions traçables avec métriques détaillées
+- **🔒 Sécurité** - Clés API isolées, validation des entrées
+
+### 🎯 Patterns de conception utilisés
+
+```text
+🏗️ Strategy Pattern    → Agents IA interchangeables
+🔧 Factory Pattern     → Création dynamique de composants  
+📋 Template Method     → Pipeline de traitement standardisé
+🎭 Adapter Pattern     → Intégration APIs diverses
+📊 Observer Pattern    → Logging et métriques
+🔌 Plugin Architecture → Extensions modulaires
+```
+
+---
+
+## 🛠️ Guide de développement
+
+### 🔧 Ajouter un nouvel agent IA
+
 ```python
-# Possible values: 'gpt', 'mistral', 'gemini'
-MODEL_NAME = 'gpt'  # Change this value according to the model you want to test
+# agents/claude_agent.py
+from agents.base import LLMAgent, rate_limited
+
+class ClaudeAgent(LLMAgent):
+    def __init__(self, config: dict):
+        self.api_key = config.get('claude_api_key')
+        self.model = config.get('model', 'claude-3-sonnet')
+  
+    def initialize(self) -> None:
+        # Initialiser le client Claude
+        pass
+  
+    @rate_limited(max_retries=3)
+    def generate_response(self, question: str, context: str = None) -> str:
+        # Implémenter la logique de génération
+        pass
 ```
 
-Characteristics of different models:
-
-1. **GPT (OpenAI)**
-   * Most mature model
-   * Excellent context understanding
-   * Advanced multilingual support
-
-2. **Mistral**
-   * Open source alternative
-   * Good overall performance
-   * Lightweight and efficient model
-
-3. **Gemini (Google)**
-   * Latest generation from Google
-   * Excellent code understanding
-   * Adjustable generation parameters
-
-If no errors appear during the test, your environment is ready!
-
-### Usage Examples
+### 🔧 Ajouter un nouveau type d'embedder
 
 ```python
-# Example with GPT-4
-from agents import GPTAgent
+# pipeline/embedders/custom_embedder.py
+from pipeline.core.base_embedder import BaseEmbedder
 
-agent = GPTAgent("your-openai-api-key")
-response = agent.process_question("What does the `calculate_stock_level` function do?")
-print(response)
-
-# Example with Mistral
-from agents import MistralAgent
-
-agent = MistralAgent("your-mistral-api-key")
-response = agent.process_question("Explain the code of the `optimize_forecast` function")
-print(response)
-
-# Example with Gemini
-from agents import GeminiAgent
-
-agent = GeminiAgent("your-google-api-key")
-# Temperature customization (0 = more precise, 1 = more creative)
-agent.set_temperature(0.7)
-response = agent.process_question("Analyze the `validate_input_data` function")
-print(response)
-
-# Metadata extraction with Gemini
-metadata = agent.extract_metadata("def calculate_total(items: List[Item]) -> float:")
-print(metadata)  # Display structured code metadata
+class CustomEmbedder(BaseEmbedder):
+    def initialize(self) -> None:
+        # Charger le modèle custom
+        pass
+  
+    def embed_text(self, text: str) -> np.ndarray:
+        # Logique d'embedding personnalisée
+        return embeddings
 ```
 
-### Advanced Configuration
-
-#### Gemini Generation Parameters
-
-The Gemini agent offers configurable parameters to adjust text generation:
+### 🔧 Étendre le parser pour un nouveau DSL
 
 ```python
-from agents import GeminiAgent
+# pipeline/parsers/sql_parser.py  
+from pipeline.core.base_parser import BaseParser, CodeBlock
 
-agent = GeminiAgent("your-google-api-key")
-
-# Temperature adjustment (creativity)
-agent.set_temperature(0.3)  # More conservative
-agent.set_temperature(0.9)  # More creative
-
-# Default parameters are:
-# temperature = 0.7
-# top_p = 0.95
-# top_k = 40
-# max_output_tokens = 2048
+class SQLParser(BaseParser):
+    @property
+    def supported_extensions(self) -> List[str]:
+        return [".sql"]
+  
+    def parse_content(self, content: str, file_path: str) -> List[CodeBlock]:
+        # Parser SQL personnalisé
+        pass
 ```
 
-### Detailed File Structure
+---
 
+## 🧪 Tests et qualité
+
+### 📊 Structure des tests
+
+```text
+🧪 Tests par phases :
+├── 📄 Phase 1 - Parsing      : Extraction code blocks
+├── 🧩 Phase 2 - Chunking     : Segmentation sémantique  
+├── 🎯 Phase 3 - Embedding    : Génération embeddings
+├── 🔍 Phase 4 - Retrieval    : Index et recherche
+├── ⚙️ Configuration          : Validation paramètres
+└── 🔗 Integration            : Tests end-to-end
 ```
-llm-DSL-info-extraction/
-├── agents/                 # AI agents package
-│   ├── __init__.py
-│   ├── base.py            # LLMAgent abstract interface
-│   ├── gpt_agent.py       # OpenAI implementation
-│   └── mistral_agent.py   # Mistral implementation
-├── .env.example           # Configuration template
-├── .gitignore            # Files ignored by git
-├── requirements.txt       # Python dependencies
-└── README.md             # Documentation
-```
 
-### System Requirements
-
-Before starting, make sure you have:
-
-* Python 3.10 or higher installed
-* pip (Python package manager)
-* Git
-* OpenAI API key (to use GPT-4) (at least one API key)
-* Mistral AI API key (to use Mistral) (at least one API key)
-
-### Setup Instructions
-
-1. **Clone the repository**
+### 🎯 Métriques de qualité
 
 ```bash
-git clone https://github.com/ClementLokad/llm-DSL-info-extraction.git
-cd llm-DSL-info-extraction
+# Couverture des tests
+python test.py --categories quality
+
+# Performance benchmarks
+python test.py --categories integration --verbose
+
+# Validation configuration
+python test.py --categories config
 ```
 
-2. **Create a Python virtual environment**
+---
+
+## 📈 Métriques et monitoring
+
+### 📊 Sessions de query traçables
+
+Chaque requête est automatiquement sauvegardée avec :
+
+```json
+{
+  "session_id": "session_20251005_143521",
+  "query": "What is MOV?",
+  "timestamp": "2025-10-05T14:35:21",
+  "retrieved_chunks": [...],
+  "context_added": "...",
+  "llm_response": "...",
+  "timing": {
+    "embedding": 0.124,
+    "retrieval": 0.001, 
+    "llm_query": 2.341,
+    "total": 2.471
+  },
+  "steps": [...]
+}
+```
+
+### ⚡ Métriques de performance
+
+- **Embedding** : ~0.1s par requête (CPU)
+- **Retrieval** : ~0.001s pour 1000 chunks (FAISS)
+- **LLM Query** : 1-5s selon le modèle
+- **Memory** : ~500MB pour index 1000 chunks
+
+---
+
+## 🚨 Troubleshooting
+
+### ❌ Erreurs communes
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Unix/macOS
-# or
-.\venv\Scripts\activate   # On Windows
+# Erreur: sentence-transformers non installé
+pip install sentence-transformers
+
+# Erreur: Clé API manquante
+# Vérifier .env et config.yaml
+
+# Erreur: Index FAISS corrompu
+python build_index.py --force
+
+# Performance lente
+# Utiliser GPU : pip install faiss-gpu
+# Ou réduire la taille des chunks dans config.yaml
 ```
 
-3. **Install dependencies**
+### 🔧 Debug et diagnostics
 
 ```bash
-pip install -r requirements.txt
+# Mode verbose pour debugging
+python main.py --verbose --query "test"
+
+# Vérifier état du système
+python main.py --status
+
+# Tests de santé complets
+python test.py --categories integration
 ```
 
-4. **Configure environment variables**
+---
 
-```bash
-# Copy example file
-cp .env.example .env
+## 🤝 Contribution
 
-# Edit .env with your API keys
-# You will need:
-# - OpenAI API key (https://platform.openai.com)
-# - Mistral AI API key (https://mistral.ai)
-```
+### 📋 Guidelines
 
-## 🔄 Pipeline Architecture
+1. **🔧 Development** - Suivre les patterns existants
+2. **🧪 Testing** - Tests pour chaque nouvelle feature
+3. **📖 Documentation** - Mettre à jour les .md
+4. **⚙️ Configuration** - Externaliser les paramètres
 
-Here's the target architecture that will be developed:
+---
 
-### 1. 📚 Knowledge Preparation Flow (Offline)
+## 📝 Licence
 
-This flow prepares the knowledge base from raw Envision scripts.
+Ce projet est sous licence PRIVATE LICENSE AGREEMENT. Voir [LICENSE](LICENSE) pour plus de détails.
 
-* **`Data Base`**: The collection of `.nvm` scripts provided by LOKAD.
-* **`Parser`**: An intelligent module that analyzes scripts, segments them into logical chunks, and extracts metadata (functions, variables, etc.).
-* **`RAG (Retrieval Augmented Generation)`**: A vector database (e.g., FAISS) that indexes chunks and metadata for fast semantic search.
-
-### 2. 💡 Execution and Evaluation Flow (Online)
-
-This flow handles user requests and generates validated responses.
-
-* **`Question`**: The user's question in natural language.
-* **`Engineered Prompt`**: An "augmented" prompt that combines the question with the most relevant code chunks retrieved by the `RAG`.
-* **`Main LLM`**: The main language model (e.g., GPT-4) that generates a response from the prompt.
-* **`Logic Checker`**: A verification module that checks the syntax and logical consistency of the response. It enables a **correction loop** in case of errors.
-* **`Final Answer`**: The final response, validated and presented to the user.
-* **`Answer Grader (Scorer)`** : Un évaluateur qui note la qualité de la réponse finale en la comparant à une réponse de référence (utilisé pour le benchmark).
+---
