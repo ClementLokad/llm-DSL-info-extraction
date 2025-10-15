@@ -12,15 +12,10 @@ faiss-cpu>=1.7.4
 # Configuration and utilities
 pyyaml>=6.0
 python-dotenv>=1.0.0
-numpy>=1.24.0 
-faiss-cpu>=1.7.4  # For vector database
-pandas>=2.0.0 
-tiktoken>=0.5.1  # For OpenAI token counting
-typing-extensions>=4.7.0  # For advanced type support
-google-generativeai>=0.3.1  # For Google Gemini API
-sentence-transformers>=5.0.0  # For text embeddings
+typing-extensions>=4.7.0
 
-
-# Optional: For advanced text processing
-# spacy>=3.6.0  # Uncomment if needed for advanced NLP
-# nltk>=3.8  # Uncomment if needed for text processing
+# For benchmarking and evaluation
+# langsmith>=0.1.0
+# langchain>=0.1.0
+# plotly>=5.0.0
+# pandas>=2.0.0

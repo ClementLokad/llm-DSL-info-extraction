@@ -89,7 +89,7 @@ show table "Test" with
         print("📁 Testing file parsing...")
         
         # Look for test files
-        test_dirs = ["env_scripts"]
+        test_dirs = self.config_manager.get('paths.test_dirs', ["env_scripts"])
         test_file = None
         
         for test_dir in test_dirs:

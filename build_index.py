@@ -261,7 +261,7 @@ class IndexBuilder:
     def build_complete_index(self, input_dirs: List[str] = None) -> bool:
         """Build complete index with default directories."""
         if input_dirs is None:
-            input_dirs = ["env_scripts", "env_txt"]
+            input_dirs = self.config_manager.get('paths.input_dirs', ["env_scripts"])
         
         return self.run(input_dirs)
 
@@ -318,8 +318,10 @@ Examples:
                 print(f"❌ Index not found at: {index_path}")
             return 1
     
-    # Default input directories
-    input_dirs = args.input_dir or ["env_scripts", "env_txt"]
+    # Default input directories from config
+    config_manager = ConfigManager()
+    default_input_dirs = config_manager.get('paths.input_dirs', ["env_scripts"])
+    input_dirs = args.input_dir or default_input_dirs
     
     # Validate input directories exist
     for input_dir in input_dirs:

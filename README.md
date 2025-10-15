@@ -30,6 +30,13 @@ Le **LLM DSL Information Extraction System** est une pipeline complète et modul
 - **Assistance au développement** - Réponses contextuelles sur la logique métier
 - **Analyse de dépendances** - Identification des relations entre composants
 
+### 📋 Prérequis
+
+- **Python 3.8+** avec pip et venv
+- **Fichiers Envision DSL** (`.nvn`) dans le dossier `env_scripts/`
+- **Clé API** pour au moins un agent (Mistral, GPT, ou Gemini)
+- **~500MB RAM** pour l'index vectoriel
+
 ---
 
 ## 🏗️ Architecture système
@@ -96,8 +103,10 @@ llm-DSL-info-extraction/
 │   ├── 🗃️ faiss_index/         # Index FAISS sauvegardé
 │   └── 📊 sessions/            # Sessions de requêtes
 │
-├── 📁 env_scripts/             # Fichiers source .nvn
-└── 📄 env_txt/                 # Fichiers source .txt
+├── 📁 env_scripts/             # 📄 Fichiers Envision DSL (.nvn)
+│   ├── 67982.nvn               # ⚠️ À ajouter manuellement
+│   ├── 68000.nvn               # Script d'exemple
+│   └── ...                     # Vos autres scripts .nvn
 ```
 
 ---
@@ -120,7 +129,37 @@ python -m venv env
 pip install -r requirements.txt
 ```
 
-### 2. ⚙️ Configuration
+### 2. 📁 Configuration des fichiers sources
+
+**⚠️ IMPORTANT** : Le système nécessite des scripts Envision (`.nvn`) pour fonctionner.
+
+```bash
+# Créer le dossier pour les scripts Envision
+mkdir env_scripts
+
+# Copier vos fichiers .nvn dans ce dossier
+cp /path/to/your/scripts/*.nvn env_scripts/
+```
+
+#### 🔧 Configuration personnalisée des dossiers
+
+Pour utiliser un dossier différent, modifiez `config.yaml` :
+
+```yaml
+paths:
+  # Dossiers contenant les scripts .nvn
+  input_dirs: ["mes_scripts", "autre_dossier"]  # Au lieu de ["env_scripts"]
+  test_dirs: ["mes_scripts", "autre_dossier"]   # Pour les tests
+```
+
+**Notes importantes :**
+
+- ✅ Le nom du dossier est configurable dans `config.yaml`
+- ✅ Plusieurs dossiers peuvent être utilisés simultanément  
+- ✅ Les fichiers doivent avoir l'extension `.nvn` (Envision DSL)
+- ❌ Le système ne peut pas fonctionner sans fichiers sources
+
+### 3. ⚙️ Configuration des API
 
 ```bash
 # Copier et configurer les variables d'environnement
@@ -132,7 +171,7 @@ OPENAI_API_KEY=your-openai-api-key-here
 MISTRAL_API_KEY=your-mistral-api-key-here
 ```
 
-### 3. 🔨 Construction de l'index de recherche
+### 4. 🔨 Construction de l'index de recherche
 
 ```bash
 # Construction automatique (recommandée)
@@ -144,7 +183,7 @@ python build_index.py --quiet        # Mode silencieux
 python build_index.py --check        # Vérifier l'état de l'index
 ```
 
-### 4. 🎮 Lancement du système
+### 5. 🎮 Lancement du système
 
 ```bash
 # Mode interactif (par défaut)
@@ -294,9 +333,14 @@ python test.py --quiet
 agent:
   default_model: "mistral"  # "gemini", "gpt", "mistral"
 
+# Configuration des dossiers sources
+paths:
+  input_dirs: ["env_scripts"]  # Dossiers contenant les fichiers .nvn
+  test_dirs: ["env_scripts"]   # Dossiers pour les tests
+
 parser:
   type: "envision"
-  supported_extensions: [".nvn"]
+  supported_extensions: [".nvn"]  # Fichiers Envision DSL
 
 chunker:
   type: "semantic"
@@ -488,6 +532,14 @@ Chaque requête est automatiquement sauvegardée avec :
 ### ❌ Erreurs communes
 
 ```bash
+# Erreur: Aucun fichier source trouvé
+# → Vérifier que le dossier env_scripts/ contient des fichiers .nvn
+# → Ou modifier paths.input_dirs dans config.yaml
+
+# Erreur: Input directory not found: env_scripts
+# → Créer le dossier: mkdir env_scripts
+# → Ou changer le nom dans config.yaml
+
 # Erreur: sentence-transformers non installé
 pip install sentence-transformers
 

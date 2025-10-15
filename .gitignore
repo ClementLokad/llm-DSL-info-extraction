@@ -6,8 +6,6 @@
 # SENSITIVE DATA & API KEYS
 # =============================================================================
 .env
-.venv/
-saved_models
 
 # =============================================================================
 # PYTHON RUNTIME & CACHE FILES
@@ -39,10 +37,12 @@ data/sessions/
 # =============================================================================
 # Source data directories (may contain proprietary DSL files)
 env_scripts/
-env_txt/
 
 # Test outputs
 test_results.json
+
+# To ignore local models
+saved_models/
 
 
 # =============================================================================

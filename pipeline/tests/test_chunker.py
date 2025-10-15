@@ -51,7 +51,7 @@ class TestSemanticChunker:
         
         # Try to parse a real file first
         try:
-            test_dirs = ["env_scripts"]
+            test_dirs = self.config_manager.get('paths.test_dirs', ["env_scripts"])
             for test_dir in test_dirs:
                 test_path = project_root / test_dir
                 if test_path.exists():

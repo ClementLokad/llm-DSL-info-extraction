@@ -175,24 +175,31 @@ class DSLQuerySystem:
             import time
             
             # Use the same pipeline components
-            input_dir = Path("env_scripts")
-            if not input_dir.exists():
-                raise FileNotFoundError(f"Input directory not found: {input_dir}")
-                
-            # Step 1: Parse files
+            input_dirs = self.config_manager.get('paths.input_dirs', ["env_scripts"])
             all_code_blocks = []
-            files = list(input_dir.glob("*.nvn"))
             
-            for file_path in files:
-                try:
-                    blocks = self.parser.parse_file(str(file_path))
-                    all_code_blocks.extend(blocks)
-                except Exception as e:
+            # Step 1: Parse files from all input directories
+            total_files = 0
+            for input_dir_name in input_dirs:
+                input_dir = Path(input_dir_name)
+                if not input_dir.exists():
                     if verbose:
-                        print(f"⚠️ Error parsing {file_path.name}: {e}")
+                        print(f"⚠️ Input directory not found: {input_dir}")
+                    continue
+                    
+                files = list(input_dir.glob("*.nvn"))
+                total_files += len(files)
+                
+                for file_path in files:
+                    try:
+                        blocks = self.parser.parse_file(str(file_path))
+                        all_code_blocks.extend(blocks)
+                    except Exception as e:
+                        if verbose:
+                            print(f"⚠️ Error parsing {file_path.name}: {e}")
                         
             if verbose:
-                print(f"• Parsed {len(files)} files → {len(all_code_blocks)} blocks")
+                print(f"• Parsed {total_files} files → {len(all_code_blocks)} blocks")
                 
             # Step 2: Chunk blocks
             chunks = self.chunker.chunk_blocks(all_code_blocks)

@@ -17,14 +17,18 @@ agent:
 # =============================================================================
 paths:
   # Base directories
-  logs_dir: "logs"
-  cache_dir: "cache"
-  debug_dir: "debug"
-  profiles_dir: "profiles"
+  # logs_dir: "logs"
+  # cache_dir: "cache"
+  # debug_dir: "debug"
+  # profiles_dir: "profiles"
   data_dir: "data"
   
+  # Source directories for processing
+  input_dirs: ["env_scripts"]  # Default directories to process for indexing and testing
+  test_dirs: ["env_scripts"]   # Directories used for testing components
+  
   # File extensions
-  log_extension: ".log"
+  # log_extension: ".log"
   pickle_extension: ".pkl" 
   index_extension: ".index"
   json_extension: ".json"
