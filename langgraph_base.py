@@ -1,6 +1,5 @@
-import operator
 from typing import TypedDict, List, Optional, Dict, Any, Tuple
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph, START
 
 # --- 1. Define Graph State ---
 # The state is a dictionary that flows through the graph.
@@ -31,7 +30,21 @@ class GraphState(TypedDict):
     error_detected: bool
     error_count: int
     grade: Optional[Dict[str, Any]]
-    benchmark_results: Optional[Dict[str, Any]]
+
+class BenchmarkState(TypedDict):
+    """
+    Represents the state for benchmarking multiple Q/A pairs.
+
+    Attributes:
+        qa_pairs: List of (question, reference_answer) pairs.
+        grades: List of grading results for each Q/A pair.
+        benchmark_results: Aggregated results from the benchmark.
+        sub_rag_system: The sub-graph handling individual Q/A processing.
+    """
+    qa_pairs: List[Tuple[str, str]]
+    grades: List[Dict[str, Any]]
+    benchmark_results: Dict[str, Any]
+    sub_rag_system: StateGraph
 
 
 # --- 2. Define Graph Nodes ---
@@ -128,19 +141,55 @@ def grade_answer(state: GraphState) -> GraphState:
     
     return {"grade": grade}
 
-def run_benchmark(state: GraphState) -> GraphState:
+def run_qa_pairs(state: BenchmarkState) -> BenchmarkState:
+    """
+    Node: 'Run Q/A Pairs'
+    Executes the sub-graph for each Q/A pair and collects grades.
+    """
+    print("--- NODE: Run Q/A Pairs ---")
+    qa_pairs = state["qa_pairs"]
+    sub_rag_system = state["sub_rag_system"]
+    
+    grades = []
+    
+    for question, reference_answer in qa_pairs:
+        print(f"    -> Processing Q/A pair: {question} / {reference_answer}")
+        # Initialize state for the sub-graph
+        sub_state: GraphState = {
+            "question": question,
+            "reference_answer": reference_answer,
+            "retrieved_context": [],
+            "prompt": "",
+            "generation": "",
+            "final_answer": None,
+            "error_detected": False,
+            "error_count": 0,
+            "grade": None
+        }
+        
+        app = sub_rag_system.compile()
+        
+        # Execute the sub-graph
+        final_state = app.invoke(sub_state)
+
+        # Collect the grade
+        grades.append(final_state["grade"])
+    
+    return {"grades": grades}
+
+def run_benchmark(state: BenchmarkState) -> BenchmarkState:
     """
     Node: 'Benchmark'
-    Aggregates the score. In a real case, this node might aggregate
-    scores over multiple Q/A pairs.
+    Aggregates grades from multiple Q/A pairs into benchmark results.
     """
     print("--- NODE: Benchmark ---")
-    grade = state["grade"]
+    grades = state["grades"]
     
     # ... Your benchmark aggregation logic ...
-    
-    benchmark_results = {"average_score": grade["score"]} # Placeholder
-    
+
+    benchmark_results = {"average_score": sum(grade["score"] for grade in grades)
+                         / len(grades)} # Placeholder
+
     return {"benchmark_results": benchmark_results}
 
 
@@ -168,66 +217,96 @@ def decide_after_logic_check(state: GraphState) -> str:
 
 # --- 4. Assemble the Graph ---
 
-# Initialize the graph
-workflow = StateGraph(GraphState)
+def build_single_qa_graph() -> StateGraph:
+    """
+    Builds a simplified graph for single Q/A without benchmarking.
+    """
 
-# Add nodes to the graph
-workflow.add_node("retrieve_documents", retrieve_documents)
-workflow.add_node("engineer_prompt", engineer_prompt)
-workflow.add_node("generate_answer", generate_answer)
-workflow.add_node("check_logic", check_logic)
-workflow.add_node("grade_answer", grade_answer)
-workflow.add_node("run_benchmark", run_benchmark)
+    # Initialize the graph
+    workflow = StateGraph(GraphState)
 
-# Define the entry point
-# The flow starts with document retrieval
-workflow.set_entry_point("retrieve_documents")
+    # Add nodes to the graph
+    workflow.add_node("retrieve_documents", retrieve_documents)
+    workflow.add_node("engineer_prompt", engineer_prompt)
+    workflow.add_node("generate_answer", generate_answer)
+    workflow.add_node("check_logic", check_logic)
+    workflow.add_node("grade_answer", grade_answer)
 
-# Add edges (connections)
-workflow.add_edge("retrieve_documents", "engineer_prompt")
-workflow.add_edge("engineer_prompt", "generate_answer")
-workflow.add_edge("generate_answer", "check_logic")
+    # Define the entry point
+    # The flow starts with document retrieval
+    workflow.add_edge(START, "retrieve_documents")
 
-# Add the conditional edge
-workflow.add_conditional_edges(
-    "check_logic",  # Source node
-    decide_after_logic_check, # Decision function
-    {
-        # 'if error detected' (route name) -> 'engineer_prompt' (target node)
-        "reprompt": "engineer_prompt",
-        # 'else' (route name) -> 'grade_answer' (target node)
-        "proceed": "grade_answer"
-    }
-)
+    # Add edges (connections)
+    workflow.add_edge("retrieve_documents", "engineer_prompt")
+    workflow.add_edge("engineer_prompt", "generate_answer")
+    workflow.add_edge("generate_answer", "check_logic")
 
-# The 'Grader' leads to the 'Benchmark'
-workflow.add_edge("grade_answer", "run_benchmark")
+    # Add the conditional edge
+    workflow.add_conditional_edges(
+        "check_logic",  # Source node
+        decide_after_logic_check, # Decision function
+        {
+            # 'if error detected' (route name) -> 'engineer_prompt' (target node)
+            "reprompt": "engineer_prompt",
+            # 'else' (route name) -> 'grade_answer' (target node)
+            "proceed": "grade_answer"
+        }
+    )
 
-# The 'Benchmark' is the end of the flow
-workflow.add_edge("run_benchmark", END)
+    # The 'Grader' is the end of the flow
+    workflow.add_edge("grade_answer", END)
+
+    return workflow
+
+def build_full_benchmark_graph() -> StateGraph:
+    """
+    Builds the complete RAG graph with all nodes and edges.
+    """
+
+    # Initialize the graph
+    workflow = StateGraph(BenchmarkState)
+
+    # Add nodes to the graph
+    workflow.add_node("run_qa_pairs", run_qa_pairs)
+    workflow.add_node("benchmark", run_benchmark)
+
+    # Define the entry point
+    workflow.add_edge(START, "run_qa_pairs")
+
+    # Add edges (connections)
+    workflow.add_edge("run_qa_pairs", "benchmark")
+    workflow.add_edge("benchmark", END)
+
+    return workflow
+
 
 
 # --- 5. Compile and Run ---
 
-# Compile the graph
-app = workflow.compile()
+if __name__ == "__main__":
+    # Build the sub-graph for single Q/A processing
+    sub_rag_system = build_single_qa_graph()
+    
+    # Build the full benchmark graph
+    workflow = build_full_benchmark_graph()
 
-# Define the input (based on 'Challenges Q/A pairs')
-inputs = {
-    "question": "What is the capital of France?",
-    "reference_answer": "Paris is the capital of France."
-}
+    # Compile the graph
+    app = workflow.compile()
+    
+    # Inject the sub-graph into the benchmark graph's initial state
+    inputs = {
+        "qa_pairs": [
+            ("What is the capital of France?", "Paris is the capital of France."),
+            ("Who wrote '1984'?", "'1984' was written by George Orwell."),
+            ("List the primary colors.", "The primary colors are red, blue, and yellow.")
+        ],
+        "sub_rag_system": sub_rag_system
+    }
+    
+    # Execute the graph
+    print("--- STARTING GRAPH EXECUTION ---")
 
-# Execute the graph
-print("--- STARTING GRAPH EXECUTION ---")
-# Streaming displays the output of each node as it runs
-for output in app.stream(inputs, {"recursion_limit": 5}):
-    # output is a dictionary of the form {node_name: node_output}
-    print(output)
-    print("="*30)
-
-print("--- END OF EXECUTION ---")
-
-# You can also retrieve the final complete state
-# final_state = app.invoke(inputs, {"recursion_limit": 5})
-# print(final_state["benchmark_results"])
+    final_state = app.invoke(inputs)
+    print(final_state["benchmark_results"])
+    
+    print("--- END OF EXECUTION ---")

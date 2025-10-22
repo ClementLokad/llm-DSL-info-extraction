@@ -7,11 +7,11 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 from config_manager import ConfigManager
-from pipeline.core.session import QuerySession
-from pipeline.parsers.envision_parser import EnvisionParser
-from pipeline.chunkers.semantic_chunker import SemanticChunker
-from pipeline.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
-from pipeline.retrievers.faiss_retriever import FAISSRetriever
+from rag.core.session import QuerySession
+from rag.parsers.envision_parser import EnvisionParser
+from rag.chunkers.semantic_chunker import SemanticChunker
+from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
+from rag.retrievers.faiss_retriever import FAISSRetriever
 from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
 
 # Dynamic agent imports - only import when needed
