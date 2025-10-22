@@ -21,6 +21,7 @@ from pipeline.parsers.envision_parser import EnvisionParser
 from pipeline.chunkers.semantic_chunker import SemanticChunker
 from pipeline.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from pipeline.retrievers.faiss_retriever import FAISSRetriever
+from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
 
 # Dynamic agent imports - only import when needed
 
@@ -556,6 +557,13 @@ EXAMPLES:
         action="store_true",
         help="Enable verbose output with detailed processing steps"
     )
+
+    parser.add_argument(
+    "--benchmark",
+    metavar="PATH",
+    help="Run benchmark with a JSON file containing questions and expected answers"
+    )
+
     
     args = parser.parse_args()
     
@@ -629,7 +637,46 @@ EXAMPLES:
             verbose = bool(args.query)
             
         system.initialize(verbose=verbose)
-        
+        # Benchmark mode
+        if args.benchmark:
+            import json
+            from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark
+
+            # Charger les questions
+            with open(args.benchmark, "r", encoding="utf-8") as f:
+                questions = json.load(f)
+
+            embedder = system.embedder
+            benchmark = CosineSimBenchmark(embedder)
+
+            data_for_benchmark = []
+            for q in questions:
+                question = q["question"]
+                reference = q["answer"]
+
+                print(f"\n🔍 Question: {question}")
+                llm_response = system.query(question, transparent=False)
+                print(f"🤖 Réponse LLM: {llm_response}")
+                print(f"🎯 Référence: {reference}")
+
+                data_for_benchmark.append({
+                    "question": question,
+                    "llm_response": llm_response,
+                    "reference": reference
+                })
+
+            report = benchmark.run(data_for_benchmark)
+
+            print("\n📊 Résultats du benchmark Cosine Similarity")
+            print("=" * 60)
+            for r in report["results"]:
+                print(f"Q: {r['question']}")
+                print(f"→ Similarité: {r['similarity']:.4f}")
+                print("-" * 40)
+
+            print(f"\nMoyenne globale : {report['mean_score']:.4f}")
+            return
+       
         # Determine mode and execute
         if args.query:
             # Single query mode
