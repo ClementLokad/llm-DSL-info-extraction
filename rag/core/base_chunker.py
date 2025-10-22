@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 import logging
 
-from pipeline.core.base_parser import CodeBlock
+from rag.core.base_parser import CodeBlock
 
 logger = logging.getLogger(__name__)
 

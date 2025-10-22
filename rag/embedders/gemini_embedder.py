@@ -1,8 +1,8 @@
 """
-OpenAI embedder for code chunks using OpenAI's embedding API.
+Gemini embedder for code chunks using Google's embedding API.
 
-This embedder provides high-quality embeddings but requires API calls
-and counts against OpenAI quotas.
+This embedder provides high-quality embeddings using Google's Gemini models
+but requires API calls and counts against Gemini quotas.
 """
 
 from typing import List, Dict, Any, Optional
@@ -10,38 +10,36 @@ import numpy as np
 import logging
 import time
 
-from pipeline.core.base_embedder import BaseEmbedder
-from pipeline.core.base_chunker import CodeChunk
+from rag.core.base_embedder import BaseEmbedder
+from rag.core.base_chunker import CodeChunk
 
 logger = logging.getLogger(__name__)
 
-class OpenAIEmbedder(BaseEmbedder):
+class GeminiEmbedder(BaseEmbedder):
     """
-    Embedder using OpenAI's embedding API for creating code embeddings.
+    Embedder using Google Gemini's embedding API for creating code embeddings.
     
     This embedder provides high-quality embeddings but requires API calls
-    and uses quota. Good for when you need the best semantic understanding.
+    and uses quota. Good alternative to OpenAI for semantic understanding.
     """
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(config)
         
         # Model configuration
-        self.model_name = self.config.get('model_name', 'text-embedding-3-small')
+        self.model_name = self.config.get('model_name', 'models/text-embedding-004')
         self.api_key = self.config.get('api_key', None)
         
-        # Rate limiting
-        self.requests_per_minute = self.config.get('requests_per_minute', 3000)
-        self.tokens_per_minute = self.config.get('tokens_per_minute', 1000000)
+        # Rate limiting (Gemini has different limits)
+        self.requests_per_minute = self.config.get('requests_per_minute', 1500)
         self.max_retries = self.config.get('max_retries', 3)
         self.retry_delay = self.config.get('retry_delay', 1.0)
         
-        # OpenAI client (initialized in initialize())
-        self.client = None
+        # Gemini client (initialized in initialize())
+        self.genai = None
         self._embedding_dim = None
         self._last_request_time = 0
         self._request_count = 0
-        self._tokens_used = 0
         self._minute_start = time.time()
     
     @property
@@ -50,55 +48,55 @@ class OpenAIEmbedder(BaseEmbedder):
         if self._embedding_dim is None:
             # Set based on model name
             model_dims = {
-                'text-embedding-3-small': 1536,
-                'text-embedding-3-large': 3072,
-                'text-embedding-ada-002': 1536
+                'models/text-embedding-004': 768,
+                'models/embedding-001': 768
             }
-            self._embedding_dim = model_dims.get(self.model_name, 1536)
+            self._embedding_dim = model_dims.get(self.model_name, 768)
         
         return self._embedding_dim
     
     def initialize(self) -> None:
-        """Initialize the OpenAI client."""
+        """Initialize the Gemini client."""
         try:
-            import openai
+            import google.generativeai as genai
         except ImportError:
             raise RuntimeError(
-                "openai is required but not installed. "
-                "Install it with: pip install openai"
+                "google-generativeai is required but not installed. "
+                "Install it with: pip install google-generativeai"
             )
         
         try:
             # Get API key from config manager
             from config_manager import get_config
             config = get_config()
-            api_key = self.api_key or config.get_api_key('OPENAI_API_KEY')
+            api_key = self.api_key or config.get_api_key('GOOGLE_API_KEY')
             
             if not api_key:
                 raise RuntimeError(
-                    "OpenAI API key not found. Set it in config or OPENAI_API_KEY environment variable"
+                    "Google API key not found. Set it in config or GOOGLE_API_KEY environment variable"
                 )
             
-            self.client = openai.OpenAI(api_key=api_key)
+            self.genai = genai
+            self.genai.configure(api_key=api_key)
             
             # Test the connection with a small request
-            test_response = self.client.embeddings.create(
+            test_response = self.genai.embed_content(
                 model=self.model_name,
-                input=["test"],
-                encoding_format="float"
+                content="test",
+                task_type="retrieval_document"
             )
             
             # Verify embedding dimension
-            actual_dim = len(test_response.data[0].embedding)
+            actual_dim = len(test_response['embedding'])
             if self._embedding_dim != actual_dim:
                 self.logger.warning(f"Expected embedding dim {self._embedding_dim}, got {actual_dim}")
                 self._embedding_dim = actual_dim
             
             self._is_initialized = True
-            self.logger.info(f"OpenAI embedder initialized. Model: {self.model_name}, Dimension: {self._embedding_dim}")
+            self.logger.info(f"Gemini embedder initialized. Model: {self.model_name}, Dimension: {self._embedding_dim}")
             
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize OpenAI embedder: {e}")
+            raise RuntimeError(f"Failed to initialize Gemini embedder: {e}")
     
     def embed_chunks(self, chunks: List[CodeChunk]) -> np.ndarray:
         """Generate embeddings for a list of code chunks."""
@@ -133,7 +131,7 @@ class OpenAIEmbedder(BaseEmbedder):
         prepared_text = self.prepare_text_for_embedding(text)
         
         # Generate embedding
-        embedding = self._call_openai_api([prepared_text])
+        embedding = self._call_gemini_api([prepared_text], task_type="retrieval_query")
         
         return embedding[0]
     
@@ -145,48 +143,62 @@ class OpenAIEmbedder(BaseEmbedder):
         # Prepare texts
         prepared_texts = [self.prepare_text_for_embedding(text) for text in texts]
         
-        # Call OpenAI API
-        embeddings = self._call_openai_api(prepared_texts)
+        # Call Gemini API for document embeddings
+        embeddings = self._call_gemini_api(prepared_texts, task_type="retrieval_document")
         
         return embeddings
     
-    def _call_openai_api(self, texts: List[str]) -> np.ndarray:
-        """Call OpenAI embedding API with rate limiting and retry logic."""
+    def _call_gemini_api(self, texts: List[str], task_type: str = "retrieval_document") -> np.ndarray:
+        """Call Gemini embedding API with rate limiting and retry logic."""
         # Check rate limits
         self._check_rate_limits(texts)
         
-        for attempt in range(self.max_retries):
-            try:
-                response = self.client.embeddings.create(
-                    model=self.model_name,
-                    input=texts,
-                    encoding_format="float"
-                )
-                
-                # Extract embeddings
-                embeddings = []
-                for item in response.data:
-                    embeddings.append(item.embedding)
-                
-                # Update rate limiting counters
-                self._update_rate_counters(texts)
-                
-                # Convert to numpy array
-                embeddings_array = np.array(embeddings)
-                
-                # Normalize if requested
-                if self.normalize:
-                    embeddings_array = embeddings_array / np.linalg.norm(embeddings_array, axis=1, keepdims=True)
-                
-                return embeddings_array
-                
-            except Exception as e:
-                if attempt < self.max_retries - 1:
-                    wait_time = self.retry_delay * (2 ** attempt)  # Exponential backoff
-                    self.logger.warning(f"API call failed (attempt {attempt + 1}), retrying in {wait_time}s: {e}")
-                    time.sleep(wait_time)
-                else:
-                    raise RuntimeError(f"OpenAI API call failed after {self.max_retries} attempts: {e}")
+        embeddings = []
+        
+        # Gemini API typically processes one text at a time
+        for text in texts:
+            for attempt in range(self.max_retries):
+                try:
+                    response = self.genai.embed_content(
+                        model=self.model_name,
+                        content=text,
+                        task_type=task_type
+                    )
+                    
+                    embedding = response['embedding']
+                    embeddings.append(embedding)
+                    
+                    # Update rate limiting counters
+                    self._update_rate_counters()
+                    
+                    # Small delay between requests to be respectful
+                    time.sleep(0.1)
+                    break
+                    
+                except Exception as e:
+                    if "quota" in str(e).lower() or "limit" in str(e).lower():
+                        # Handle quota exceeded
+                        if attempt < self.max_retries - 1:
+                            wait_time = self.retry_delay * (2 ** attempt)
+                            self.logger.warning(f"Quota exceeded, retrying in {wait_time}s")
+                            time.sleep(wait_time)
+                        else:
+                            raise RuntimeError(f"Gemini API quota exceeded after {self.max_retries} attempts")
+                    elif attempt < self.max_retries - 1:
+                        wait_time = self.retry_delay * (2 ** attempt)
+                        self.logger.warning(f"API call failed (attempt {attempt + 1}), retrying in {wait_time}s: {e}")
+                        time.sleep(wait_time)
+                    else:
+                        raise RuntimeError(f"Gemini API call failed after {self.max_retries} attempts: {e}")
+        
+        # Convert to numpy array
+        embeddings_array = np.array(embeddings)
+        
+        # Normalize if requested
+        if self.normalize:
+            embeddings_array = embeddings_array / np.linalg.norm(embeddings_array, axis=1, keepdims=True)
+        
+        return embeddings_array
     
     def _check_rate_limits(self, texts: List[str]) -> None:
         """Check and enforce rate limits."""
@@ -195,16 +207,11 @@ class OpenAIEmbedder(BaseEmbedder):
         # Reset counters if a minute has passed
         if current_time - self._minute_start >= 60:
             self._request_count = 0
-            self._tokens_used = 0
             self._minute_start = current_time
         
-        # Estimate tokens for current request
-        estimated_tokens = sum(len(text.split()) * 1.3 for text in texts)  # Rough estimate
-        
         # Check if we would exceed limits
-        if (self._request_count + 1 > self.requests_per_minute or
-            self._tokens_used + estimated_tokens > self.tokens_per_minute):
-            
+        requests_needed = len(texts)
+        if self._request_count + requests_needed > self.requests_per_minute:
             # Wait until next minute
             wait_time = 60 - (current_time - self._minute_start)
             if wait_time > 0:
@@ -212,19 +219,15 @@ class OpenAIEmbedder(BaseEmbedder):
                 time.sleep(wait_time)
                 # Reset counters
                 self._request_count = 0
-                self._tokens_used = 0
                 self._minute_start = time.time()
     
-    def _update_rate_counters(self, texts: List[str]) -> None:
+    def _update_rate_counters(self) -> None:
         """Update rate limiting counters after successful API call."""
         self._request_count += 1
-        # Update token count (rough estimate)
-        estimated_tokens = sum(len(text.split()) * 1.3 for text in texts)
-        self._tokens_used += estimated_tokens
         self._last_request_time = time.time()
     
     def prepare_chunk_for_embedding(self, chunk: CodeChunk) -> str:
-        """Prepare a code chunk for OpenAI embedding with optimized formatting."""
+        """Prepare a code chunk for Gemini embedding with optimized formatting."""
         text_parts = []
         
         # Add structured context for better understanding
@@ -247,7 +250,7 @@ class OpenAIEmbedder(BaseEmbedder):
             
             if chunk.chunk_type == 'data_ingestion' and 'table_names' in chunk.metadata:
                 table_names = chunk.metadata['table_names']
-                metadata_parts.append(f"tables: {', '.join(table_names)}")
+                metadata_parts.append(f"data sources: {', '.join(table_names)}")
             
             elif chunk.chunk_type == 'calculation' and 'variable_names' in chunk.metadata:
                 from config_manager import get_config
@@ -260,7 +263,7 @@ class OpenAIEmbedder(BaseEmbedder):
                 text_parts.append(f"Metadata: {' | '.join(metadata_parts)}")
         
         # Add the main content with clear separation
-        text_parts.append("Code:")
+        text_parts.append("Code Content:")
         text_parts.append(chunk.content)
         
         # Join with newlines and prepare
@@ -274,34 +277,25 @@ class OpenAIEmbedder(BaseEmbedder):
         
         return {
             "requests_this_minute": self._request_count,
-            "tokens_this_minute": self._tokens_used,
             "requests_per_minute_limit": self.requests_per_minute,
-            "tokens_per_minute_limit": self.tokens_per_minute,
             "time_in_current_minute": time_in_minute,
-            "requests_remaining": max(0, self.requests_per_minute - self._request_count),
-            "tokens_remaining": max(0, self.tokens_per_minute - self._tokens_used)
+            "requests_remaining": max(0, self.requests_per_minute - self._request_count)
         }
     
     @classmethod
     def get_available_models(cls) -> Dict[str, Dict[str, Any]]:
-        """Get available OpenAI embedding models."""
+        """Get available Gemini embedding models."""
         return {
-            "text-embedding-3-small": {
-                "dimension": 1536,
-                "description": "Most capable small model, good performance",
-                "cost_per_1m_tokens": 0.02,
-                "max_input_tokens": 8191
+            "models/text-embedding-004": {
+                "dimension": 768,
+                "description": "Latest text embedding model with improved performance",
+                "max_input_tokens": 2048,
+                "supported_tasks": ["retrieval_query", "retrieval_document", "semantic_similarity", "classification", "clustering"]
             },
-            "text-embedding-3-large": {
-                "dimension": 3072,
-                "description": "Most capable large model, best performance",
-                "cost_per_1m_tokens": 0.13,
-                "max_input_tokens": 8191
-            },
-            "text-embedding-ada-002": {
-                "dimension": 1536,
-                "description": "Legacy model, lower cost",
-                "cost_per_1m_tokens": 0.10,
-                "max_input_tokens": 8191
+            "models/embedding-001": {
+                "dimension": 768,
+                "description": "Earlier embedding model, still capable",
+                "max_input_tokens": 2048,
+                "supported_tasks": ["retrieval_query", "retrieval_document", "semantic_similarity", "classification", "clustering"]
             }
         }

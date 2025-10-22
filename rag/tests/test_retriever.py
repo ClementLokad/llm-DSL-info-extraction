@@ -16,8 +16,8 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from config_manager import ConfigManager
-from pipeline.retrievers.faiss_retriever import FAISSRetriever
-from pipeline.tests.test_embedder import TestSentenceTransformerEmbedder
+from rag.retrievers.faiss_retriever import FAISSRetriever
+from rag.tests.test_embedder import TestSentenceTransformerEmbedder
 
 class TestChunk:
     """Simple chunk class for testing."""

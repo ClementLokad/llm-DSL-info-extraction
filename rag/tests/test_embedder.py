@@ -15,8 +15,8 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from config_manager import ConfigManager
-from pipeline.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
-from pipeline.tests.test_chunker import TestSemanticChunker
+from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
+from rag.tests.test_chunker import TestSemanticChunker
 
 class TestChunk:
     """Simple chunk class for testing."""

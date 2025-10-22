@@ -9,8 +9,8 @@ from typing import List, Dict, Any, Optional
 import numpy as np
 import logging
 
-from pipeline.core.base_embedder import BaseEmbedder
-from pipeline.core.base_chunker import CodeChunk
+from rag.core.base_embedder import BaseEmbedder
+from rag.core.base_chunker import CodeChunk
 
 logger = logging.getLogger(__name__)
 

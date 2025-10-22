@@ -37,6 +37,8 @@ data/sessions/
 # PROJECT SPECIFIC EXCLUSIONS
 # =============================================================================
 # Source data directories (may contain proprietary DSL files)
+# NOTE: These files are searchable in VS Code (see .vscode/settings.json)
+#       but ignored by Git to avoid committing proprietary code
 env_scripts/
 
 # Test outputs
@@ -50,7 +52,7 @@ saved_models/
 # DEVELOPMENT ENVIRONMENT
 # =============================================================================
 # IDE files (only common ones)
-.vscode/
+# .vscode/ is now tracked to share search settings with team
 .idea/
 
 # Logs
