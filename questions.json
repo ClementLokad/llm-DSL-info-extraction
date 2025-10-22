@@ -1,7 +1,7 @@
 [
     {
         "question": "Combien de scripts lisent /Clean/Items.ion ?",
-        "answer": "27"
+        "answer": "12"
     },
     {
         "question": "Quels scripts lisent /Clean/Items.ion ?",
@@ -9,7 +9,7 @@
     },
     {
         "question": "Combien de scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
-        "answer": "2"
+        "answer": "1"
     },
     {
         "question": "Quels scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",

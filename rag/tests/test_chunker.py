@@ -14,10 +14,10 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from config_manager import ConfigManager
-from pipeline.chunkers.semantic_chunker import SemanticChunker
-from pipeline.tests.test_parser import TestEnvisionParser
-from pipeline.core.base_parser import CodeBlock
-from pipeline.core.base_chunker import CodeChunk
+from rag.chunkers.semantic_chunker import SemanticChunker
+from rag.tests.test_parser import TestEnvisionParser
+from rag.core.base_parser import CodeBlock
+from rag.core.base_chunker import CodeChunk
 
 class TestSemanticChunker:
     """Test cases for SemanticChunker using real Envision script blocks."""

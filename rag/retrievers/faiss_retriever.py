@@ -11,8 +11,8 @@ import logging
 import pickle
 import os
 
-from pipeline.core.base_retriever import BaseRetriever, RetrievalResult
-from pipeline.core.base_chunker import CodeChunk
+from rag.core.base_retriever import BaseRetriever, RetrievalResult
+from rag.core.base_chunker import CodeChunk
 
 logger = logging.getLogger(__name__)
 

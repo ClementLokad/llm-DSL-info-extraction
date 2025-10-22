@@ -1,0 +1,46 @@
+{
+  // ============================================================================
+  // VS CODE SEARCH CONFIGURATION
+  // ============================================================================
+  // Allow searching in files that are ignored by Git
+  // This keeps files ignored by Git while making them searchable in VS Code
+  
+  "search.useIgnoreFiles": false,
+  "search.useGlobalIgnoreFiles": false,
+  
+  // Explicitly exclude only what you don't want to search
+  "search.exclude": {
+    "**/.git": true,
+    "**/node_modules": true,
+    "**/__pycache__": true,
+    "**/env/Lib/**": true,           // Python packages (too large)
+    "**/env/lib/**": true,           // Python packages (Linux)
+    "**/env/Scripts/**": true,       // Python scripts
+    "**/*.pyc": true,
+    "**/.pytest_cache": true,
+    "**/data/faiss_index/**": true,  // Binary index files
+    "**/data/sessions/**": true,     // Generated sessions
+    "**/*.pkl": true,                // Binary pickle files
+    "**/*.pickle": true,
+    "**/*.log": true
+  },
+  
+  // ============================================================================
+  // FILE EXPLORER CONFIGURATION
+  // ============================================================================
+  // Show files in explorer even if ignored by Git
+  "files.exclude": {
+    "**/.git": true,
+    "**/__pycache__": true,
+    "**/*.pyc": true
+    // Note: env_scripts/ is NOT excluded here, so it's visible
+  },
+  
+  // ============================================================================
+  // PYTHON CONFIGURATION
+  // ============================================================================
+  "python.analysis.exclude": [
+    "**/env/**",
+    "**/__pycache__/**"
+  ]
+}

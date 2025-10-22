@@ -1,5 +1,5 @@
 """
-Preprocessing pipeline for Envision DSL codebase analysis.
+RAG (Retrieval-Augmented Generation) for Envision DSL codebase analysis.
 
 This module provides a modular preprocessing architecture for extracting,
 chunking, embedding, and retrieving code segments from LOKAD's Envision DSL codebases.
@@ -11,24 +11,24 @@ The architecture supports:
 - Envision-specific code understanding
 """
 
-from pipeline.core.base_parser import BaseParser
-from pipeline.core.base_chunker import BaseChunker  
-from pipeline.core.base_embedder import BaseEmbedder
-from pipeline.core.base_retriever import BaseRetriever
+from rag.core.base_parser import BaseParser
+from rag.core.base_chunker import BaseChunker  
+from rag.core.base_embedder import BaseEmbedder
+from rag.core.base_retriever import BaseRetriever
 
-from pipeline.parsers.envision_parser import EnvisionParser
-from pipeline.chunkers.semantic_chunker import SemanticChunker
-from pipeline.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
-from pipeline.retrievers.faiss_retriever import FAISSRetriever
+from rag.parsers.envision_parser import EnvisionParser
+from rag.chunkers.semantic_chunker import SemanticChunker
+from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
+from rag.retrievers.faiss_retriever import FAISSRetriever
 
 # Dynamic imports for embedders with optional dependencies
 try:
-    from pipeline.embedders.openai_embedder import OpenAIEmbedder
+    from rag.embedders.openai_embedder import OpenAIEmbedder
 except ImportError:
     OpenAIEmbedder = None
 
 try:
-    from pipeline.embedders.gemini_embedder import GeminiEmbedder
+    from rag.embedders.gemini_embedder import GeminiEmbedder
 except ImportError:
     GeminiEmbedder = None
 
