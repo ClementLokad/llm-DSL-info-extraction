@@ -1,0 +1,38 @@
+[
+    {
+        "question": "Combien de scripts lisent /Clean/Items.ion ?",
+        "answer": "27"
+    },
+    {
+        "question": "Quels scripts lisent /Clean/Items.ion ?",
+        "answer": "/3. Inspectors/6 Compare to Min-Max strategy\n/3. Inspectors/5 - Supplier Inspector\n/3. Inspectors/4 - Stores Analysis\n/3. Inspectors/3 - Stock Inspector\n/3. Inspectors/2 - Sales Analysis\n/3. Inspectors/1 - Item Inspector\n/2. Data sanity/3 - High Level Data Health\n/3. Inspectors/6 Compare to Min-Max strategy\t05/10/2025 18:20\t13/05/2025 15:18\t B. Manessi\t B. Manessi\n/3. Inspectors/5 - Supplier Inspector\t05/10/2025 18:20\t29/06/2025 18:14\t ScriptUpgrad...\t S. Bareilhe\n/3. Inspectors/4 - Stores Analysis\t05/10/2025 18:19\t29/06/2025 18:13\t ScriptUpgrad...\t S. Bareilhe\n/3. Inspectors/3 - Stock Inspector\t05/10/2025 18:19\t29/06/2025 18:13\t ScriptUpgrad...\t ScriptUpgrad...\n/3. Inspectors/2 - Sales Analysis\t05/10/2025 18:19\t07/07/2025 13:51\t E. Langella\t E. Langella\n/3. Inspectors/1 - Item Inspector\t05/10/2025 18:18\t29/06/2025 18:12\t ScriptUpgrad...\t S. Bareilhe\n/2. Data sanity/3 - High Level Data Health\t05/10/2025 18:18\t29/06/2025 18:12\t ScriptUpgrad...\t S. Bareilhe\n/4. Optimization workflow/07 Standard Dispatch Suggestion New\n/4. Optimization workflow/07 Standard Dispatch Suggestion\n/4. Optimization workflow/06 Purchasing results\n/4. Optimization workflow/05. Standard Purchase Suggestions\n/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff\n/4. Optimization workflow/04 Economic Parameters\n/4. Optimization workflow/03.b. Forecasting\n/4. Optimization workflow/02 Suppliers\n/4. Optimization workflow/01 Inventory Optimization Overview\n/4. Optimization workflow/01 Inventory Optimization Overview (New Dashboards)\n/4. Optimization workflow/05.New Standard Purchase Suggestions\n/1. utilities/1. populating dataset/03 - Manual Inputs\n/4. Optimization workflow/05.b. Long Term Purchase Suggestions\n/4. Optimization workflow/FR/05. Suggestions d'achat\n/3. Inspectors/7 - Global Business Cockpit\n/4. Optimization workflow/French/05.Recommandations d'Achats\n/4. Optimization workflow/French/07 Recommandations de Dispatch (clone)\n/4. Optimization workflow/French/07 Recommandations de Dispatch\n/4. Optimization workflow/09.Simulation ROP and EOQ Dispatch\n/4. Optimization workflow/08. Dispatch ROP definition"
+    },
+    {
+        "question": "Combien de scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
+        "answer": "2"
+    },
+    {
+        "question": "Quels scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
+        "answer": "/3. Inspectors/1 - Item Inspector\n/4. Optimization workflow/03.b. Forecasting"
+    },
+    {
+        "question": "Quels scripts écrivent /Clean/Forecast/Periodic/FcItems.ion?",
+        "answer": "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff "
+    },
+    {
+        "question": "Où sont calculés les meilleurs vendeurs ?",
+        "answer": "/3. Inspectors/4 - Stores Analysis"
+    },
+    {
+        "question": "Où est définie la logique d'actualisation du stock ?",
+        "answer": "???"
+    },
+    {
+        "question": "Comment est calculé ... ?",
+        "answer": "???"
+    },
+    {
+        "question": "Quels scripts utilisent la variable RedispatchCycleWeeks ?",
+        "answer": "???"
+    }
+]
