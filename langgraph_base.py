@@ -36,11 +36,13 @@ class BenchmarkState(TypedDict):
     Represents the state for benchmarking multiple Q/A pairs.
 
     Attributes:
+        database: The initialized database for retrieval.
         qa_pairs: List of (question, reference_answer) pairs.
         grades: List of grading results for each Q/A pair.
         benchmark_results: Aggregated results from the benchmark.
         sub_rag_system: The sub-graph handling individual Q/A processing.
     """
+    database: Any
     qa_pairs: List[Tuple[str, str]]
     grades: List[Dict[str, Any]]
     benchmark_results: Dict[str, Any]
@@ -140,6 +142,19 @@ def grade_answer(state: GraphState) -> GraphState:
     grade = {"score": 0.9, "reasoning": "The answer is relevant."} # Placeholder
     
     return {"grade": grade}
+
+def initialize_database(state: BenchmarkState) -> BenchmarkState:
+    """
+    Node: 'Initialize Database'
+    Parses the documents to prepare retrieval.
+    """
+    print("--- NODE: Initialize Database ---")
+
+    database = state["database"]
+
+    # ... Your database initialization logic ...
+
+    return {"database": database}
 
 def run_qa_pairs(state: BenchmarkState) -> BenchmarkState:
     """
@@ -267,13 +282,15 @@ def build_full_benchmark_graph() -> StateGraph:
     workflow = StateGraph(BenchmarkState)
 
     # Add nodes to the graph
+    workflow.add_node("initialize_database", initialize_database)
     workflow.add_node("run_qa_pairs", run_qa_pairs)
     workflow.add_node("benchmark", run_benchmark)
 
     # Define the entry point
-    workflow.add_edge(START, "run_qa_pairs")
+    workflow.add_edge(START, "initialize_database")
 
     # Add edges (connections)
+    workflow.add_edge("initialize_database", "run_qa_pairs")
     workflow.add_edge("run_qa_pairs", "benchmark")
     workflow.add_edge("benchmark", END)
 
