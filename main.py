@@ -24,12 +24,13 @@ def merge_rag_results(results):
     merged_results = {}
     for result in results:
         if result.chunk.content in merged_results.keys():
-            score, chunk = merged_results[result.chunk.content]
-            merged_results[result.chunk.content] = (score + 1/(k+result.rank), chunk)
+            score, chunk, metadata = merged_results[result.chunk.content]
+            merged_results[result.chunk.content] = (score + 1/(k+result.rank), chunk, metadata)
+            metadata.update(result.chunk.metadata)
         else:
-            merged_results[result.chunk.content] = (1/(k+result.rank), result.chunk)
+            merged_results[result.chunk.content] = (1/(k+result.rank), result.chunk, result.metadata)
     results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
-    return [RetrievalResult(chunk, score, rank+1) for rank, (_, (score, chunk)) in enumerate(results_list)]
+    return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
 
 class DSLQuerySystem:
     def __init__(self):
