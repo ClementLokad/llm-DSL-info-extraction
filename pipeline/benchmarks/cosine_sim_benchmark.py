@@ -2,7 +2,7 @@ from typing import List, Dict, Any
 import numpy as np
 from sentence_transformers import util
 from .base_benchmark import Benchmark
-from pipeline.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
+from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 
 
 class CosineSimBenchmark(Benchmark):

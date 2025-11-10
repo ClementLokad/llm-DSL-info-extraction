@@ -13,6 +13,8 @@ from rag.chunkers.semantic_chunker import SemanticChunker
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from rag.retrievers.faiss_retriever import FAISSRetriever
 from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
+from grep.searcher import GrepSearcher
+from router import Router, QueryType
 
 # Dynamic agent imports - only import when needed
 
@@ -298,7 +300,7 @@ EXAMPLES:
             else:
                 # Full transparency if verbose, minimal if normal
                 transparent = args.verbose
-                response = system.query(args.query, transparent=transparent)
+                response = system.query(args.query)
                 if not transparent:
                     print(response)
         else:
@@ -307,9 +309,6 @@ EXAMPLES:
             
     except KeyboardInterrupt:
         print("\n\n👋 Goodbye!")
-    except Exception as e:
-        print(f"❌ System error: {e}")
-        sys.exit(1)
 
 
 if __name__ == "__main__":
