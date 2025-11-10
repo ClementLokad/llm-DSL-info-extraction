@@ -15,9 +15,21 @@ from rag.retrievers.faiss_retriever import FAISSRetriever
 from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
 from grep.searcher import GrepSearcher
 from router import Router, QueryType
+from rag.core.base_retriever import RetrievalResult
 
 # Dynamic agent imports - only import when needed
 
+def merge_rag_results(results):
+    k=10
+    merged_results = {}
+    for result in results:
+        if result.chunk.content in merged_results.keys():
+            score, chunk = merged_results[result.chunk.content]
+            merged_results[result.chunk.content] = (score + 1/(k+result.rank), chunk)
+        else:
+            merged_results[result.chunk.content] = (1/(k+result.rank), result.chunk)
+    results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
+    return [RetrievalResult(chunk, score, rank+1) for rank, (_, (score, chunk)) in enumerate(results_list)]
 
 class DSLQuerySystem:
     def __init__(self):
@@ -79,7 +91,7 @@ class DSLQuerySystem:
         if verbose:
             print("✅ Ready\n")
             
-    def query(self, question, verbose=False):
+    def query(self, question, verbose=False, fusion = False):
         c = self.router.classify(question)
         if verbose:
             print(f"🎯 {c.qtype.value} ({c.confidence:.0%})")
@@ -87,6 +99,19 @@ class DSLQuerySystem:
         if c.qtype == QueryType.GREP:
             r = self.grep.search(c.pattern or "")
             return self.grep.format_answer(r, question)
+        elif fusion:
+            base_fusion_question = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text.\n"
+            raw_questions = self.agent.generate_response(base_fusion_question + question)
+            if verbose:
+                print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
+            questions = raw_questions.split("$")
+            results = []
+            for sub_question in questions:
+                emb = self.rag['embedder'].embed_text(sub_question)
+                results.extend(self.rag['retriever'].search(emb, top_k=5))
+            ctx = "\n\n".join([f"[{r.chunk.metadata.get('file_path', 'unknown')}]\n{r.chunk.content}" for r in merge_rag_results(results)])
+            return self.agent.generate_response(question, ctx)
+        
         else:
             emb = self.rag['embedder'].embed_text(question)
             results = self.rag['retriever'].search(emb, top_k=5)
@@ -171,6 +196,12 @@ EXAMPLES:
         help="Enable verbose output with detailed processing steps"
     )
 
+    parser.add_argument(
+        "--fusion", "-f",
+        action="store_true",
+        help="Enable RAG fusion"
+    )
+    
     parser.add_argument(
     "--benchmark",
     metavar="PATH",
@@ -292,15 +323,16 @@ EXAMPLES:
        
         # Determine mode and execute
         if args.query:
+            
             # Single query mode
             if args.quiet:
                 # Just the response, no transparency
-                response = system.query(args.query, transparent=False)
+                response = system.query(args.query, fusion = args.fusion)
                 print(response)
             else:
                 # Full transparency if verbose, minimal if normal
                 transparent = args.verbose
-                response = system.query(args.query)
+                response = system.query(args.query, fusion = args.fusion)
                 if not transparent:
                     print(response)
         else:
