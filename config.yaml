@@ -11,6 +11,8 @@
 agent:
   # Default agent to use for queries
   default_model: "mistral"  # Options: "gemini", "gpt", "mistral"
+  # Delay in seconds between LLM calls to avoid rate limits (0 = disabled)
+  rate_limit_delay: 1
 
 # =============================================================================
 # GLOBAL FILE AND DIRECTORY CONSTANTS

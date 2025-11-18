@@ -3,6 +3,7 @@
 import sys
 import argparse
 import json
+import time
 from pathlib import Path
 
 from transformers import pipeline
@@ -43,6 +44,7 @@ class DSLQuerySystem(BasePipeline):
         self.rag = {}
         self.agent = None
         self.fusion = False
+        self.rate_limit_delay = self.config.get('agent.rate_limit_delay', 0)
         
     def initialize(self, verbose=True):
         if verbose:
@@ -103,6 +105,9 @@ class DSLQuerySystem(BasePipeline):
         question = state["question"]
         retrieved_context = []
         
+        if self.rate_limit_delay > 0:
+            time.sleep(self.rate_limit_delay)
+            
         c = self.router.classify(question)
         if verbose:
             print(f"🎯 Router decision: {c.qtype.value} ({c.confidence:.0%} confidence)")
@@ -111,6 +116,10 @@ class DSLQuerySystem(BasePipeline):
             retrieved_context = self.grep.search(c.pattern or "")
         elif self.fusion:
             base_fusion_question = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text.\n"
+            
+            if self.rate_limit_delay > 0:
+                time.sleep(self.rate_limit_delay)
+                
             raw_questions = self.agent.generate_response(base_fusion_question + question)
             if verbose:
                 print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
@@ -153,6 +162,9 @@ class DSLQuerySystem(BasePipeline):
             print("--- NODE: Generate Answer (Main LLM) ---")
         prompt = state["prompt"]
         
+        if self.rate_limit_delay > 0:
+            time.sleep(self.rate_limit_delay)
+            
         generation = self.agent.generate_response(prompt)
         
         if state.get("verbose", False):

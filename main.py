@@ -13,7 +13,7 @@ from rag.chunkers.semantic_chunker import SemanticChunker
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from rag.retrievers.faiss_retriever import FAISSRetriever
 from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
-from grep.searcher import GrepSearcher
+from rag.retrievers.grep_retriever import GrepRetriever
 from router import Router, QueryType
 from rag.core.base_retriever import RetrievalResult
 
@@ -59,7 +59,7 @@ class DSLQuerySystem:
         self.router = Router(self.agent)
         
         dirs = self.config.get('paths.input_dirs', ["env_scripts"])
-        self.grep = GrepSearcher(dirs)
+        self.grep = GrepRetriever(dirs)
         
         parser = EnvisionParser(self.config.get_parser_config())
         chunker = SemanticChunker(self.config.get_chunker_config())
@@ -98,8 +98,10 @@ class DSLQuerySystem:
             print(f"🎯 {c.qtype.value} ({c.confidence:.0%})")
             
         if c.qtype == QueryType.GREP:
-            r = self.grep.search(c.pattern or "")
-            return self.grep.format_answer(r, question)
+            results = self.grep.search(c.pattern or "")
+            if not results:
+                return "No matches found."
+            return "\n".join([f"[{r.metadata.get('file_path', 'unknown')}:{r.metadata.get('line_number', '?')}] {r.chunk.content}" for r in results])
         elif fusion:
             base_fusion_question = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text.\n"
             raw_questions = self.agent.generate_response(base_fusion_question + question)
@@ -119,7 +121,7 @@ class DSLQuerySystem:
             ctx = "\n\n".join([f"[{r.chunk.metadata.get('file_path', 'unknown')}]\n{r.chunk.content}" for r in results])
             return self.agent.generate_response(question, ctx)
             
-    def interactive(self):
+    def interactive(self, verbose=False, fusion=False):
         print("\n💬 Interactive (exit to quit)")
         print("=" * 60)
         while True:
@@ -128,7 +130,7 @@ class DSLQuerySystem:
                 if q.lower() in ['exit', 'quit', 'q']:
                     break
                 if q:
-                    print(f"\n💡 {self.query(q, verbose=True)}")
+                    print(f"\n💡 {self.query(q, verbose=verbose, fusion=fusion)}")
             except KeyboardInterrupt:
                 break
             except Exception as e:
@@ -338,7 +340,7 @@ EXAMPLES:
                     print(response)
         else:
             # Interactive mode (default) - always clean interface
-            system.interactive_mode(verbose=args.verbose)
+            system.interactive(verbose=args.verbose, fusion=args.fusion)
             
     except KeyboardInterrupt:
         print("\n\n👋 Goodbye!")

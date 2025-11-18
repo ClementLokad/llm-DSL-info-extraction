@@ -2,12 +2,17 @@
 openai>=1.0.0
 google-generativeai>=0.3.1
 requests>=2.31.0
+mistralai>=0.0.7
 
 # Preprocessing dependencies
 numpy>=1.24.0
 sentence-transformers>=2.2.0
 faiss-cpu>=1.7.4
 # faiss-gpu>=1.7.4  # Uncomment for GPU support
+transformers>=4.30.0
+
+# Graph-based workflow dependencies
+langgraph>=0.0.1
 
 # Configuration and utilities
 pyyaml>=6.0
@@ -15,6 +20,7 @@ python-dotenv>=1.0.0
 typing-extensions>=4.7.0
 
 # For benchmarking and evaluation
+scikit-learn>=1.3.0  # For cosine similarity and other metrics
 # langsmith>=0.1.0
 # langchain>=0.1.0
 # plotly>=5.0.0

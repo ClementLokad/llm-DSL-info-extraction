@@ -1,9 +1,0 @@
-{
-  "recommendations": [
-    "ms-python.python",
-    "ms-python.vscode-pylance",
-    "eamodio.gitlens",
-    "streetsidesoftware.code-spell-checker",
-    "streetsidesoftware.code-spell-checker-french"
-  ]
-}

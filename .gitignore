@@ -54,6 +54,7 @@ saved_models/
 # IDE files (only common ones)
 # .vscode/ is now tracked to share search settings with team
 .idea/
+.vscode/
 
 # Logs
 *.log
