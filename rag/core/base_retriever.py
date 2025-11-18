@@ -32,7 +32,13 @@ class RetrievalResult:
         self.metadata = metadata or {}
     
     def __repr__(self):
-        return f"RetrievalResult(score={self.score:.3f}, rank={self.rank}, chunk_type={self.chunk.chunk_type})"
+        result = f"RetrievalResult("
+        if self.score:
+            result += f"score={self.score:.3f}, "
+        if self.rank:
+            result += f"rank={self.rank}, "
+        result += f"chunk_type={self.chunk.chunk_type})"
+        return result
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the RetrievalResult to a dictionary for JSON serialization."""

@@ -29,7 +29,7 @@ class CodeChunk:
     """
     content: str
     chunk_type: str
-    original_blocks: List[CodeBlock]
+    original_blocks: List[CodeBlock] = None
     context: str = ""
     size_tokens: int = 0
     metadata: Dict[str, Any] = None
