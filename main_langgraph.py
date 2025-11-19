@@ -57,6 +57,9 @@ class DSLQuerySystem(BasePipeline):
         elif agent_type == 'gemini':
             from agents.gemini_agent import GeminiAgent
             self.agent = GeminiAgent()
+        elif agent_type == 'groq':
+            from agents.groq_agent import GroqAgent
+            self.agent = GroqAgent()
         else:
             from agents.gpt_agent import GPTAgent
             self.agent = GPTAgent()

@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
 [![FAISS](https://img.shields.io/badge/FAISS-Vector_Search-green.svg)](https://faiss.ai)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Workflow-blueviolet.svg)](https://langchain-ai.github.io/langgraph/)
-[![AI](https://img.shields.io/badge/AI-GPT%20%7C%20Gemini%20%7C%20Mistral-orange.svg)](https://openai.com)
+[![AI](https://img.shields.io/badge/AI-GPT%20%7C%20Gemini%20%7C%20Mistral%20%7C%20Groq-orange.svg)](https://groq.com)
 
 > *Un système sophistiqué d'analyse et d'interrogation de code DSL utilisant l'IA sémantique et des workflows graphiques*
 
@@ -23,14 +23,14 @@ Le projet a évolué vers une architecture basée sur **LangGraph**, permettant 
 - 🕸️ **Architecture LangGraph** - Workflows graphiques avec boucles de correction et logique conditionnelle
 - 🔄 **RAG Fusion** - Décomposition de requêtes complexes en sous-questions
 - 📊 **Benchmarking intégré** - Évaluation automatique par similarité cosinus
-- 🤖 **Agents IA multiples** - Support GPT-4, Gemini, et Mistral avec rate limiting configurable
+- 🤖 **Agents IA multiples** - Support GPT-4, Gemini, Mistral et Groq avec rate limiting configurable
 - ⚙️ **Configuration externalisée** - Tous les paramètres dans `config.yaml`
 
 ### 📋 Prérequis
 
 - **Python 3.8+** avec pip et venv
 - **Fichiers Envision DSL** (`.nvn`) dans le dossier `env_scripts/`
-- **Clé API** pour au moins un agent (Mistral, GPT, ou Gemini)
+- **Clé API** pour au moins un agent (Mistral, GPT, Gemini ou Groq)
 - **~500MB RAM** pour l'index vectoriel
 
 ---
@@ -68,7 +68,7 @@ llm-DSL-info-extraction/
 ├── ⚙️ config.yaml                # Configuration système
 ├── 📄 requirements.txt           # Dépendances Python
 │
-├── 🤖 agents/                    # Agents IA (Mistral, Gemini, GPT)
+├── 🤖 agents/                    # Agents IA (Mistral, Gemini, GPT, Groq)
 │
 ├── 🔄 rag/                       # Pipeline RAG modulaire
 │   ├── 🏗️ core/                 # Interfaces de base
@@ -110,7 +110,7 @@ pip install -r requirements.txt
 
 ```yaml
 agent:
-  default_model: "mistral"
+  default_model: "groq"
   rate_limit_delay: 1  # Pause de 1.5s entre les appels
 ```
 
@@ -183,7 +183,7 @@ Le système inclut un outil de benchmark basé sur la similarité cosinus.
 
 ```yaml
 agent:
-  default_model: "mistral"
+  default_model: "groq"
   rate_limit_delay: 1.5  # Délai anti-rate-limit
 
 parser:

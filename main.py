@@ -51,6 +51,9 @@ class DSLQuerySystem:
         elif agent_type == 'gemini':
             from agents.gemini_agent import GeminiAgent
             self.agent = GeminiAgent()
+        elif agent_type == 'groq':
+            from agents.groq_agent import GroqAgent
+            self.agent = GroqAgent()
         else:
             from agents.gpt_agent import GPTAgent
             self.agent = GPTAgent()
@@ -182,7 +185,7 @@ EXAMPLES:
     # Agent selection
     parser.add_argument(
         "--agent", "-a",
-        choices=["gemini", "gpt", "mistral"],
+        choices=["gemini", "gpt", "mistral", "groq"],
         help="Override default agent from config"
     )
     
@@ -240,6 +243,8 @@ EXAMPLES:
                         api_key = config_mgr.get_api_key('OPENAI_API_KEY')
                     elif default_agent == 'gemini':
                         api_key = config_mgr.get_api_key('GEMINI_API_KEY')
+                    elif default_agent == 'groq':
+                        api_key = config_mgr.get_api_key('GROQ_API_KEY')
                     
                     if api_key:
                         print(f"   ✅ API key configured for {default_agent}")
