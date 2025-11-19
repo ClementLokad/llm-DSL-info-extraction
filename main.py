@@ -2,12 +2,15 @@
 """DSL Query System"""
 import sys
 import argparse
+import json
+import time
 from pathlib import Path
+
+from transformers import pipeline
 
 sys.path.append(str(Path(__file__).parent))
 
 from config_manager import ConfigManager
-from rag.core.session import QuerySession
 from rag.parsers.envision_parser import EnvisionParser
 from rag.chunkers.semantic_chunker import SemanticChunker
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
@@ -16,6 +19,7 @@ from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark
 from rag.retrievers.grep_retriever import GrepRetriever
 from router import Router, QueryType
 from rag.core.base_retriever import RetrievalResult
+from langgraph_base import BasePipeline, GraphState, BenchmarkState
 
 # Dynamic agent imports - only import when needed
 
@@ -32,22 +36,27 @@ def merge_rag_results(results):
     results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
     return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
 
-class DSLQuerySystem:
+class DSLQuerySystem(BasePipeline):
     def __init__(self):
-        self.config = ConfigManager()
+        self.config_manager = ConfigManager()
         self.router = None
         self.grep = None
         self.rag = {}
         self.agent = None
+        self.fusion = False
+        self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
         
     def initialize(self, verbose=True):
         if verbose:
             print("🚀 Initializing...")
             
-        agent_type = self.config.get_default_agent()
+        agent_type = self.config_manager.get_default_agent()
         if agent_type == 'mistral':
             from agents.mistral_agent import MistralAgent
             self.agent = MistralAgent()
+        elif agent_type == 'llama3':
+            from agents.local_llama3 import Llama3Agent
+            self.agent = Llama3Agent()
         elif agent_type == 'gemini':
             from agents.gemini_agent import GeminiAgent
             self.agent = GeminiAgent()
@@ -61,14 +70,14 @@ class DSLQuerySystem:
         self.agent.initialize()
         self.router = Router(self.agent)
         
-        dirs = self.config.get('paths.input_dirs', ["env_scripts"])
+        dirs = self.config_manager.get('paths.input_dirs', ["env_scripts"])
         self.grep = GrepRetriever(dirs)
         
-        parser = EnvisionParser(self.config.get_parser_config())
-        chunker = SemanticChunker(self.config.get_chunker_config())
-        embedder = SentenceTransformerEmbedder(self.config.get_embedder_config())
+        parser = EnvisionParser(self.config_manager.get_parser_config())
+        chunker = SemanticChunker(self.config_manager.get_chunker_config())
+        embedder = SentenceTransformerEmbedder(self.config_manager.get_embedder_config())
         embedder.initialize()
-        retriever = FAISSRetriever(self.config.get_retriever_config())
+        retriever = FAISSRetriever(self.config_manager.get_retriever_config())
         retriever.initialize(embedder.embedding_dimension)
         
         index_path = Path("data/faiss_index")
@@ -94,37 +103,111 @@ class DSLQuerySystem:
         self.rag = {'embedder': embedder, 'retriever': retriever}
         if verbose:
             print("✅ Ready\n")
+    
+    def retrieve_documents(self, state):
+        verbose = state.get("verbose", True)
+        if verbose:
+            print("--- NODE: Retrieve Documents ---")
+        question = state["question"]
+        retrieved_context = []
+        
+        if self.rate_limit_delay > 0:
+            time.sleep(self.rate_limit_delay)
             
-    def query(self, question, verbose=False, fusion = False):
         c = self.router.classify(question)
         if verbose:
-            print(f"🎯 {c.qtype.value} ({c.confidence:.0%})")
+            print(f"🎯 Router decision: {c.qtype.value} ({c.confidence:.0%} confidence)")
             
         if c.qtype == QueryType.GREP:
-            results = self.grep.search(c.pattern or "")
-            if not results:
-                return "No matches found."
-            return "\n".join([f"[{r.metadata.get('file_path', 'unknown')}:{r.metadata.get('line_number', '?')}] {r.chunk.content}" for r in results])
-        elif fusion:
+            retrieved_context = self.grep.search(c.pattern or "")
+        elif self.fusion:
             base_fusion_question = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text.\n"
+            
+            if self.rate_limit_delay > 0:
+                time.sleep(self.rate_limit_delay)
+                
             raw_questions = self.agent.generate_response(base_fusion_question + question)
             if verbose:
                 print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
             questions = raw_questions.split("$")
-            results = []
             for sub_question in questions:
                 emb = self.rag['embedder'].embed_text(sub_question)
-                results.extend(self.rag['retriever'].search(emb, top_k=5))
-            ctx = "\n\n".join([f"[{r.chunk.metadata.get('file_path', 'unknown')}]\n{r.chunk.content}" for r in merge_rag_results(results)])
-            return self.agent.generate_response(question, ctx)
-        
+                retrieved_context.extend(self.rag['retriever'].search(emb, top_k=5))
+            retrieved_context = merge_rag_results(retrieved_context)[:5]
         else:
             emb = self.rag['embedder'].embed_text(question)
-            results = self.rag['retriever'].search(emb, top_k=5)
-            ctx = "\n\n".join([f"[{r.chunk.metadata.get('file_path', 'unknown')}]\n{r.chunk.content}" for r in results])
-            return self.agent.generate_response(question, ctx)
+            retrieved_context = self.rag['retriever'].search(emb, top_k=5)
+        
+        if verbose:
+            print(f"🔍 → Retrieved {len(retrieved_context)} documents :")
+            print(retrieved_context)
+
+        return {"retrieved_context": retrieved_context}
+    
+    def engineer_prompt(self, state):
+        if state.get("verbose", True):
+            print("--- NODE: Engineer Prompt ---")
+        
+        question = state["question"]
+        context = state["retrieved_context"]
+        
+        ctx: str
+        if len(context) ==0:
+            ctx = "No relevant context found."
+        else:
+            ctx = "\n\n----------------------\n\n".join([f"[File: {r.chunk.metadata.get('file_path', 'Unknown file path')}]\n{r.chunk.content}" for r in context])
+        
+        prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
+        
+        if state.get("verbose", False):
+            print(f"→ Generated prompt:\n{prompt}\n")
+        
+        return {"prompt": prompt}
+    
+    def generate_answer(self, state):
+        if state.get("verbose", False):
+            print("--- NODE: Generate Answer (Main LLM) ---")
+        prompt = state["prompt"]
+        
+        if self.rate_limit_delay > 0:
+            time.sleep(self.rate_limit_delay)
             
-    def interactive(self, verbose=False, fusion=False):
+        generation = self.agent.generate_response(prompt)
+        
+        if state.get("verbose", False):
+            print(f"💬 → LLM RAW Generation:\n{generation}\n")
+        
+        return {"generation": generation}
+    
+    def grade_answer(self, state):
+        if state.get("verbose", False):
+            print("--- NODE: Grade Answer ---")
+        final_answer = state["final_answer"]
+        reference_answer = state["reference_answer"]
+        
+        benchmark = CosineSimBenchmark(self.rag['embedder'])
+        
+        score = benchmark.compute_similarity(final_answer, reference_answer)
+        if state.get("verbose", False):
+            print(f"→ Similarity score with '{reference_answer}': {score:.4f}")
+        
+        grade = {"score": score,
+                "question": state["question"],
+                "llm_response": state["final_answer"],
+                "reference": state["reference_answer"]}
+        
+        return {"grade": grade}
+
+    def query(self, question, verbose=True):
+        simple_qa_graph = self.build_single_qa_graph()
+        app = simple_qa_graph.compile()
+        input_state = GraphState(question=question, verbose=verbose, reference_answer="")
+        final_state = app.invoke(input_state)
+        return final_state.get("final_answer", "No answer generated")
+            
+    def interactive(self, verbose=False):
+        simple_qa_graph = self.build_single_qa_graph()
+        app = simple_qa_graph.compile()
         print("\n💬 Interactive (exit to quit)")
         print("=" * 60)
         while True:
@@ -133,7 +216,9 @@ class DSLQuerySystem:
                 if q.lower() in ['exit', 'quit', 'q']:
                     break
                 if q:
-                    print(f"\n💡 {self.query(q, verbose=verbose, fusion=fusion)}")
+                    input_state = GraphState(question=q, verbose=verbose, reference_answer="")
+                    final_state = app.invoke(input_state)
+                    print(f"\n💡 {final_state.get('final_answer', 'No answer generated')}")
             except KeyboardInterrupt:
                 break
             except Exception as e:
@@ -185,7 +270,7 @@ EXAMPLES:
     # Agent selection
     parser.add_argument(
         "--agent", "-a",
-        choices=["gemini", "gpt", "mistral", "groq"],
+        choices=["gemini", "gpt", "mistral", "llama3"],
         help="Override default agent from config"
     )
     
@@ -209,9 +294,9 @@ EXAMPLES:
     )
     
     parser.add_argument(
-    "--benchmark",
-    metavar="PATH",
-    help="Run benchmark with a JSON file containing questions and expected answers"
+        "--benchmark",
+        metavar="PATH",
+        help="Run benchmark with a JSON file containing questions and expected answers"
     )
 
     
@@ -234,7 +319,7 @@ EXAMPLES:
                 default_agent = config_mgr.get_default_agent()
                 print(f"✅ Configuration loaded")
                 print(f"   Default agent: {default_agent}")
-                
+
                 # Check if API keys are configured
                 try:
                     if default_agent == 'mistral':
@@ -243,8 +328,6 @@ EXAMPLES:
                         api_key = config_mgr.get_api_key('OPENAI_API_KEY')
                     elif default_agent == 'gemini':
                         api_key = config_mgr.get_api_key('GEMINI_API_KEY')
-                    elif default_agent == 'groq':
-                        api_key = config_mgr.get_api_key('GROQ_API_KEY')
                     
                     if api_key:
                         print(f"   ✅ API key configured for {default_agent}")
@@ -278,6 +361,9 @@ EXAMPLES:
         # Override agent if specified
         if args.agent:
             system.config_manager.config['agent'] = {'default_model': args.agent}
+        
+        if args.fusion:
+           system.fusion = True
             
         # Determine verbosity level
         if args.verbose:
@@ -291,42 +377,38 @@ EXAMPLES:
         system.initialize(verbose=verbose)
         # Benchmark mode
         if args.benchmark:
-            import json
-            from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark
+            # Build the sub-graph for single Q/A processing
+            sub_rag_system = system.build_single_qa_graph()
+            
+            # Build the full benchmark graph
+            workflow = system.build_full_benchmark_graph()
+
+            # Compile the graph
+            app = workflow.compile()
 
             # Charger les questions
             with open(args.benchmark, "r", encoding="utf-8") as f:
                 questions = json.load(f)
+                
+            input_state = BenchmarkState(
+                qa_pairs=[(q["question"], q["answer"]) for q in questions],
+                verbose=verbose,
+                sub_rag_system=sub_rag_system
+            )
 
-            embedder = system.embedder
-            benchmark = CosineSimBenchmark(embedder)
-
-            data_for_benchmark = []
-            for q in questions:
-                question = q["question"]
-                reference = q["answer"]
-
-                print(f"\n🔍 Question: {question}")
-                llm_response = system.query(question, transparent=False)
-                print(f"🤖 Réponse LLM: {llm_response}")
-                print(f"🎯 Référence: {reference}")
-
-                data_for_benchmark.append({
-                    "question": question,
-                    "llm_response": llm_response,
-                    "reference": reference
-                })
-
-            report = benchmark.run(data_for_benchmark)
+            final_state = app.invoke(input_state)
 
             print("\n📊 Résultats du benchmark Cosine Similarity")
             print("=" * 60)
-            for r in report["results"]:
+            for r in final_state["grades"]:
                 print(f"Q: {r['question']}")
-                print(f"→ Similarité: {r['similarity']:.4f}")
+                if verbose:
+                    print(f"  Référence : {r['reference']}")
+                    print(f"  LLM Response: {r['llm_response']}")
+                print(f"→ Similarité: {r['score']:.4f}")
                 print("-" * 40)
 
-            print(f"\nMoyenne globale : {report['mean_score']:.4f}")
+            print(f"\nMoyenne globale : {final_state['benchmark_results']['average_score']:.4f}")
             return
        
         # Determine mode and execute
@@ -335,17 +417,15 @@ EXAMPLES:
             # Single query mode
             if args.quiet:
                 # Just the response, no transparency
-                response = system.query(args.query, fusion = args.fusion)
+                response = system.query(args.query, verbose=False)
                 print(response)
             else:
-                # Full transparency if verbose, minimal if normal
-                transparent = args.verbose
-                response = system.query(args.query, fusion = args.fusion)
-                if not transparent:
-                    print(response)
+                # Full transparency if verbose
+                response = system.query(args.query, verbose=args.verbose)
+                print(response)
         else:
             # Interactive mode (default) - always clean interface
-            system.interactive(verbose=args.verbose, fusion=args.fusion)
+            system.interactive(verbose=args.verbose)
             
     except KeyboardInterrupt:
         print("\n\n👋 Goodbye!")
