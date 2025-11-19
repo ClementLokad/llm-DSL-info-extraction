@@ -38,22 +38,25 @@ def merge_rag_results(results):
 
 class DSLQuerySystem(BasePipeline):
     def __init__(self):
-        self.config = ConfigManager()
+        self.config_manager = ConfigManager()
         self.router = None
         self.grep = None
         self.rag = {}
         self.agent = None
         self.fusion = False
-        self.rate_limit_delay = self.config.get('agent.rate_limit_delay', 0)
+        self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
         
     def initialize(self, verbose=True):
         if verbose:
             print("🚀 Initializing...")
             
-        agent_type = self.config.get_default_agent()
+        agent_type = self.config_manager.get_default_agent()
         if agent_type == 'mistral':
             from agents.mistral_agent import MistralAgent
             self.agent = MistralAgent()
+        elif agent_type == 'llama3':
+            from agents.local_llama3 import Llama3Agent
+            self.agent = Llama3Agent()
         elif agent_type == 'gemini':
             from agents.gemini_agent import GeminiAgent
             self.agent = GeminiAgent()
@@ -67,14 +70,14 @@ class DSLQuerySystem(BasePipeline):
         self.agent.initialize()
         self.router = Router(self.agent)
         
-        dirs = self.config.get('paths.input_dirs', ["env_scripts"])
+        dirs = self.config_manager.get('paths.input_dirs', ["env_scripts"])
         self.grep = GrepRetriever(dirs)
         
-        parser = EnvisionParser(self.config.get_parser_config())
-        chunker = SemanticChunker(self.config.get_chunker_config())
-        embedder = SentenceTransformerEmbedder(self.config.get_embedder_config())
+        parser = EnvisionParser(self.config_manager.get_parser_config())
+        chunker = SemanticChunker(self.config_manager.get_chunker_config())
+        embedder = SentenceTransformerEmbedder(self.config_manager.get_embedder_config())
         embedder.initialize()
-        retriever = FAISSRetriever(self.config.get_retriever_config())
+        retriever = FAISSRetriever(self.config_manager.get_retriever_config())
         retriever.initialize(embedder.embedding_dimension)
         
         index_path = Path("data/faiss_index")
@@ -268,7 +271,7 @@ EXAMPLES:
     # Agent selection
     parser.add_argument(
         "--agent", "-a",
-        choices=["gemini", "gpt", "mistral"],
+        choices=["gemini", "gpt", "mistral", "llama3"],
         help="Override default agent from config"
     )
     
@@ -397,7 +400,10 @@ EXAMPLES:
             print("=" * 60)
             for r in final_state["grades"]:
                 print(f"Q: {r['question']}")
-                print(f"→ Similarité: {r['similarity']:.4f}")
+                if verbose:
+                    print(f"  Référence : {r['reference']}")
+                    print(f"  LLM Response: {r['llm_response']}")
+                print(f"→ Similarité: {r['score']:.4f}")
                 print("-" * 40)
 
             print(f"\nMoyenne globale : {final_state['benchmark_results']['average_score']:.4f}")
