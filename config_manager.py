@@ -188,6 +188,15 @@ class ConfigManager:
         """Get default agent from configuration."""
         return self.config.get('agent', {}).get('default_model', 'mistral')
     
+
+    def get_benchmark_agent(self) -> str:
+        """Get agent for llm as a judge. Use benchmark_model if specified, otherwise default."""
+        return self.config.get('benchmark', {}).get('benchmark_model', self.get_default_agent())
+    
+    def get_benchmark_type(self) -> str:
+        """Get benchmark type from configuration."""
+        return self.config.get('benchmark', {}).get('benchmark_type', 'cosine_similarity')
+        
     def __repr__(self) -> str:
         """String representation of configuration manager."""
         return f"ConfigManager(env=dev, config_file={self.config_file})"

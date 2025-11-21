@@ -15,7 +15,6 @@ from rag.parsers.envision_parser import EnvisionParser
 from rag.chunkers.semantic_chunker import SemanticChunker
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from rag.retrievers.faiss_retriever import FAISSRetriever
-from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
 from rag.retrievers.grep_retriever import GrepRetriever
 from router import Router, QueryType
 from rag.core.base_retriever import RetrievalResult
@@ -45,6 +44,7 @@ class DSLQuerySystem(BasePipeline):
         self.agent = None
         self.fusion = False
         self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
+        self.benchmark_type= self.config_manager.get_benchmark_type()
         
     def initialize(self, verbose=True):
         if verbose:
@@ -180,23 +180,51 @@ class DSLQuerySystem(BasePipeline):
         return {"generation": generation}
     
     def grade_answer(self, state):
-        if state.get("verbose", False):
-            print("--- NODE: Grade Answer ---")
-        final_answer = state["final_answer"]
-        reference_answer = state["reference_answer"]
+        if self.benchmark_type == 'cosine_similarity':
+            from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
+            if state.get("verbose", False):
+                print("--- NODE: Cosine Similarity Grade Answer ---")
+            final_answer = state["final_answer"]
+            reference_answer = state["reference_answer"]
+            
+            benchmark = CosineSimBenchmark(self.rag['embedder'])
+            
+            score = benchmark.compute_similarity(final_answer, reference_answer)
+            if state.get("verbose", False):
+                print(f"→ Similarity score with '{reference_answer}': {score:.4f}")
+            
+            grade = {"score": score,
+                    "question": state["question"],
+                    "llm_response": state["final_answer"],
+                    "reference": state["reference_answer"]}
+            
+            return {"grade": grade}
         
-        benchmark = CosineSimBenchmark(self.rag['embedder'])
-        
-        score = benchmark.compute_similarity(final_answer, reference_answer)
-        if state.get("verbose", False):
-            print(f"→ Similarity score with '{reference_answer}': {score:.4f}")
-        
-        grade = {"score": score,
-                "question": state["question"],
-                "llm_response": state["final_answer"],
-                "reference": state["reference_answer"]}
-        
-        return {"grade": grade}
+        elif self.benchmark_type == 'llm_as_a_judge':
+            from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark
+            if state.get("verbose", False):
+                print("--- NODE: Judge LLM Grade Answer ---")
+            final_answer = state["final_answer"]
+            reference_answer = state["reference_answer"]
+            
+            benchmark = LLMAsAJudgeBenchmark()
+            benchmark.initialize(verbose=state.get("verbose", False))
+
+            #delay to avoid too many requests
+            if self.rate_limit_delay > 0:
+                time.sleep(self.rate_limit_delay)
+            
+            score = benchmark.judge(final_answer, reference_answer)
+            
+            if state.get("verbose", False):
+                print(f"→ LLM Judge score with '{reference_answer}': {score}")
+            
+            grade = {"score": score,
+                    "question": state["question"],
+                    "llm_response": state["final_answer"],
+                    "reference": state["reference_answer"]}
+            
+            return {"grade": grade}
 
     def query(self, question, verbose=True):
         simple_qa_graph = self.build_single_qa_graph()
@@ -280,6 +308,7 @@ EXAMPLES:
         action="store_true",
         help="Suppress initialization messages"
     )
+
     
     parser.add_argument(
         "--verbose", "-v",
@@ -299,6 +328,19 @@ EXAMPLES:
         help="Run benchmark with a JSON file containing questions and expected answers"
     )
 
+    # # Benchmark type
+    # parser.add_argument(
+    #     "--benchmark-type" "-bt",
+    #     choices=["gemini", "gpt", "mistral", "llama3"],
+    #     help="Override benchmark type from config"
+    # )
+
+    # # LLM Judge Benchmark selection
+    # parser.add_argument(
+    #     "--bench-agent", "-ba",
+    #     choices=["gemini", "gpt", "mistral", "llama3"],
+    #     help="Override benchmark agent from config"
+    # )
     
     args = parser.parse_args()
     
@@ -398,7 +440,7 @@ EXAMPLES:
 
             final_state = app.invoke(input_state)
 
-            print("\n📊 Résultats du benchmark Cosine Similarity")
+            print("\n📊 Résultats du benchmark")
             print("=" * 60)
             for r in final_state["grades"]:
                 print(f"Q: {r['question']}")

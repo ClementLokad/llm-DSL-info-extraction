@@ -61,8 +61,7 @@ graph TD
 
 ```text
 llm-DSL-info-extraction/
-├── 🎮 main.py                    # Interface simple (Legacy)
-├── 🕸️ main_langgraph.py          # Interface avancée (Graph-based)
+├── 🕸️ main.py                    # Interface avancée (Graph-based)
 ├── 🔧 langgraph_base.py          # Définition du graphe et des états
 ├── 🔨 build_index.py             # Construction d'index FAISS
 ├── ⚙️ config.yaml                # Configuration système
@@ -127,7 +126,7 @@ python build_index.py
 Utilisez la version LangGraph pour bénéficier de toutes les fonctionnalités :
 
 ```bash
-python main_langgraph.py
+python main.py
 ```
 
 #### Options Avancées
