@@ -32,7 +32,7 @@ class GraphState(TypedDict):
     error_detected: bool
     error_count: int
     grade: Optional[Dict[str, Any]]
-    verbose: Optional[bool]
+    verbose: bool
 
 class BenchmarkState(TypedDict):
     """
@@ -49,7 +49,7 @@ class BenchmarkState(TypedDict):
     grades: List[Dict[str, Any]]
     benchmark_results: Dict[str, Any]
     sub_rag_system: StateGraph
-    verbose: Optional[bool]
+    verbose: bool
 
 
 # --- 2. Define Graph Nodes ---
@@ -63,8 +63,7 @@ class BasePipeline:
         Takes the 'question' from the state and retrieves relevant context.
         (Implies the 'Parser' and 'Data Base' steps upstream).
         """
-        if state.get("verbose", False):
-            print("--- NODE: Retrieve Documents ---")
+        print("--- NODE: Retrieve Documents ---")
         question = state["question"]
         
         # ... Your Retriever logic (e.g., BM25, ChromaDB, etc.) ...
@@ -81,8 +80,7 @@ class BasePipeline:
         Builds the final prompt using the question and the retrieved context.
         Also accounts for past errors if in a correction loop.
         """
-        if state.get("verbose", False):
-            print("--- NODE: Engineer Prompt ---")
+        print("--- NODE: Engineer Prompt ---")
         question = state["question"]
         context = state["retrieved_context"]
         
@@ -98,8 +96,7 @@ class BasePipeline:
         Node: 'Main LLM'
         Calls the main language model with the prompt.
         """
-        if state.get("verbose", False):
-            print("--- NODE: Generate Answer (Main LLM) ---")
+        print("--- NODE: Generate Answer (Main LLM) ---")
         prompt = state["prompt"]
         
         # ... Your LLM call logic ...
@@ -116,23 +113,20 @@ class BasePipeline:
         Verifies the LLM's generation. If an error is found, it flags it.
         Otherwise, it validates the 'final_answer'.
         """
-        if state.get("verbose", False):
-            print("--- NODE: Check Logic ---")
+        print("--- NODE: Check Logic ---")
         generation = state["generation"]
         error_count = state.get("error_count", 0)
         
         # ... Your verification logic (e.g., call another LLM, regex, etc.) ...
         
         if False: # Placeholder error detection logic to avoid overcharging the LLM
-            if state.get("verbose", False):
-                print("  ⚠️  -> Error detected. Incrementing counter.")
+            print("  ⚠️  -> Error detected. Incrementing counter.")
             return {
                 "error_detected": True,
                 "error_count": error_count + 1
             }
         else:
-            if state.get("verbose", False):
-                print("  ✅  -> No error detected. Validating answer.")
+            print("  ✅  -> No error detected. Validating answer.")
             return {
                 "error_detected": False,
                 "final_answer": generation # The generation is validated
@@ -143,8 +137,7 @@ class BasePipeline:
         Node: 'Answer Grader'
         Compares the 'final_answer' with the 'reference_answer' to produce a score.
         """
-        if state.get("verbose", False):
-            print("--- NODE: Grade Answer ---")
+        print("--- NODE: Grade Answer ---")
         final_answer = state["final_answer"]
         reference_answer = state["reference_answer"]
         
@@ -159,16 +152,14 @@ class BasePipeline:
         Node: 'Run Q/A Pairs'
         Executes the sub-graph for each Q/A pair and collects grades.
         """
-        if state.get("verbose", False):
-            print("--- NODE: Run Q/A Pairs ---")
+        print("--- NODE: Run Q/A Pairs ---")
         qa_pairs = state["qa_pairs"]
         sub_rag_system = state["sub_rag_system"]
         
         grades = []
         
         for question, reference_answer in qa_pairs:
-            if state.get("verbose", False):
-                print(f"    -> Processing Q/A pair:\nQuestion: {question}\nReference Answer: {reference_answer}")
+            print(f"\n    -> Processing Q/A pair:\nQuestion: {question}\nReference Answer: {reference_answer}")
             # Initialize state for the sub-graph
             sub_state: GraphState = {
                 "question": question,
@@ -179,7 +170,8 @@ class BasePipeline:
                 "final_answer": None,
                 "error_detected": False,
                 "error_count": 0,
-                "grade": None
+                "grade": None,
+                "verbose": state["verbose"]
             }
             
             app = sub_rag_system.compile()
@@ -197,8 +189,7 @@ class BasePipeline:
         Node: 'Benchmark'
         Aggregates grades from multiple Q/A pairs into benchmark results.
         """
-        if state.get("verbose", False):
-            print("--- NODE: Benchmark ---")
+        print("--- NODE: Benchmark ---")
         grades = state["grades"]
         
         # ... Your benchmark aggregation logic ...
@@ -218,21 +209,18 @@ class BasePipeline:
         - 'if error detected': Returns to 'engineer_prompt' (loop).
         - 'else': Continues to 'grade_answer' (and 'Final Answer' is implicit).
         """
-        if state.get("verbose", False):
-            print("--- DECISION: After Logic Check ---")
+        print("--- DECISION: After Logic Check ---")
         MAX_RETRIES = 2
         
         if state["error_detected"] and state["error_count"] <= MAX_RETRIES:
-            if state.get("verbose", False):
-                print("    -> Route: 're-prompt' (loop)")
+            print("    -> Route: 're-prompt' (loop)")
             return "reprompt"
         else:
             if state["error_detected"]:
-                if state.get("verbose", False):
-                    print("    -> Route: 'grade_answer' (retry limit reached)")
+                print("    -> Route: 'grade_answer' (retry limit reached)")
             else:
-                if state.get("verbose", False):
-                    print("    -> Route: 'grade_answer' (answer validated)")
+                
+                print("    -> Route: 'grade_answer' (answer validated)")
             return "proceed"
 
     # --- 4. Assemble the Graph ---

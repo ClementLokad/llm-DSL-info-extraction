@@ -105,9 +105,7 @@ class DSLQuerySystem(BasePipeline):
             print("✅ Ready\n")
     
     def retrieve_documents(self, state):
-        verbose = state.get("verbose", True)
-        if verbose:
-            print("--- NODE: Retrieve Documents ---")
+        print("--- NODE: Retrieve Documents ---")
         question = state["question"]
         retrieved_context = []
         
@@ -115,8 +113,7 @@ class DSLQuerySystem(BasePipeline):
             time.sleep(self.rate_limit_delay)
             
         c = self.router.classify(question)
-        if verbose:
-            print(f"🎯 Router decision: {c.qtype.value} ({c.confidence:.0%} confidence)")
+        print(f"🎯 Router decision: {c.qtype.value} ({c.confidence:.0%} confidence)")
             
         if c.qtype == QueryType.GREP:
             retrieved_context = self.grep.search(c.pattern or "")
@@ -127,7 +124,7 @@ class DSLQuerySystem(BasePipeline):
                 time.sleep(self.rate_limit_delay)
                 
             raw_questions = self.agent.generate_response(base_fusion_question + question)
-            if verbose:
+            if state["verbose"]:
                 print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
             questions = raw_questions.split("$")
             for sub_question in questions:
@@ -138,15 +135,14 @@ class DSLQuerySystem(BasePipeline):
             emb = self.rag['embedder'].embed_text(question)
             retrieved_context = self.rag['retriever'].search(emb, top_k=5)
         
-        if verbose:
+        if state["verbose"]:
             print(f"🔍 → Retrieved {len(retrieved_context)} documents :")
             print(retrieved_context)
 
         return {"retrieved_context": retrieved_context}
     
     def engineer_prompt(self, state):
-        if state.get("verbose", True):
-            print("--- NODE: Engineer Prompt ---")
+        print("--- NODE: Engineer Prompt ---")
         
         question = state["question"]
         context = state["retrieved_context"]
@@ -159,14 +155,13 @@ class DSLQuerySystem(BasePipeline):
         
         prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
         
-        if state.get("verbose", False):
+        if state["verbose"]:
             print(f"→ Generated prompt:\n{prompt}\n")
         
         return {"prompt": prompt}
     
     def generate_answer(self, state):
-        if state.get("verbose", False):
-            print("--- NODE: Generate Answer (Main LLM) ---")
+        print("--- NODE: Generate Answer (Main LLM) ---")
         prompt = state["prompt"]
         
         if self.rate_limit_delay > 0:
@@ -174,7 +169,7 @@ class DSLQuerySystem(BasePipeline):
             
         generation = self.agent.generate_response(prompt)
         
-        if state.get("verbose", False):
+        if state["verbose"]:
             print(f"💬 → LLM RAW Generation:\n{generation}\n")
         
         return {"generation": generation}
@@ -182,15 +177,14 @@ class DSLQuerySystem(BasePipeline):
     def grade_answer(self, state):
         if self.benchmark_type == 'cosine_similarity':
             from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
-            if state.get("verbose", False):
-                print("--- NODE: Cosine Similarity Grade Answer ---")
+            print("--- NODE: Cosine Similarity Grade Answer ---")
             final_answer = state["final_answer"]
             reference_answer = state["reference_answer"]
             
             benchmark = CosineSimBenchmark(self.rag['embedder'])
             
             score = benchmark.compute_similarity(final_answer, reference_answer)
-            if state.get("verbose", False):
+            if state["verbose"]:
                 print(f"→ Similarity score with '{reference_answer}': {score:.4f}")
             
             grade = {"score": score,
@@ -202,8 +196,7 @@ class DSLQuerySystem(BasePipeline):
         
         elif self.benchmark_type == 'llm_as_a_judge':
             from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark
-            if state.get("verbose", False):
-                print("--- NODE: Judge LLM Grade Answer ---")
+            print("--- NODE: Judge LLM Grade Answer ---")
             final_answer = state["final_answer"]
             reference_answer = state["reference_answer"]
             
@@ -216,7 +209,7 @@ class DSLQuerySystem(BasePipeline):
             
             score = benchmark.judge(final_answer, reference_answer)
             
-            if state.get("verbose", False):
+            if state["verbose"]:
                 print(f"→ LLM Judge score with '{reference_answer}': {score}")
             
             grade = {"score": score,
@@ -448,7 +441,7 @@ EXAMPLES:
                     print(f"  Référence : {r['reference']}")
                     print(f"  LLM Response: {r['llm_response']}")
                 print(f"→ Similarité: {r['score']:.4f}")
-                print("-" * 40)
+                print("\n" + "-" * 40 + "\n")
 
             print(f"\nMoyenne globale : {final_state['benchmark_results']['average_score']:.4f}")
             return
