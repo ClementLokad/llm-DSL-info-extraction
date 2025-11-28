@@ -1,0 +1,60 @@
+67982, /1. utilities/1. populating dataset/01 - Catalog and Orders History Creation
+67983, /1. utilities/1. populating dataset/02 - Automatic Stock and PO History Creation
+67984, /1. utilities/1. populating dataset/03 - Manual Inputs
+67985, /1. utilities/Modules/Global Parameters
+67992, /1. utilities/Modules/Functions
+68000, /1. utilities/2. preprocess/[ 1 ] - Technical PreProcessing
+68001, /1. utilities/2. preprocess/[ 2 ] - Business Preprocessing
+68002, /1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff
+68004, /2. Data sanity/1 - Data Integrity Check
+68005, /2. Data sanity/2 - Low Level Data Health
+68006, /2. Data sanity/3 - High Level Data Health
+68009, /3. Inspectors/1 - Item Inspector
+68010, /3. Inspectors/2 - Sales Analysis
+68011, /3. Inspectors/3 - Stock Inspector
+68012, /3. Inspectors/4 - Stores Analysis
+68013, /3. Inspectors/5 - Supplier Inspector
+68014, /3. Inspectors/6 Compare to Min-Max strategy
+68016, /8. Old/00 Home
+68017, /4. Optimization workflow/01 Inventory Optimization Overview
+68018, /4. Optimization workflow/02 Suppliers
+68019, /4. Optimization workflow/03.b. Forecasting
+68020, /4. Optimization workflow/04 Economic Parameters
+68021, /4. Optimization workflow/05. Standard Purchase Suggestions
+68022, /4. Optimization workflow/06 Purchasing results
+68023, /4. Optimization workflow/07 Standard Dispatch Suggestion
+68026, /4. Optimization workflow/10 Audit Tools
+68030, /7. Documentation/0 General Organization
+68031, /7. Documentation/1 Project
+68032, /7. Documentation/2 Data phase
+68033, /7. Documentation/3 Forecasts & Optimization
+68034, /7. Documentation/3.1 Action Reward Example
+68035, /7. Documentation/4 Production
+68036, /7. Documentation/Fill Rate Example
+72915, /4. Optimization workflow/00 Home2
+75853, /4. Optimization workflow/09.Simulation ROP and EOQ Dispatch
+75854, /4. Optimization workflow/08. Dispatch ROP definition
+76705, /4. Optimization workflow/05.b. Long Term Purchase Suggestions
+77929, /4. Optimization workflow/00 Home
+77988, /4. Optimization workflow/05.New Standard Purchase Suggestions
+78018, /4. Optimization workflow/French/07 Recommandations de Dispatch
+78023, /4. Optimization workflow/French/05.Recommandations d'Achats
+78068, /4. Optimization workflow/French/00 Home
+78069, /4. Optimization workflow/French/03 Forecasting
+79365, /3. Inspectors/7 - Global Business Cockpit
+79367, /4. Optimization workflow/French/07 Recommandations de Dispatch (clone)
+80985, /4. Optimization workflow/07 Standard Dispatch Suggestion New
+82166, /1. utilities/1. populating dataset/04 - Data Creation for Long Term Planning
+82169, /5. Long Term Planning Module/Archive/General Vision V1
+82199, /5. Long Term Planning Module/High Level Forecast Cockpit
+82278, /1. utilities/Modules/PathSchemas
+82295, /1. utilities/Modules/Colors
+82299, /5. Long Term Planning Module/Category Vision
+82317, /5. Long Term Planning Module/Final Forecast Plan
+82319, /5. Long Term Planning Module/Long Term Planning Menu
+82466, /5. Long Term Planning Module/Category Menu
+83121, /6. Rule Based Pricing/Pricing Rules
+86092, /4. Optimization workflow/03 Forecast Menu
+87608, /8. Old/PurchaseOptimization
+87829, /4. Optimization workflow/FR/00 Menu General
+87830, /4. Optimization workflow/FR/05. Suggestions d'achat

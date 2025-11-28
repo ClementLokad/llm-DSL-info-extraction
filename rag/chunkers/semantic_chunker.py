@@ -279,6 +279,14 @@ class SemanticChunker(BaseChunker):
             'chunk_name': chunk_name
         }
         
+        file_path = blocks[0].file_path
+        # Extract original file path from the first block's file if available
+        with open(file_path, 'r', encoding='utf-8') as f:
+            header = f.readline().strip()
+            if header.startswith('///ORIGINAL_PATH: '):
+                original_path = header.replace('///ORIGINAL_PATH: ', '').strip()
+                metadata['original_file_path'] = original_path
+        
         # Add specific metadata based on chunk type
         if chunk_type == 'read_statement':
             table_names = [b.metadata.get('table_name') for b in blocks if b.metadata.get('table_name')]

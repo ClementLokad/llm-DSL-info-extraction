@@ -9,7 +9,7 @@
     },
     {
         "question": "Combien de scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
-        "answer": "1"
+        "answer": "2"
     },
     {
         "question": "Quels scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
@@ -20,6 +20,10 @@
         "answer": "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff "
     },
     {
+        "question": "Quels sont les modules utilisés ?",
+        "answer": "/1. utilities/Modules/Global Parameters\n/1. utilities/Modules/Functions\n/1. utilities/Modules/PathSchemas\n/1. utilities/Modules/Colors"
+    },
+    {
         "question": "Où sont calculés les meilleurs vendeurs ?",
         "answer": "/3. Inspectors/4 - Stores Analysis"
     },
@@ -28,8 +32,44 @@
         "answer": "???"
     },
     {
-        "question": "Comment est calculé ... ?",
-        "answer": "???"
+        "question": "Que contient le fichier /Clean/LongTermPlanning/Parametrisation/General.ion ?",
+        "answer": ""
+    },
+    {
+        "question": "Dans le script High Level Forecast Cockpit, comment est calculé la variable Category.SelectedGrowth ?",
+        "answer": ""
+    },
+    {
+        "question": "Quels sont les scripts affectés si je modifie le calcul de Category.SelectedGrowth ?",
+        "answer": ""
+    },
+    {
+        "question": "Dans l'autodiff du script [ 3 ] - Forecast Autodiff, quel est la loss qu'on essaie de minimiser ?",
+        "answer": ""
+    },
+    {
+        "question": "Quel est le rôle principal du script Pricing Rules ?",
+        "answer": ""
+    },
+    {
+        "question": "Quels sont les modules, scripts et fichiers dont dépend le script Forecasting ?",
+        "answer": ""
+    },
+    {
+        "question": "Quelle est la différence entre Standard Purchase Suggestions et Long Term Purchase Suggestions ?",
+        "answer": ""
+    },
+    {
+        "question": "Dans quels fichiers sont les données brutes ?",
+        "answer": ""
+    },
+    {
+        "question": "Quels sont les dashboards haut-niveaux (ceux qui redirigent vers d'autres dashboards, il faut regarder les hyperliens dans le code) ?",
+        "answer": ""
+    },
+    {
+        "question": "Comment sont nettoyées les données ?",
+        "answer": ""
     },
     {
         "question": "Quels scripts utilisent la variable RedispatchCycleWeeks ?",

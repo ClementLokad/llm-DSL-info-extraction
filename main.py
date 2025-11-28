@@ -17,7 +17,7 @@ from rag.chunkers.semantic_chunker import SemanticChunker
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from rag.retrievers.faiss_retriever import FAISSRetriever
 from rag.retrievers.grep_retriever import GrepRetriever
-from router import Router, QueryType
+from rag.router import Router, QueryType
 from rag.core.base_retriever import RetrievalResult
 from langgraph_base import BasePipeline, GraphState, BenchmarkState
 
@@ -97,7 +97,9 @@ class DSLQuerySystem(BasePipeline):
             
         c = self.router.classify(question)
         print(f"🎯 Router decision: {c.qtype.value} ({c.confidence:.0%} confidence)")
-            
+        
+        top_k = self.config_manager.get('rag.top_k_chunks', 5)
+        
         if c.qtype == QueryType.GREP:
             retrieved_context = self.grep.search(c.pattern or "")
         elif self.config_manager.get('rag.fusion', False):
@@ -112,11 +114,11 @@ class DSLQuerySystem(BasePipeline):
             questions = raw_questions.split("$")
             for sub_question in questions:
                 emb = self.rag['embedder'].embed_text(sub_question)
-                retrieved_context.extend(self.rag['retriever'].search(emb, top_k=5))
-            retrieved_context = merge_rag_results(retrieved_context)[:5]
+                retrieved_context.extend(self.rag['retriever'].search(emb, top_k=top_k))
+            retrieved_context = merge_rag_results(retrieved_context)[:top_k]
         else:
             emb = self.rag['embedder'].embed_text(question)
-            retrieved_context = self.rag['retriever'].search(emb, top_k=5)
+            retrieved_context = self.rag['retriever'].search(emb, top_k=top_k)
         
         if state["verbose"]:
             print(f"🔍 → Retrieved {len(retrieved_context)} documents :")
@@ -134,7 +136,7 @@ class DSLQuerySystem(BasePipeline):
         if len(context) ==0:
             ctx = "No relevant context found."
         else:
-            ctx = "\n\n----------------------\n\n".join([f"[File: {r.chunk.metadata.get('file_path', 'Unknown file path')}]\n{r.chunk.content}" for r in context])
+            ctx = "\n\n----------------------\n\n".join([f"[File: {r.chunk.metadata.get('original_file_path', 'Unknown file path')}]\n{r.chunk.content}" for r in context])
         
         prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
         
@@ -321,8 +323,6 @@ EXAMPLES:
     # Handle conflicting options
     if args.quiet and args.verbose:
         parser.error("--quiet and --verbose cannot be used together")
-    
-    
     
     try:
         # Status mode - lightweight check without full initialization

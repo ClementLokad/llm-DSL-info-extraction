@@ -9,7 +9,7 @@ sys.path.append(str(Path(__file__).parent))
 def test_router():
     """Test router classification"""
     print("🧪 Testing Router")
-    from router import Router
+    from rag.router import Router
     
     router = Router()
     tests = [

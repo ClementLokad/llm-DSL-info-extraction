@@ -25,15 +25,16 @@ class GrepRetriever:
             for file_path in path.rglob("*.nvn"):
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        for num, line in enumerate(f, 1):
+                        original_path = None
+                        for num, line in enumerate(f):
+                            if num == 0 and line.startswith("///ORIGINAL_PATH: "):
+                                original_path = line.replace("///ORIGINAL_PATH: ", "").strip()
                             if re.search(pattern, line, flags):
                                 matches.append(RetrievalResult(
                                     chunk=CodeChunk(content=line.strip(),
-                                                    chunk_type="grep_match"),
-                                    metadata={
-                                        "file_path": str(file_path),
-                                        "line_number": num
-                                    },
+                                                    chunk_type="grep_match",
+                                                    metadata={"original_file_path": original_path if original_path is not None else str(file_path),
+                                                              "line_number": num}),
                                     score=None,
                                     rank=None
                                 ))
