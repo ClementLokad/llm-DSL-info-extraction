@@ -1,7 +1,8 @@
 from typing import List, Dict, Any
-from config_manager import ConfigManager
 from .base_benchmark import Benchmark
 import numpy as np
+import agents.prepare_agent as prepare_agent
+import config_manager
 
 default_prompt = "You're an expert at judging answers to questions by answering only a single number. Return JUST 1 if the LLM response to the answer give is correct, else JUST return 0. Don't explain anything just give the number 1 or 0 so it can go into a int() function"
 
@@ -10,24 +11,11 @@ class LLMAsAJudgeBenchmark(Benchmark):
     Benchmark using an LLM as a judge to evaluate the correctness of default LLM's response
     """
     def __init__(self):
-        self.config = ConfigManager()
+        self.config = config_manager.get_config()
         self.rate_limit_delay = self.config.get('agent.rate_limit_delay', 0)
 
-    def initialize(self, verbose=True):
-        agent_type = self.config.get_benchmark_agent()
-        if agent_type == 'mistral':
-            from agents.mistral_agent import MistralAgent
-            self.agent = MistralAgent()
-        elif agent_type == 'gemini':
-            from agents.gemini_agent import GeminiAgent
-            self.agent = GeminiAgent()
-        elif agent_type == 'groq':
-            from agents.groq_agent import GroqAgent
-            self.agent = GroqAgent()
-        else:
-            from agents.gpt_agent import GPTAgent
-            self.agent = GPTAgent()            
-        self.agent.initialize()
+    def initialize(self):
+        self.agent = prepare_agent.prepare_default_agent()
     
     def judge (self, llm_response: str, reference: str)-> int:
         """Returns 1 if the llm_response is considered correct by the judge llm, else 0"""

@@ -10,7 +10,8 @@ from transformers import pipeline
 
 sys.path.append(str(Path(__file__).parent))
 
-from config_manager import ConfigManager
+import config_manager
+import agents.prepare_agent as prepare_agent
 from rag.parsers.envision_parser import EnvisionParser
 from rag.chunkers.semantic_chunker import SemanticChunker
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
@@ -37,12 +38,11 @@ def merge_rag_results(results):
 
 class DSLQuerySystem(BasePipeline):
     def __init__(self):
-        self.config_manager = ConfigManager()
+        self.config_manager = config_manager.get_config()
         self.router = None
         self.grep = None
         self.rag = {}
         self.agent = None
-        self.fusion = False
         self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
         self.benchmark_type= self.config_manager.get_benchmark_type()
         
@@ -50,24 +50,7 @@ class DSLQuerySystem(BasePipeline):
         if verbose:
             print("🚀 Initializing...")
             
-        agent_type = self.config_manager.get_default_agent()
-        if agent_type == 'mistral':
-            from agents.mistral_agent import MistralAgent
-            self.agent = MistralAgent()
-        elif agent_type == 'llama3':
-            from agents.local_llama3 import Llama3Agent
-            self.agent = Llama3Agent()
-        elif agent_type == 'gemini':
-            from agents.gemini_agent import GeminiAgent
-            self.agent = GeminiAgent()
-        elif agent_type == 'groq':
-            from agents.groq_agent import GroqAgent
-            self.agent = GroqAgent()
-        else:
-            from agents.gpt_agent import GPTAgent
-            self.agent = GPTAgent()
-            
-        self.agent.initialize()
+        self.agent = prepare_agent.prepare_default_agent()
         self.router = Router(self.agent)
         
         dirs = self.config_manager.get('paths.input_dirs', ["env_scripts"])
@@ -117,7 +100,7 @@ class DSLQuerySystem(BasePipeline):
             
         if c.qtype == QueryType.GREP:
             retrieved_context = self.grep.search(c.pattern or "")
-        elif self.fusion:
+        elif self.config_manager.get('rag.fusion', False):
             base_fusion_question = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text.\n"
             
             if self.rate_limit_delay > 0:
@@ -175,11 +158,11 @@ class DSLQuerySystem(BasePipeline):
         return {"generation": generation}
     
     def grade_answer(self, state):
+        final_answer = state["final_answer"]
+        reference_answer = state["reference_answer"]
         if self.benchmark_type == 'cosine_similarity':
             from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
             print("--- NODE: Cosine Similarity Grade Answer ---")
-            final_answer = state["final_answer"]
-            reference_answer = state["reference_answer"]
             
             benchmark = CosineSimBenchmark(self.rag['embedder'])
             
@@ -197,11 +180,9 @@ class DSLQuerySystem(BasePipeline):
         elif self.benchmark_type == 'llm_as_a_judge':
             from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark
             print("--- NODE: Judge LLM Grade Answer ---")
-            final_answer = state["final_answer"]
-            reference_answer = state["reference_answer"]
             
             benchmark = LLMAsAJudgeBenchmark()
-            benchmark.initialize(verbose=state.get("verbose", False))
+            benchmark.initialize()
 
             #delay to avoid too many requests
             if self.rate_limit_delay > 0:
@@ -291,7 +272,7 @@ EXAMPLES:
     # Agent selection
     parser.add_argument(
         "--agent", "-a",
-        choices=["gemini", "gpt", "mistral", "llama3"],
+        choices=["gemini", "gpt", "mistral", "llama3", "groq"],
         help="Override default agent from config"
     )
     
@@ -340,6 +321,8 @@ EXAMPLES:
     # Handle conflicting options
     if args.quiet and args.verbose:
         parser.error("--quiet and --verbose cannot be used together")
+    
+    
     
     try:
         # Status mode - lightweight check without full initialization
@@ -390,15 +373,16 @@ EXAMPLES:
             print("\n💡 Use --help for available commands")
             return
         
-        # Create and initialize system for query modes
-        system = DSLQuerySystem()
-        
         # Override agent if specified
         if args.agent:
-            system.config_manager.config['agent'] = {'default_model': args.agent}
+            config_manager.get_config().config['agent'] = {'default_model': args.agent}
+        
+        if config_manager.get_config().get_default_agent() == 'llama3':
+            # Disable rate limiting for local Llama 3
+            config_manager.get_config().config['agent']['rate_limit_delay'] = 0
         
         if args.fusion:
-           system.fusion = True
+           config_manager.get_config().config['rag']['fusion'] = True
             
         # Determine verbosity level
         if args.verbose:
@@ -408,7 +392,9 @@ EXAMPLES:
         else:
             # Default: silent for interactive mode, visible for query mode
             verbose = bool(args.query)
-            
+        
+        # Create and initialize system for query modes
+        system = DSLQuerySystem()   
         system.initialize(verbose=verbose)
         # Benchmark mode
         if args.benchmark:
