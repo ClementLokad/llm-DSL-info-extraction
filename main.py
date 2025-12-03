@@ -299,24 +299,24 @@ EXAMPLES:
     )
     
     parser.add_argument(
-        "--benchmark",
+        "--benchmarkpath", "-bp",
         metavar="PATH",
         help="Run benchmark with a JSON file containing questions and expected answers"
     )
 
-    # # Benchmark type
-    # parser.add_argument(
-    #     "--benchmark-type" "-bt",
-    #     choices=["gemini", "gpt", "mistral", "llama3"],
-    #     help="Override benchmark type from config"
-    # )
+    # Benchmark type
+    parser.add_argument(
+        "--benchmarktype" "-bt",
+        choices=["gemini", "gpt", "mistral", "llama3"],
+        help="Override benchmark type from config"
+    )
 
-    # # LLM Judge Benchmark selection
-    # parser.add_argument(
-    #     "--bench-agent", "-ba",
-    #     choices=["gemini", "gpt", "mistral", "llama3"],
-    #     help="Override benchmark agent from config"
-    # )
+    # LLM Judge Benchmark selection
+    parser.add_argument(
+        "--benchmarkagent", "-ba",
+        choices=["gemini", "gpt", "mistral", "llama3"],
+        help="Override benchmark agent from config"
+    )
     
     args = parser.parse_args()
     
@@ -396,8 +396,17 @@ EXAMPLES:
         # Create and initialize system for query modes
         system = DSLQuerySystem()   
         system.initialize(verbose=verbose)
+
+        #Override benchmark type if specified
+        if args.benchmarktype:
+            config_manager.get_config().config['benchmark'] = {'benchmark_model': args.benchmarktype}
+
+        #Override benchmark agent if specified
+        if args.benchmarkagent:
+            config_manager.get_config().config['benchmark'] = {'benchmark_agent': args.benchmarkagent}
+
         # Benchmark mode
-        if args.benchmark:
+        if args.benchmarkpath:
             # Build the sub-graph for single Q/A processing
             sub_rag_system = system.build_single_qa_graph()
             
@@ -408,7 +417,7 @@ EXAMPLES:
             app = workflow.compile()
 
             # Charger les questions
-            with open(args.benchmark, "r", encoding="utf-8") as f:
+            with open(args.benchmarkpath, "r", encoding="utf-8") as f:
                 questions = json.load(f)
                 
             input_state = BenchmarkState(
@@ -426,7 +435,7 @@ EXAMPLES:
                 if verbose:
                     print(f"  Référence : {r['reference']}")
                     print(f"  LLM Response: {r['llm_response']}")
-                print(f"→ Similarité: {r['score']:.4f}")
+                print(f"→ Score: {r['score']:.4f}")
                 print("\n" + "-" * 40 + "\n")
 
             print(f"\nMoyenne globale : {final_state['benchmark_results']['average_score']:.4f}")

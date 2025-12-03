@@ -188,7 +188,6 @@ class ConfigManager:
         """Get default agent from configuration."""
         return self.config.get('agent', {}).get('default_model', 'mistral')
     
-
     def get_benchmark_agent(self) -> str:
         """Get agent for llm as a judge. Use benchmark_model if specified, otherwise default."""
         return self.config.get('benchmark', {}).get('benchmark_model', self.get_default_agent())
