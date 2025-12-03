@@ -295,7 +295,7 @@ logging:
 # BENCHMARK CONFIGURATION
 # =============================================================================
 benchmark:
-  benchmark_type: "llm_as_a_judge" # Choose the benchmark type: "cosine_similarity", "llm_as_a_judge". llm_as_a_judge:
+  benchmark_type: "cosine_similarity" # Choose the benchmark type: "cosine_similarity", "llm_as_a_judge"
   benchmark_model: "mistral"  # LLM model to use as a judge: "gemini", "gpt", "mistral", "groq"
   benchmark_prompt: "You are a strict evaluator. When I give you a question and an LLM’s answer, you must output ONLY a single character: 1 if the answer is fully correct, or 0 if the answer is incorrect. Do NOT output explanations, chain-of-thought, tags, spaces, punctuation, or any extra text. If you output anything other than exactly 1 or 0, you have failed the task. Your entire reply must be exactly one character: 1 or 0."
 

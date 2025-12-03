@@ -162,6 +162,7 @@ class DSLQuerySystem(BasePipeline):
     def grade_answer(self, state):
         final_answer = state["final_answer"]
         reference_answer = state["reference_answer"]
+        print(self.benchmark_type)
         if self.benchmark_type == 'cosine_similarity':
             from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
             print("--- NODE: Cosine Similarity Grade Answer ---")
@@ -285,7 +286,6 @@ EXAMPLES:
         help="Suppress initialization messages"
     )
 
-    
     parser.add_argument(
         "--verbose", "-v",
         action="store_true",
@@ -304,20 +304,18 @@ EXAMPLES:
         help="Run benchmark with a JSON file containing questions and expected answers"
     )
 
-    # Benchmark type
     parser.add_argument(
-        "--benchmarktype" "-bt",
-        choices=["gemini", "gpt", "mistral", "llama3"],
+        "--benchmarktype", "-bt",
+        choices=["llm_as_a_judge", "cosine_similarity"],
         help="Override benchmark type from config"
     )
 
-    # LLM Judge Benchmark selection
     parser.add_argument(
         "--benchmarkagent", "-ba",
         choices=["gemini", "gpt", "mistral", "llama3"],
         help="Override benchmark agent from config"
     )
-    
+
     args = parser.parse_args()
     
     # Handle conflicting options
@@ -375,7 +373,7 @@ EXAMPLES:
         
         # Override agent if specified
         if args.agent:
-            config_manager.get_config().config['agent'] = {'default_model': args.agent}
+            config_manager.get_config().config['agent']['default_model'] = args.agent
         
         if config_manager.get_config().get_default_agent() == 'llama3':
             # Disable rate limiting for local Llama 3
@@ -383,6 +381,14 @@ EXAMPLES:
         
         if args.fusion:
            config_manager.get_config().config['rag']['fusion'] = True
+
+        #Override benchmark type if specified
+        if args.benchmarktype:
+            config_manager.get_config().config['benchmark']['benchmark_type'] = args.benchmarktype
+
+        #Override benchmark agent if specified
+        if args.benchmarkagent:
+            config_manager.get_config().config['benchmark']['benchmark_agent'] = args.benchmarkagent
             
         # Determine verbosity level
         if args.verbose:
@@ -396,14 +402,6 @@ EXAMPLES:
         # Create and initialize system for query modes
         system = DSLQuerySystem()   
         system.initialize(verbose=verbose)
-
-        #Override benchmark type if specified
-        if args.benchmarktype:
-            config_manager.get_config().config['benchmark'] = {'benchmark_model': args.benchmarktype}
-
-        #Override benchmark agent if specified
-        if args.benchmarkagent:
-            config_manager.get_config().config['benchmark'] = {'benchmark_agent': args.benchmarkagent}
 
         # Benchmark mode
         if args.benchmarkpath:

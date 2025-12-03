@@ -6,10 +6,8 @@ from agents.groq_agent import GroqAgent
 from agents.base import LLMAgent
 from config_manager import get_config
 
-def prepare_default_agent() -> LLMAgent:
+def prepare_agent(agent_name: str) -> LLMAgent:
         """Prepare and return the default LLM agent based on configuration."""
-        config = get_config()
-        agent_name = config.get_default_agent().lower()
         agent : LLMAgent
         if agent_name == 'gemini':
             agent = GeminiAgent()
@@ -25,3 +23,12 @@ def prepare_default_agent() -> LLMAgent:
             raise ValueError(f"Unsupported agent: {agent_name}")
         agent.initialize()
         return agent
+
+def prepare_default_agent() -> LLMAgent:
+    """Prepare and return the default LLM agent based on configuration."""
+    return prepare_agent(get_config().get_default_agent().lower())
+
+
+def prepare_benchmark_agent() -> LLMAgent:
+        """Prepare and return the benchmark LLM agent based on configuration."""
+        return prepare_agent(get_config().get_benchmark_agent().lower())

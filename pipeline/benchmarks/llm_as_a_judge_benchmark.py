@@ -15,7 +15,7 @@ class LLMAsAJudgeBenchmark(Benchmark):
         self.rate_limit_delay = self.config.get('agent.rate_limit_delay', 0)
 
     def initialize(self):
-        self.agent = prepare_agent.prepare_default_agent()
+        self.agent = prepare_agent.prepare_benchmark_agent()
     
     def judge (self, llm_response: str, reference: str)-> int:
         """Returns 1 if the llm_response is considered correct by the judge llm, else 0"""
@@ -49,8 +49,3 @@ class LLMAsAJudgeBenchmark(Benchmark):
             })
         mean_score = float(np.mean([r["score"] for r in results]))
         return {"results": results, "mean_score": mean_score}
-
-# if __name__ == "__main__":
-#     b = LLMAsAJudgeBenchmark()
-#     b.initialize()
-#     print(b.judge("What is the capital of Germany", "Paris"))
