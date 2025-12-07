@@ -290,6 +290,14 @@ logging:
     level: INFO
     handlers: [console]
 
+# =============================================================================
+# MAIN PIPELINE CONFIGURATION
+# =============================================================================
+main_pipeline:
+  agent_logic:
+    max_retries: 2
+    distillation_llm: "llama3"
+
     
 # =============================================================================
 # BENCHMARK CONFIGURATION

@@ -1,10 +1,19 @@
 from typing import TypedDict, List, Optional, Dict, Any, Tuple
 from langgraph.graph import END, StateGraph, START
 from rag.core.base_retriever import RetrievalResult
+from config_manager import get_config
 
 # --- 1. Define Graph State ---
 # The state is a dictionary that flows through the graph.
 # Each node reads this state and writes its results to it.
+
+class ActionLog(TypedDict):
+    """Represents a single step in the agent's history."""
+    step: int
+    thought: str
+    tool: str
+    parameter: str
+    outcome_summary: str # Brief summary of success/failure (not full content)
 
 class GraphState(TypedDict):
     """
@@ -17,8 +26,8 @@ class GraphState(TypedDict):
         prompt: The final prompt sent to the LLM.
         generation: The raw output from the 'Main LLM'.
         final_answer: The answer validated by the 'Logic Checker'.
-        error_detected: Boolean indicating if the 'Logic Checker' found an error.
-        error_count: Counter to prevent infinite loops.
+        regenerate_needed: Boolean indicating if the 'Logic Checker' found an error.
+        retry_count: Counter to prevent infinite loops.
         grade: The result from the 'Answer Grader'.
         benchmark_results: The final score from the 'Benchmark'.
         verbose: Whether to print verbose output during processing.
@@ -26,11 +35,13 @@ class GraphState(TypedDict):
     question: str
     reference_answer: str
     retrieved_context: List[RetrievalResult] # List of documents with metadata
+    knowledge_bank: List[Tuple[str, str]] # List of (content summary, source file) tuples
+    execution_history: List[ActionLog] # List of agent iterations
     prompt: str
     generation: str
     final_answer: Optional[str]
-    error_detected: bool
-    error_count: int
+    regenerate_needed: bool
+    retry_count: int
     grade: Optional[Dict[str, Any]]
     verbose: bool
 
@@ -122,13 +133,13 @@ class BasePipeline:
         if False: # Placeholder error detection logic to avoid overcharging the LLM
             print("  ⚠️  -> Error detected. Incrementing counter.")
             return {
-                "error_detected": True,
-                "error_count": error_count + 1
+                "regenerate_needed": True,
+                "retry_count": error_count + 1
             }
         else:
             print("  ✅  -> No error detected. Validating answer.")
             return {
-                "error_detected": False,
+                "regenerate_needed": False,
                 "final_answer": generation # The generation is validated
             }
 
@@ -168,8 +179,8 @@ class BasePipeline:
                 "prompt": "",
                 "generation": "",
                 "final_answer": None,
-                "error_detected": False,
-                "error_count": 0,
+                "regenerate_needed": False,
+                "retry_count": 0,
                 "grade": None,
                 "verbose": state["verbose"]
             }
@@ -210,16 +221,14 @@ class BasePipeline:
         - 'else': Continues to 'grade_answer' (and 'Final Answer' is implicit).
         """
         print("--- DECISION: After Logic Check ---")
-        MAX_RETRIES = 2
         
-        if state["error_detected"] and state["error_count"] <= MAX_RETRIES:
-            print("    -> Route: 're-prompt' (loop)")
-            return "reprompt"
+        if state["regenerate_needed"] and state["retry_count"] <= get_config().get("main_pipeline.agent_logic.max_retries", 2):
+            print("    -> Route: 're-generate' (loop)")
+            return "regenerate"
         else:
-            if state["error_detected"]:
+            if state["regenerate_needed"]:
                 print("    -> Route: 'grade_answer' (retry limit reached)")
             else:
-                
                 print("    -> Route: 'grade_answer' (answer validated)")
             return "proceed"
 
@@ -254,8 +263,8 @@ class BasePipeline:
             "check_logic",  # Source node
             self.decide_after_logic_check, # Decision function
             {
-                # 'if error detected' (route name) -> 'engineer_prompt' (target node)
-                "reprompt": "engineer_prompt",
+                # 'if error detected' (route name) -> 'generate_answer' (target node)
+                "regenerate": "generate_answer",
                 # 'else' (route name) -> 'grade_answer' (target node)
                 "proceed": "grade_answer"
             }
@@ -319,4 +328,4 @@ if __name__ == "__main__":
     final_state = app.invoke(inputs)
     print(final_state["benchmark_results"])
     
-    print("--- END OF EXECUTION ---")
+    print("--- END OF EXECUTION ---") 
