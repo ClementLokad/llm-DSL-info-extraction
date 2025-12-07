@@ -306,6 +306,7 @@ main_pipeline:
     distillation_llm: "llama3"
     main_llm: "llama3"
     planner_llm: "llama3"
+    cleaning_llm: "llama3"
 
     
 # =============================================================================

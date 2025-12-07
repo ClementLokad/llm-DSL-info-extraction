@@ -200,6 +200,8 @@ class BaseAgentWorkflow(StateGraph):
                     f"  - Action: {log['tool']}('{log['parameter']}')\n"
                     f"  - Result: {log['outcome_summary']}\n\n"
                 )
+        else:
+            prompt += "### EXECUTION HISTORY\n(No previous actions taken.)\n\n"
 
         # C. Accumulated Knowledge (The "Facts")
         # This tells the Solver (and Planner) what we learned from those actions.
@@ -208,6 +210,8 @@ class BaseAgentWorkflow(StateGraph):
             for i, (fact, source) in enumerate(knowledge_bank, 1):
                 prompt += f"{i}. {fact} [Source: {source}]\n"
             prompt += "\n"
+        else:
+            prompt += "### VERIFIED FACTS\n(No relevant facts have been gathered yet.)\n\n"
 
         # D. Current thought (for correction)
         if thought:
@@ -281,41 +285,40 @@ class BaseAgentWorkflow(StateGraph):
         # 1. System Role: The Strategist
         prompt = (
             "### SYSTEM ROLE\n"
-            "You are the **Strategic Planner** for an advanced RAG agent.\n"
-            "Your job is NOT to answer the user's question directly, but to direct the investigation.\n"
-            "You must determine the next logical step to gather missing information.\n\n"
+            "You are the **Investigation Supervisor**.\n"
+            "Your primary goal is EFFICIENCY. You must decide if the current information is sufficient to answer the question.\n"
+            "If the answer is found, you MUST stop the investigation immediately.\n\n"
         )
 
         # 2. The Mission (Question)
         prompt += f"### MISSION GOAL\n{question}\n\n"
+        
 
-        # 3. The State of Play (Execution History)
-        prompt += "### INVESTIGATION HISTORY (Review carefully to avoid loops)\n"
-        for log in history:
-            prompt += (
-                f"- Step {log['step']}:\n"
-                f"  * Thought: {log['thought']}\n"
-                f"  * Tool Used: {log['tool']} -> {log['parameter']}\n"
-                f"  * Outcome: {log['outcome_summary']}\n"
-            )
-        prompt += "\n"
-
-        # 4. The Assets (Verified Facts)
+        # 3. PROPOSED SOLUTION (Critical Context)
+        prompt += (
+            "### PROPOSED SOLUTION (From Main Agent)\n"
+            "The Main Agent has reviewed the facts and generated this answer:\n"
+            f"\"{previous_generation}\"\n\n"
+            "**CRITICAL CHECK**: Does this proposed solution directly and fully answer the Mission Goal? "
+            "If YES, your job is done.\n\n"
+        )
+        
+        # 4. Verified Facts
         if knowledge_bank:
-            prompt += "### CURRENT ASSETS (Verified Facts)\n"
+            prompt += "### VERIFIED FACTS (Assets)\n"
             for i, (fact, source) in enumerate(knowledge_bank, 1):
                 prompt += f"{i}. {fact} [Source: {source}]\n"
         else:
-            prompt += "### CURRENT ASSETS\n(Knowledge bank is empty.)\n"
+            prompt += "### VERIFIED FACTS\n(Knowledge bank is empty.)\n"
         prompt += "\n"
-        
-        # 5. Solver Output Analysis
-        # This allows the planner to see what the "Solver" thought about the data so far
-        prompt += (
-            "### MAIN AGENT OUTPUT (Previous Answer Attempt)\n"
-            "Analyze this output. If it is incomplete, determine what info is missing.\n"
-            f"{previous_generation}\n\n"
-        )
+
+        # 5. Investigation History
+        prompt += "### HISTORY (Previous Steps)\n"
+        for log in history:
+            prompt += (
+                f"- Step {log['step']}: {log['tool']}('{log['parameter']}') -> {log['outcome_summary']}\n"
+            )
+        prompt += "\n"
 
         # 6. Tool Specifications (Full Menu)
         prompt += (
@@ -335,7 +338,7 @@ class BaseAgentWorkflow(StateGraph):
             "3. script_finder_tool\n"
             "   - Usage: Locate file paths or read specific files found in previous steps.\n"
             "   - Parameter: Comma-separated filenames or path fragments.\n"
-            "   - Example: <parameter>config.py, utils/db.py</parameter>\n\n"
+            "   - Example: <parameter>config.nvn, utils/db.nvn</parameter>\n\n"
             
             "4. simple_regeneration_tool\n"
             "   - Usage: Use ONLY if the previous step failed due to a logical error and you want to re-think without using new tools.\n"
@@ -347,18 +350,25 @@ class BaseAgentWorkflow(StateGraph):
             "   - Parameter: Type 'None'.\n\n"
         )
 
-        # 7. Strategic Instructions & Output Format
+        # 7. Decision Algorithm (Logic Flow)
+        # CHANGED: Priority #1 is checking for completion.
         prompt += (
-            "### PLANNING INSTRUCTIONS\n"
-            "1. **Gap Analysis**: Compare the 'Mission Goal' vs the 'Main Agent Output' vs 'Verified Facts'. What is missing? If nothing is missing, use the 'grade_answer' tool.\n"
-            "2. **History Check**: Look at 'Investigation History'. Have we already tried the obvious step? If yes, try a different angle (e.g., if grep failed, try RAG).\n"
-            "3. **Tool Selection**: Choose the tool that directly closes the gap.\n"
-            "4. **Parameter Precision**: Be specific. Vague parameters yield vague results.\n\n"
+            "### DECISION LOGIC (Follow Strictly)\n"
+            "1. **COMPLETION CHECK**: Read the 'PROPOSED SOLUTION'. Does it answer the 'Mission Goal'?\n"
+            "   - YES -> STOP. Select <tool>grade_answer</tool>.\n"
+            "   - NO -> Proceed to Step 2.\n\n"
+            
+            "2. **REDUNDANCY CHECK**: Do NOT search for 'confirmation' or 'corroboration' if the facts are already clear.\n"
+            "   - If you are just double-checking -> STOP. Select <tool>grade_answer</tool>.\n\n"
+            
+            "3. **GAP ANALYSIS**: If the answer is genuinely missing (e.g., 'I don't know' or 'File not found'), select the tool to find that specific missing piece.\n"
+            "   - Look at the 'History'. Have we already tried the obvious step? If yes, try a different angle (e.g., if grep failed, try RAG).\n"
+            "   - Be specific in your parameter choice. Vague parameters yield vague results.\n\n"
             
             "### OUTPUT FORMAT\n"
             "Respond strictly in this XML format:\n"
             "<thought>\n"
-            "[Your strategic reasoning. Define the missing information and why this tool will find it.]\n"
+            "[ANSWER FOUND | Your strategic reasoning in which you define the missing information and why this tool will find it.]\n"
             "</thought>\n"
             "<tool>[rag_tool | grep_tool | script_finder_tool | simple_regeneration_tool | grade_answer]</tool>\n"
             "<parameter>[Your precise input parameter]</parameter>"
@@ -446,7 +456,7 @@ class BaseAgentWorkflow(StateGraph):
         items_to_distill = []
         for r in results:
             # Safely get file path or default to 'Unknown'
-            src = r.metadata.get('original_file_path', 'Unknown Source')
+            src = r.chunk.metadata.get('original_file_path', 'Unknown Source')
             items_to_distill.append((r.chunk.content, src))
             
         # Call batch distillation once
@@ -488,7 +498,7 @@ class BaseAgentWorkflow(StateGraph):
         # Instead of just listing matches, we analyze the code context around the match
         items_to_distill = []
         for r in results:
-            src = r.metadata.get('original_file_path', 'Unknown Source')
+            src = r.chunk.metadata.get('original_file_path', 'Unknown Source')
             # Pass the code content found by grep
             items_to_distill.append((r.chunk.content, src))
             
@@ -511,7 +521,7 @@ class BaseAgentWorkflow(StateGraph):
             f"{base_prompt}"
             f"### INSTRUCTION\n"
             f"Code search for '{pattern}' completed. See results in Verified Facts/History.\n"
-            f"If additionnal information is needed, specify what is missing."
+            f"If additional information is needed, specify what is missing.\n"
             f"Otherwise, analyze the results to answer the question."
         )
         return state

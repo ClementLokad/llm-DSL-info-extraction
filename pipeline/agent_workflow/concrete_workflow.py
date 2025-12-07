@@ -38,7 +38,7 @@ class LLMDistillationTool(BaseDistillationTool):
 
     def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str, verbose=False) -> List[Tuple[str, str]]:
         """
-        Summarize multiple content items in one go and map facts back to their source.
+        Summarize multiple content items in one go and map facts back to their source using XML parsing.
         """
         if not items:
             return []
@@ -55,20 +55,30 @@ class LLMDistillationTool(BaseDistillationTool):
         for i, (content, source) in enumerate(items):
             # Limit content length per chunk to avoid context overflow
             snippet = content[:2000] 
-            prompt_text += f"--- ITEM {i} ---\n{snippet}\n\n"
-            indexed_sources[i] = source
+            prompt_text += f"--- ITEM {i+1} ---\n{snippet}\n\n"
+            indexed_sources[i+1] = source
 
         prompt_text += (
             "### INSTRUCTION\n"
             "Analyze the items above. Extract key facts that help answer the Query.\n"
             "Discard irrelevant text. Combine duplicate information.\n"
-            "CRITICAL OUTPUT FORMAT:\n"
-            "You must list every fact followed immediately by its source tag [Source: ITEM X].\n"
-            "Example:\n"
-            "- The API endpoint is /v1/users [Source: ITEM 0]\n"
-            "- The timeout is set to 30s [Source: ITEM 2]\n"
             "\n"
-            "Begin list:"
+            "### CRITICAL OUTPUT FORMAT\n"
+            "You MUST output the results in strict XML format.\n"
+            "Wrap each distinct fact in an <entry> tag.\n"
+            "Inside <entry>, use <fact> for the content and <source> for the Item ID number.\n"
+            "\n"
+            "Example:\n"
+            "<entry>\n"
+            "  <fact>The API endpoint is /v1/users</fact>\n"
+            "  <source>0</source>\n"
+            "</entry>\n"
+            "<entry>\n"
+            "  <fact>The timeout is set to 30s</fact>\n"
+            "  <source>2</source>\n"
+            "</entry>\n"
+            "\n"
+            "Begin XML output:"
         )
 
         # 2. Call the LLM
@@ -77,30 +87,40 @@ class LLMDistillationTool(BaseDistillationTool):
         # 3. Parse the response using Regex
         distilled_results = []
         
-        # Regex explanation:
-        # (.*?)             -> Capture the fact text (non-greedy)
-        # \[Source:\s*      -> Match literal "[Source:" with optional whitespace
-        # ITEM\s*           -> Match literal "ITEM" with optional whitespace
-        # (\d+)             -> Capture the Item ID (digits)
-        # \]                -> Match literal closing bracket
-        pattern = r"(.*?)\s*\[Source:\s*ITEM\s*(\d+)\]"
+        # Step A: Find all entry blocks
+        entry_pattern = r"<entry>(.*?)</entry>"
+        entries = re.findall(entry_pattern, response, re.IGNORECASE | re.DOTALL)
         
-        matches = re.findall(pattern, response, re.IGNORECASE | re.DOTALL)
-
-        for fact_text, item_id_str in matches:
+        # Step B: Parse inside each entry
+        for entry_block in entries:
             try:
-                item_id = int(item_id_str)
+                # Extract the fact text
+                fact_match = re.search(r"<fact>(.*?)</fact>", entry_block, re.IGNORECASE | re.DOTALL)
                 
-                # Check if the hallucinated ID actually exists in our index
-                if item_id in indexed_sources:
-                    # Clean up the fact text (remove bullets, newlines, extra spaces)
-                    clean_fact = fact_text.strip().lstrip('-').strip()
-                    if clean_fact:
-                        # Map back to the original file path
-                        original_source = indexed_sources[item_id]
-                        distilled_results.append((clean_fact, original_source))
+                # Extract the source tag content (everything between tags)
+                source_tag_match = re.search(r"<source>(.*?)</source>", entry_block, re.IGNORECASE | re.DOTALL)
+                
+                if fact_match and source_tag_match:
+                    fact_text = fact_match.group(1).strip()
+                    source_content = source_tag_match.group(1).strip()
+                    
+                    # ROBUST PARSING: Find the first integer sequence inside the source tag
+                    # This handles: "1", "Item 1", "Source: 1", "ID #1" -> all become 1
+                    id_match = re.search(r"(\d+)", source_content)
+                    
+                    if id_match:
+                        item_id = int(id_match.group(1))
                         
-            except ValueError:
+                        # Map back to the original file path
+                        if item_id in indexed_sources and fact_text:
+                            original_source = indexed_sources[item_id]
+                            distilled_results.append((fact_text, original_source))
+                        elif fact_text:
+                            distilled_results.append((fact_text, "Unknown Source"))
+                    elif fact_text:
+                        distilled_results.append((fact_text, "Unknown Source"))
+                        
+            except (ValueError, AttributeError):
                 continue
         
         if verbose:

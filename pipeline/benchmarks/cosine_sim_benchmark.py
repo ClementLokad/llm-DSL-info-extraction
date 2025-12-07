@@ -3,6 +3,7 @@ import numpy as np
 from sentence_transformers import util
 from .base_benchmark import Benchmark
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
+from config_manager import get_config
 
 
 class CosineSimBenchmark(Benchmark):
@@ -11,12 +12,16 @@ class CosineSimBenchmark(Benchmark):
     de la réponse du LLM et de la réponse attendue.
     """
 
-    def __init__(self, embedder: SentenceTransformerEmbedder):
+    def __init__(self, embedder: SentenceTransformerEmbedder = None):
         """
         Args:
             embedder: instance initialisée de SentenceTransformerEmbedder
         """
-        self.embedder = embedder
+        if embedder is None:
+            self.embedder = SentenceTransformerEmbedder(get_config().get_embedder_config())
+            self.embedder.initialize()
+        else:
+            self.embedder = embedder
 
     def compute_similarity(self, llm_response: str, reference: str) -> float:
         """Calcule la similarité cosinus entre deux textes."""

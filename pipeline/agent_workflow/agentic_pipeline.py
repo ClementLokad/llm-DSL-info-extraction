@@ -1,5 +1,6 @@
 import sys
 import time
+import re
 from pathlib import Path
 
 # Add the specific folder to sys.path
@@ -9,7 +10,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from langgraph.graph import END, StateGraph, START
 from config_manager import get_config
 from pipeline.agent_workflow.workflow_base import *
-from langgraph_base import AgentGraphState, BasePipeline
+from langgraph_base import AgentGraphState, BasePipeline, GraphState
 from concrete_workflow import ConcreteAgentWorkflow, LLMDistillationTool, SimpleRAGTool
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from rag.retrievers.faiss_retriever import FAISSRetriever
@@ -29,6 +30,7 @@ class AgenticPipeline(BasePipeline):
                                       get_config().get_default_agent()))
         self.rate_limit_delay = get_config().get('agent.rate_limit_delay', 0)
         self.agent = agent.build_graph()
+        self.benchmark_type= get_config().get_benchmark_type()
         
     def run_agentic_workflow(self, state: AgentGraphState) -> AgentGraphState:
             """
@@ -86,13 +88,33 @@ class AgenticPipeline(BasePipeline):
         # 2. Check if the Agent requested regeneration
         if state["regenerate_needed"]:
             print(f"    -> Agent used tool '{state['execution_history'][-1]['tool']}'. Regenerating answer.")
-            return state
+            return {"retry_count": state["retry_count"] + 1}
         
         # If we get here, the agent is satisfied (or max retries hit elsewhere)
         print("    -> Agent is satisfied. Proceeding to grading.")
-        return {
-            "final_answer": state["generation"]
-        }
+        return {"final_answer": state["generation"]}
+    
+    def decide_after_logic_check(self, state: GraphState) -> str:
+        """
+        Decision Point: After 'Logic Checker'
+        Determines the next step after the logic check.
+        - 'if error detected': Returns to 'agentic_workflow' (loop).
+        - 'else': Continues to 'clean_generated_answer'.
+        """
+        print("--- DECISION: After Logic Check ---")
+        
+        if state["regenerate_needed"] and state["retry_count"] <= get_config().get("main_pipeline.agent_logic.max_retries", 2):
+            if state["retry_count"] == 0:
+                print("    -> Route: 'generate' (first pass)")
+            else:
+                print("    -> Route: 're-generate' (loop)")
+            return "regenerate"
+        else:
+            if state["regenerate_needed"]:
+                print("    -> Route: clean and grade answer (retry limit reached)")
+            else:
+                print("    -> Route: clean and grade answer (answer validated)")
+            return "proceed"
     
     def generate_answer(self, state):
         print("--- NODE: Generate Answer (Main LLM) ---")
@@ -111,15 +133,56 @@ class AgenticPipeline(BasePipeline):
         
         return {"generation": generation}
     
+    def clean_generated_answer(self, state: AgentGraphState) -> AgentGraphState:
+        """
+        Node: 'Clean Generated Answer'
+        Cleans up the raw LLM generation into a final answer format.
+        """
+        print("--- NODE: Clean Generated Answer ---")
+        raw_generation = state["generation"]
+        
+        cleaning_llm = prepare_agent(get_config().get('main_pipeline.agent_logic.cleaning_llm',
+                                     get_config().get_default_agent()))
+        
+        prompt = (
+            "### INSTRUCTION\n"
+            "Clean and format the following LLM-generated answer into a concise final answer.\n"
+            "Remove any extraneous information, tool usage notes, or internal thoughts.\n"
+            "Do NOT add ANY conversational filler.\n\n"
+            "### OUTPUT FORMAT\n"
+            "Respond strictly in this XML format:\n"
+            "<final_answer>[The final answer]</final_answer>\n\n"
+            f"### RAW GENERATION\n{raw_generation}\n"
+        )
+        
+        if state["verbose"]:
+            print(f"🧹 → Cleaning LLM Prompt:\n{prompt}\n")
+        
+        if self.rate_limit_delay > 0:
+            time.sleep(self.rate_limit_delay)
+        
+        answer = cleaning_llm.generate_response(prompt)
+        answer_match = re.search(r"<final_answer>(.*?)</final_answer>", answer, re.IGNORECASE | re.DOTALL)
+        final_answer = answer_match.group(1).strip() if answer_match else answer.strip()
+        
+        if state["verbose"]:
+            print(f"🧹 → Cleaned Final Answer:\n{final_answer}\n")
+        
+        return {"final_answer": final_answer}
+    
     def grade_answer(self, state):
         final_answer = state["final_answer"]
         reference_answer = state["reference_answer"]
-        print(self.benchmark_type)
+        
+        if state["verbose"]:
+            print(f"✅ → Final Answer to Grade:\n{final_answer}\n")
+            print(f"💡 → Reference Answer:\n{reference_answer}\n")
+
         if self.benchmark_type == 'cosine_similarity':
             from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
             print("--- NODE: Cosine Similarity Grade Answer ---")
             
-            benchmark = CosineSimBenchmark(self.rag['embedder'])
+            benchmark = CosineSimBenchmark()
             
             score = benchmark.compute_similarity(final_answer, reference_answer)
             if state["verbose"]:
@@ -167,6 +230,7 @@ class AgenticPipeline(BasePipeline):
         workflow.add_node("agentic_workflow", self.run_agentic_workflow)
         workflow.add_node("check_logic", self.check_agent_logic)
         workflow.add_node("generate_answer", self.generate_answer)
+        workflow.add_node("clean_answer", self.clean_generated_answer)
         workflow.add_node("grade_answer", self.grade_answer)
 
         # 1. START -> agentic_workflow
@@ -186,7 +250,7 @@ class AgenticPipeline(BasePipeline):
                 # If regenerate needed (first pass or new info found):
                 "regenerate": "generate_answer",
                 # If Agent is satisfied:
-                "proceed": "grade_answer"
+                "proceed": "clean_answer"
             }
         )
 
@@ -195,7 +259,10 @@ class AgenticPipeline(BasePipeline):
         # so it can critique it or find more info based on it.
         workflow.add_edge("generate_answer", "agentic_workflow")
 
-        # 5. grade_answer -> END
+        # 5. clean_answer -> grade_answer
+        workflow.add_edge("clean_answer", "grade_answer")
+
+        # 6. grade_answer -> END
         workflow.add_edge("grade_answer", END)
 
         return workflow
@@ -241,5 +308,15 @@ if __name__ == "__main__":
 
     print("--- STARTING GRAPH EXECUTION ---")
     final_state = app.invoke(inputs, {"recursion_limit": 100})
-    print(final_state["benchmark_results"])
     print("--- END OF EXECUTION ---")
+    print("\n📊 Résultats du benchmark")
+    print("=" * 60)
+    for r in final_state["grades"]:
+        print(f"Q: {r['question']}")
+        if final_state["verbose"]:
+            print(f"  Référence : {r['reference']}")
+            print(f"  LLM Response: {r['llm_response']}")
+        print(f"→ Score: {r['score']:.4f}")
+        print("\n" + "-" * 40 + "\n")
+
+    print(f"\nMoyenne globale : {final_state['benchmark_results']['average_score']:.4f}")

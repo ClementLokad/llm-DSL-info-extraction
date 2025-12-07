@@ -162,7 +162,6 @@ class DSLQuerySystem(BasePipeline):
     def grade_answer(self, state):
         final_answer = state["final_answer"]
         reference_answer = state["reference_answer"]
-        print(self.benchmark_type)
         if self.benchmark_type == 'cosine_similarity':
             from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
             print("--- NODE: Cosine Similarity Grade Answer ---")
