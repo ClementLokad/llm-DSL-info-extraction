@@ -1,6 +1,6 @@
 from typing import TypedDict, List, Optional, Dict, Any, Tuple
 from langgraph.graph import END, StateGraph, START
-from langgraph_base import GraphState, ActionLog
+from langgraph_base import AgentGraphState, ActionLog
 from rag.core.base_retriever import RetrievalResult
 from agents.prepare_agent import *
 from config_manager import get_config
@@ -119,9 +119,8 @@ class BaseRAGTool():
 
 class WorkflowState(TypedDict):
     """State definition for the agent workflow."""
-    pipeline_state: GraphState # The state of the overall pipeline
+    pipeline_state: AgentGraphState # The state of the overall pipeline
     regenerate: bool 
-    error: Optional[str]
     current_thought: Optional[str]
     tool: Optional[str] 
     tool_parameter: Optional[Any] 
@@ -179,7 +178,7 @@ class BaseAgentWorkflow(StateGraph):
         question = state['pipeline_state']['question']
         knowledge_bank = state['pipeline_state'].get("knowledge_bank", [])
         history = self._get_history(state)
-        error = state.get('error')
+        thought = state.get('current_thought', None)
         
         # A. Identity
         prompt = (
@@ -196,7 +195,7 @@ class BaseAgentWorkflow(StateGraph):
             for log in history:
                 prompt += (
                     f"Step {log['step']}:\n"
-                    f"  - Thought: {log['thought']}\n"  # <--- Now visible to the LLM
+                    f"  - Thought: {log['thought']}\n"
                     f"  - Action: {log['tool']}('{log['parameter']}')\n"
                     f"  - Result: {log['outcome_summary']}\n\n"
                 )
@@ -209,45 +208,133 @@ class BaseAgentWorkflow(StateGraph):
                 prompt += f"{i}. {fact} [Source: {source}]\n"
             prompt += "\n"
 
-        # D. Previous Error (for correction)
-        if error:
-            prompt += "### CRITICAL ERROR IN PREVIOUS LOGIC\n"
-            prompt += f"{error}\nAvoid repeating this mistake.\n\n"
+        # D. Current thought (for correction)
+        if thought:
+            prompt += "### CURRENT THOUGHT\n"
+            prompt += f"{thought}\n\n"
         
         return prompt
 
-    # --- 5. The Planner (Consumes History) ---
+    def design_planner_prompt(self, state: WorkflowState) -> str:
+        """
+        Creates a specialized prompt for the 'Planner' role.
+        Handles two modes:
+        1. Kickoff Mode: First pass, simplified, focus on initial discovery.
+        2. Review Mode: Subsequent passes, full context analysis, focus on gap filling.
+        """
+        question = state['pipeline_state']['question']
+        history = self._get_history(state)
 
-    def agentic_router(self, state: WorkflowState, verbose=False) -> WorkflowState:
-        """
-        The Planner Node.
-        Generates a Plan (Thought) and selects a Tool.
-        """
-        if verbose: print("\n- SUB-NODE: Agentic Router (Planner) -")
+        # =================================================================
+        # MODE 1: KICKOFF (First Pass - Simplified)
+        # =================================================================
+        if not history:
+            prompt = (
+                "### SYSTEM ROLE\n"
+                "You are the **Strategic Planner** for an advanced RAG agent.\n"
+                "You are initiating a new investigation. Your job is to determine the best FIRST step to gather information.\n\n"
+                
+                f"### MISSION GOAL\n{question}\n\n"
+                
+                "### AVAILABLE TOOLS & SPECIFICATIONS\n"
+                "Select the tool best suited to start the investigation.\n\n"
+                
+                "1. rag_tool\n"
+                "   - Usage: Retrieve general concepts, business logic, or documentation. Best for 'How' or 'Why' questions.\n"
+                "   - Parameter: A natural language query.\n"
+                "   - Example: <parameter>how does the authentication middleware work?</parameter>\n\n"
+                
+                "2. grep_tool\n"
+                "   - Usage: Search for specific code patterns. Best for finding definitions or specific tokens mentioned in the question.\n"
+                "   - Parameter: A precise regex or string pattern.\n"
+                "   - Example: <parameter>class UserManager</parameter>\n\n"
+                
+                "3. script_finder_tool\n"
+                "   - Usage: Locate files if the question mentions specific filenames.\n"
+                "   - Parameter: Comma-separated filenames.\n"
+                "   - Example: <parameter>config.py, routes.py</parameter>\n\n"
+
+                "### PLANNING INSTRUCTIONS\n"
+                "1. Analyze the 'Mission Goal'. Identify the most critical keyword or concept.\n"
+                "2. Determine if this requires high-level documentation (RAG) or low-level code search (Grep/Script).\n"
+                "3. Select the tool and define a precise parameter.\n\n"
+                
+                "### OUTPUT FORMAT\n"
+                "Respond strictly in this XML format:\n"
+                "<thought>\n"
+                "[Explain your reasoning. What is the first piece of info needed?]\n"
+                "</thought>\n"
+                "<tool>[rag_tool | grep_tool | script_finder_tool]</tool>\n"
+                "<parameter>[Your precise input parameter]</parameter>"
+            )
+            return prompt
+
+        # =================================================================
+        # MODE 2: CONTINUATION (Subsequent Passes - Full Context)
+        # =================================================================
         
-        # 1. Get Context
-        base_context = self.design_first_part_prompt(state)
+        knowledge_bank = state['pipeline_state'].get("knowledge_bank", [])
+        # We safely get generation, defaulting to "No output yet" if None
+        previous_generation = state['pipeline_state'].get('generation') or "(No generation available)"
         
-        # 2. Planning Prompt with Detailed Tool Definitions
-        planning_prompt = (
-            f"{base_context}"
-            "### TOOL SPECIFICATIONS\n"
-            "You have access to the following tools. You must select the one most appropriate for the current step.\n\n"
+        # 1. System Role: The Strategist
+        prompt = (
+            "### SYSTEM ROLE\n"
+            "You are the **Strategic Planner** for an advanced RAG agent.\n"
+            "Your job is NOT to answer the user's question directly, but to direct the investigation.\n"
+            "You must determine the next logical step to gather missing information.\n\n"
+        )
+
+        # 2. The Mission (Question)
+        prompt += f"### MISSION GOAL\n{question}\n\n"
+
+        # 3. The State of Play (Execution History)
+        prompt += "### INVESTIGATION HISTORY (Review carefully to avoid loops)\n"
+        for log in history:
+            prompt += (
+                f"- Step {log['step']}:\n"
+                f"  * Thought: {log['thought']}\n"
+                f"  * Tool Used: {log['tool']} -> {log['parameter']}\n"
+                f"  * Outcome: {log['outcome_summary']}\n"
+            )
+        prompt += "\n"
+
+        # 4. The Assets (Verified Facts)
+        if knowledge_bank:
+            prompt += "### CURRENT ASSETS (Verified Facts)\n"
+            for i, (fact, source) in enumerate(knowledge_bank, 1):
+                prompt += f"{i}. {fact} [Source: {source}]\n"
+        else:
+            prompt += "### CURRENT ASSETS\n(Knowledge bank is empty.)\n"
+        prompt += "\n"
+        
+        # 5. Solver Output Analysis
+        # This allows the planner to see what the "Solver" thought about the data so far
+        prompt += (
+            "### MAIN AGENT OUTPUT (Previous Answer Attempt)\n"
+            "Analyze this output. If it is incomplete, determine what info is missing.\n"
+            f"{previous_generation}\n\n"
+        )
+
+        # 6. Tool Specifications (Full Menu)
+        prompt += (
+            "### AVAILABLE TOOLS & SPECIFICATIONS\n"
+            "Select the most precise tool for the current need.\n\n"
             
             "1. rag_tool\n"
-            "   - Usage: Retrieve general concepts, business logic, or documentation. Use this when you need to understand 'how' or 'why' something works.\n"
-            "   - Parameter: A natural language search query.\n"
-            "   - Example: <parameter>how is the user authentication flow designed?</parameter>\n\n"
+            "   - Usage: Retrieve general concepts, business logic, or documentation.\n"
+            "   - Parameter: A natural language query describing the concept to find.\n"
+            "   - Example: <parameter>how does the refund policy work?</parameter>\n\n"
             
             "2. grep_tool\n"
-            "   - Usage: Search for exact code patterns, function definitions, or variable names across the codebase. Use this to find specific implementation details.\n"
-            "   - Parameter: A specific string pattern or regex to search for.\n"
-            "   - Example: <parameter>class UserAuthenticator</parameter>\n\n"
+            "   - Usage: Find specific code implementations, variable definitions, or error strings.\n"
+            "   - Parameter: A precise regex or string pattern.\n"
+            "   - Example: <parameter>def calculate_tax</parameter>\n\n"
             
             "3. script_finder_tool\n"
-            "   - Usage: Locate specific files when you know their approximate names or want to read a specific file found in a previous step.\n"
-            "   - Parameter: A comma-separated list of filenames or keywords.\n"
-            "   - Example: <parameter>auth.py, login_manager.py</parameter>\n\n"
+            "   - Usage: Locate file paths or read specific files found in previous steps.\n"
+            "   - Parameter: Comma-separated filenames or path fragments.\n"
+            "   - Example: <parameter>config.py, utils/db.py</parameter>\n\n"
             
             "4. simple_regeneration_tool\n"
             "   - Usage: Use ONLY if the previous step failed due to a logical error and you want to re-think without using new tools.\n"
@@ -255,23 +342,41 @@ class BaseAgentWorkflow(StateGraph):
             "   - Example: <parameter>The previous calculation was wrong; re-evaluate using the new facts.</parameter>\n\n"
             
             "5. grade_answer\n"
-            "   - Usage: Use this when you have gathered sufficient information in the 'Verified Facts' to answer the User Question.\n"
+            "   - Usage: Use ONLY when the 'Verified Facts' contain ALL information needed to answer the 'Mission Goal'.\n"
             "   - Parameter: Type 'None'.\n\n"
+        )
 
-            "### PLANNING INSTRUCTION\n"
-            "1. Review the 'Execution History' to see what strategies have already been tried.\n"
-            "2. Analyze the 'Verified Facts' to see what is missing.\n"
-            "3. Formulate a short reasoning plan (Thought).\n"
-            "4. Select the next tool and define its parameter based on the specifications above.\n\n"
+        # 7. Strategic Instructions & Output Format
+        prompt += (
+            "### PLANNING INSTRUCTIONS\n"
+            "1. **Gap Analysis**: Compare the 'Mission Goal' vs the 'Main Agent Output' vs 'Verified Facts'. What is missing?\n"
+            "2. **History Check**: Look at 'Investigation History'. Have we already tried the obvious step? If yes, try a different angle (e.g., if grep failed, try RAG).\n"
+            "3. **Tool Selection**: Choose the tool that directly closes the gap.\n"
+            "4. **Parameter Precision**: Be specific. Vague parameters yield vague results.\n\n"
             
             "### OUTPUT FORMAT\n"
-            "You MUST use the following XML format:\n"
-            "\n"
+            "Respond strictly in this XML format:\n"
+            "<thought>\n"
+            "[Your strategic reasoning. Define the missing information and why this tool will find it.]\n"
+            "</thought>\n"
             "<tool>[rag_tool | grep_tool | script_finder_tool | simple_regeneration_tool | grade_answer]</tool>\n"
-            "<parameter>[The input parameter matching the tool specification]</parameter>"
+            "<parameter>[Your precise input parameter]</parameter>"
         )
+
+        return prompt
+
+    # --- 5. The Planner (Consumes History) ---
+
+    def agentic_router(self, state: WorkflowState) -> WorkflowState:
+        """
+        The Planner Node.
+        Generates a Plan (Thought) and selects a Tool.
+        """
+        print("--- SUB-NODE: Agentic Router (Planner) ---")
         
-        # 3. Call LLM (Pseudo-code)
+        planning_prompt = self.design_planner_prompt(state)
+        
+        # Call LLM (Pseudo-code)
         # response = llm.invoke(planning_prompt)
         # For simulation, let's pretend the LLM returns this:
         response_text = """
@@ -283,7 +388,7 @@ class BaseAgentWorkflow(StateGraph):
         <parameter>listen</parameter>
         """
         
-        # 4. Parse XML (Simple regex helper)
+        # Parse XML (Simple regex helper)
         import re
         def parse_tag(tag, text):
             match = re.search(f"<{tag}>(.*?)</{tag}>", text, re.DOTALL)
@@ -291,6 +396,7 @@ class BaseAgentWorkflow(StateGraph):
 
         thought = parse_tag("thought", response_text)
         tool = parse_tag("tool", response_text)
+        # TODO: Map tool name to actual tool if needed
         parameter = parse_tag("parameter", response_text)
 
         # 5. Update State
@@ -301,19 +407,29 @@ class BaseAgentWorkflow(StateGraph):
         
         state["regenerate"] = (tool != "grade_answer")
         
+        if state["pipeline_state"]["verbose"]:
+            print("Planner Prompt:")
+            print(planning_prompt)
+            print(f"\n\nPlanner selected tool: {tool} with parameter: {parameter}")
+            print(f"Thought: {thought}")
+        
         return state
 
-    def decide_after_routing(self, state: WorkflowState, verbose=False) -> str:
-        if verbose: print("\n- SUB-DECISION: After Routing -")
+    def decide_after_routing(self, state: WorkflowState) -> str:
+        print("--- SUB-DECISION: After Routing ---")
         
         if state["regenerate"] and state["pipeline_state"]["retry_count"] <= get_config().get("main_pipeline.agent_logic.max_retries", 2):
             if state["tool"] is not None:
+                if state["pipeline_state"]["verbose"]:
+                    print(f"    -> Routing to tool: {state['tool']}")
+                state["pipeline_state"]["regenerate_needed"] = True
                 return f"{state['tool']}"
         return "grade_answer"
 
     # --- 6. The Tools (Producers of History) ---
 
-    def use_rag_tool(self, state: WorkflowState) -> WorkflowState:
+    def use_rag_tool(self, state: WorkflowState) -> WorkflowState:    
+        print("--- SUB-NODE: RAG Tool ---")
         query = state["tool_parameter"]
         # Retrieve the thought generated by the Planner
         thought = state.get("current_thought", "No reasoning provided.")
@@ -352,6 +468,7 @@ class BaseAgentWorkflow(StateGraph):
         return state
 
     def use_grep_tool(self, state: WorkflowState) -> WorkflowState:
+        print("--- SUB-NODE: Grep Tool ---")
         pattern = state["tool_parameter"]
         # Retrieve the thought generated by the Planner
         thought = state.get("current_thought", "No reasoning provided.")
@@ -391,6 +508,7 @@ class BaseAgentWorkflow(StateGraph):
         return state
 
     def use_script_finder_tool(self, state: WorkflowState) -> WorkflowState:
+        print("--- SUB-NODE: Script Finder Tool ---")
         raw_parameter = state["tool_parameter"] # This is likely a string like "main.py, utils.py"
         thought = state.get("current_thought", "No reasoning provided.")
         
@@ -441,6 +559,7 @@ class BaseAgentWorkflow(StateGraph):
         return state
 
     def use_simple_regeneration_tool(self, state: WorkflowState) -> WorkflowState:
+        print("--- SUB-NODE: Simple Regeneration Tool ---")
         # Note: Regeneration usually doesn't add to history unless it was a distinct step,
         # but tracking it helps avoid infinite regen loops.
         self._append_history(state, "regeneration", "N/A", "Refined the reasoning prompt.", state["current_thought"])

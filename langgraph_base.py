@@ -7,14 +7,6 @@ from config_manager import get_config
 # The state is a dictionary that flows through the graph.
 # Each node reads this state and writes its results to it.
 
-class ActionLog(TypedDict):
-    """Represents a single step in the agent's history."""
-    step: int
-    thought: str
-    tool: str
-    parameter: str
-    outcome_summary: str # Brief summary of success/failure (not full content)
-
 class GraphState(TypedDict):
     """
     Represents the state of our RAG graph.
@@ -35,8 +27,45 @@ class GraphState(TypedDict):
     question: str
     reference_answer: str
     retrieved_context: List[RetrievalResult] # List of documents with metadata
-    knowledge_bank: List[Tuple[str, str]] # List of (content summary, source file) tuples
-    execution_history: List[ActionLog] # List of agent iterations
+    prompt: str
+    generation: str
+    final_answer: Optional[str]
+    regenerate_needed: bool
+    retry_count: int
+    grade: Optional[Dict[str, Any]]
+    verbose: bool
+
+class ActionLog(TypedDict):
+    """Represents a single step in the agent's history."""
+    step: int
+    thought: str
+    tool: str
+    parameter: str
+    outcome_summary: str # Brief summary of success/failure (not full content)
+
+
+class AgentGraphState(GraphState):
+    """
+    Represents the state of our Advanced RAG Agent graph.
+
+    Attributes:
+        question: The user's input question.
+        reference_answer: The reference answer for benchmarking.
+        knowledge_bank: List of (content summary, source file) tuples.
+        execution_history: List of agent iterations.
+        prompt: The final prompt sent to the LLM.
+        generation: The raw output from the 'Main LLM'.
+        final_answer: The answer validated by the 'Logic Checker'.
+        regenerate_needed: Boolean indicating if the 'Logic Checker' found an error.
+        retry_count: Counter to prevent infinite loops.
+        grade: The result from the 'Answer Grader'.
+        benchmark_results: The final score from the 'Benchmark'.
+        verbose: Whether to print verbose output during processing.
+    """
+    question: str
+    reference_answer: str
+    knowledge_bank: List[Tuple[str, str]]
+    execution_history: List[ActionLog]
     prompt: str
     generation: str
     final_answer: Optional[str]
@@ -319,7 +348,7 @@ if __name__ == "__main__":
             ("Who wrote '1984'?", "'1984' was written by George Orwell."),
             ("List the primary colors.", "The primary colors are red, blue, and yellow.")
         ],
-        "sub_rag_system": sub_rag_system
+        "sub_rag_system": sub_rag_system,
     }
 
     # Execute the graph
