@@ -37,7 +37,7 @@ def build_index():
     
     chunks = chunker.chunk_blocks(blocks)
     print(f"Created {len(chunks)} chunks")
-    
+
     embeddings = embedder.embed_chunks(chunks)
     print(f"Generated {embeddings.shape[0]} embeddings")
     

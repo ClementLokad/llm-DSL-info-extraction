@@ -67,6 +67,13 @@ parser:
 # =============================================================================
 chunker:
   type: "semantic"
+
+  # Summary embedding enabled
+  use_summary_embeddings: true
+  
+  # Agent and prompt used for summarizing chunks before embedding
+  summary_model: "mistral" # Options: "gemini", "gpt", "mistral", "groq"
+  summary_prompt: "Summarize what the following code chunk does as briefly as possible without writing a title like **Keyworks** or **Summary** :"
   
   # Core chunking parameters (all numeric values externalized)
   max_chunk_tokens: 512

@@ -37,7 +37,7 @@ class SentenceTransformerEmbedder(BaseEmbedder):
         # Model instance (initialized in initialize())
         self.model = None
         self._embedding_dim = None
-    
+        
     @property
     def embedding_dimension(self) -> int:
         """Return the dimension of embeddings produced by this model."""
@@ -85,7 +85,15 @@ class SentenceTransformerEmbedder(BaseEmbedder):
         if not chunks:
             return np.array([]).reshape(0, self.embedding_dimension)
         
-        # Prepare texts for embedding
+        # Add a summary to chunks if enabled
+        from config_manager import get_config
+        print("SUMMARY CONFIGURATION", get_config().get_chunker_config().get('use_summary_embeddings', False))
+        if get_config().get_chunker_config().get('use_summary_embeddings', False): # tests if summary embeddings are enabled
+            import rag.chunkers.chunk_summarizer as cs
+            summarizer = cs.ChunkSummarizer()
+            chunks = summarizer.summarize_chunks(chunks)
+
+        # Prepare chunks for embedding
         texts = [self.prepare_chunk_for_embedding(chunk) for chunk in chunks]
         
         # Generate embeddings
@@ -136,7 +144,7 @@ class SentenceTransformerEmbedder(BaseEmbedder):
         if not self._is_initialized:
             raise RuntimeError("Embedder must be initialized before use")
         
-        # Prepare texts
+        # Prepare texts for embedding
         prepared_texts = [self.prepare_text_for_embedding(text) for text in texts]
         
         # Generate embeddings
