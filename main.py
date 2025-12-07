@@ -136,7 +136,7 @@ class DSLQuerySystem(BasePipeline):
         if len(context) ==0:
             ctx = "No relevant context found."
         else:
-            ctx = "\n\n----------------------\n\n".join([f"[File: {r.chunk.metadata.get('original_file_path', 'Unknown file path')}]\n{r.chunk.content}" for r in context])
+            ctx = "\n\n----------------------\n\n".join([r.to_str_for_generation() for r in context])
         
         prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
         

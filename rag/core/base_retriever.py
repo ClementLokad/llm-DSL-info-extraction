@@ -40,6 +40,10 @@ class RetrievalResult:
         result += f"chunk_type={self.chunk.chunk_type})"
         return result
     
+    def to_str_for_generation(self):
+        """Convert the RetrievalResult to a string for prompt generation."""
+        return f"[File: {self.chunk.metadata.get('original_file_path', 'Unknown file path')}]\n{self.chunk.content}"
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert the RetrievalResult to a dictionary for JSON serialization."""
         return {

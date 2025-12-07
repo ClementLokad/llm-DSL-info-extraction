@@ -5,12 +5,12 @@ from typing import Optional
 class Llama3Agent(LLMAgent):
     """Implementation of an agent using Llama3 AI"""
     
-    def __init__(self, model: str = "llama3:8B"):
+    def __init__(self, model: str = "llama3:latest"):
         """
         Initialize the Llama3 agent.
         
         Args:
-            model: The Llama3 model to use (default: llama3:8B)
+            model: The Llama3 model to use (default: llama3:latest)
         """
         super().__init__()
         self._model = model

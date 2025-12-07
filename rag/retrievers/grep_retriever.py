@@ -40,7 +40,7 @@ class GrepRetriever:
                                 ))
                 except Exception:
                     continue
-                    
+
         return matches
     
     # def format_answer(self, result: GrepResult, question: str) -> str:
