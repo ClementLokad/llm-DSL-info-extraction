@@ -304,6 +304,8 @@ main_pipeline:
   agent_logic:
     max_retries: 2
     distillation_llm: "llama3"
+    main_llm: "llama3"
+    planner_llm: "llama3"
 
     
 # =============================================================================

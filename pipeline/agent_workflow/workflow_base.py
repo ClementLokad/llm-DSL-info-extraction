@@ -1,7 +1,8 @@
 from typing import TypedDict, List, Optional, Dict, Any, Tuple
 from langgraph.graph import END, StateGraph, START
 from langgraph_base import AgentGraphState, ActionLog
-from rag.core.base_retriever import RetrievalResult
+from rag.core.base_retriever import RetrievalResult, BaseRetriever
+from rag.core.base_embedder import BaseEmbedder
 from agents.prepare_agent import *
 from config_manager import get_config
 
@@ -18,12 +19,12 @@ class BaseDistillationTool():
         else:
             self.llm = prepare_agent(get_config().get("main_pipeline.agent_logic.distillation_llm"))
 
-    def distill(self, content: str, query: str, thought: str) -> str:
+    def distill(self, content: str, query: str, thought: str, verbose=False) -> str:
         """Single item distillation (Legacy/Fallback)."""
         # Placeholder for actual LLM call
         return f"Distilled Fact: Content relevant to '{query}' found."
 
-    def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str) -> List[Tuple[str, str]]:
+    def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str, verbose=False) -> List[Tuple[str, str]]:
         """
         Summarize multiple content items in one go.
         
@@ -98,7 +99,7 @@ class BaseScriptFinderTool():
         Returns a list of absolute file paths.
         """
         # Implementation of find logic would go here
-        return ["/path/to/found/script.py"]
+        return ["/path/to/found/script.nvn"]
 
     def read_file(self, file_path: str) -> str:
         """Helper to read file content."""
@@ -108,7 +109,7 @@ class BaseScriptFinderTool():
 class BaseRAGTool():
     """A base tool for performing RAG operations."""
     
-    def __init__(self, retriever: Any):
+    def __init__(self, retriever: BaseRetriever):
         self.retriever = retriever
 
     def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks")) -> List[RetrievalResult]:
@@ -342,14 +343,14 @@ class BaseAgentWorkflow(StateGraph):
             "   - Example: <parameter>The previous calculation was wrong; re-evaluate using the new facts.</parameter>\n\n"
             
             "5. grade_answer\n"
-            "   - Usage: Use ONLY when the 'Verified Facts' contain ALL information needed to answer the 'Mission Goal'.\n"
+            "   - Usage: If the current answer is satisfying, use this tool to finalize the process.\n"
             "   - Parameter: Type 'None'.\n\n"
         )
 
         # 7. Strategic Instructions & Output Format
         prompt += (
             "### PLANNING INSTRUCTIONS\n"
-            "1. **Gap Analysis**: Compare the 'Mission Goal' vs the 'Main Agent Output' vs 'Verified Facts'. What is missing?\n"
+            "1. **Gap Analysis**: Compare the 'Mission Goal' vs the 'Main Agent Output' vs 'Verified Facts'. What is missing? If nothing is missing, use the 'grade_answer' tool.\n"
             "2. **History Check**: Look at 'Investigation History'. Have we already tried the obvious step? If yes, try a different angle (e.g., if grep failed, try RAG).\n"
             "3. **Tool Selection**: Choose the tool that directly closes the gap.\n"
             "4. **Parameter Precision**: Be specific. Vague parameters yield vague results.\n\n"
@@ -435,7 +436,10 @@ class BaseAgentWorkflow(StateGraph):
         thought = state.get("current_thought", "No reasoning provided.")
         
         # 1. Execute
-        results = self.rag_tool.retrieve(query=query)
+        results = self.rag_tool.retrieve(query=query, verbose=state['pipeline_state']['verbose'])
+        
+        if state['pipeline_state']['verbose']:
+            print(f"RAG retrieved {len(results)} results for query: '{query}'")
         
         # 2. Batch Distillation
         # Prepare inputs: list of (content, file_path)
@@ -443,10 +447,11 @@ class BaseAgentWorkflow(StateGraph):
         for r in results:
             # Safely get file path or default to 'Unknown'
             src = r.metadata.get('original_file_path', 'Unknown Source')
-            items_to_distill.append((r.content, src))
+            items_to_distill.append((r.chunk.content, src))
             
         # Call batch distillation once
-        new_facts = self.distillation_tool.distill_batch(items=items_to_distill, query=query, thought=thought)
+        new_facts = self.distillation_tool.distill_batch(items=items_to_distill, query=query,
+                                                         thought=thought, verbose=state['pipeline_state']['verbose'])
         
         if "knowledge_bank" not in state['pipeline_state']:
             state['pipeline_state']["knowledge_bank"] = []
@@ -476,16 +481,20 @@ class BaseAgentWorkflow(StateGraph):
         # 1. Execute
         results = self.grep_tool.search(pattern=pattern)
         
+        if state['pipeline_state']['verbose']:
+            print(f"Grep found {len(results)} matches for pattern: '{pattern}'")
+        
         # 2. Batch Distillation
         # Instead of just listing matches, we analyze the code context around the match
         items_to_distill = []
         for r in results:
             src = r.metadata.get('original_file_path', 'Unknown Source')
             # Pass the code content found by grep
-            items_to_distill.append((r.content, src))
+            items_to_distill.append((r.chunk.content, src))
             
         # Distill: "What does this code actually do?"
-        new_facts = self.distillation_tool.distill_batch(items=items_to_distill, query=pattern, thought=thought)
+        new_facts = self.distillation_tool.distill_batch(items=items_to_distill, query=pattern,
+                                                         thought=thought, verbose=state['pipeline_state']['verbose'])
         
         if "knowledge_bank" not in state['pipeline_state']:
             state['pipeline_state']["knowledge_bank"] = []
@@ -524,15 +533,14 @@ class BaseAgentWorkflow(StateGraph):
         found_paths = self.script_finder_tool.find_scripts(script_names=script_names)
         
         # 2. Read & Distill Content
-        items_to_distill = []
+        new_facts = []
         for path in found_paths:
             # We must READ the file content here to make it useful
             # Assuming BaseScriptFinderTool has a helper or we use a file utility
             file_content = self.script_finder_tool.read_file(path)
-            items_to_distill.append((file_content, path))
-        
-        # Now distill the content of the scripts found
-        new_facts = self.distillation_tool.distill_batch(items=items_to_distill, query=script_names, thought=thought)
+            new_facts.append((self.distillation_tool.distill(content=file_content,
+                                                            query=state["pipeline_state"]["question"],
+                                                            thought=thought, verbose=state['pipeline_state']['verbose']), path))
         
         if "knowledge_bank" not in state['pipeline_state']:
             state['pipeline_state']["knowledge_bank"] = []

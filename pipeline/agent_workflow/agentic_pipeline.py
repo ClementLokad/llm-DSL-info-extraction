@@ -1,14 +1,19 @@
 import sys
-import os
+import time
+from pathlib import Path
 
 # Add the specific folder to sys.path
 # '..' means go up one level, then into 'my_modules'
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from langgraph.graph import END, StateGraph, START
 from config_manager import get_config
 from pipeline.agent_workflow.workflow_base import *
 from langgraph_base import AgentGraphState, BasePipeline
+from concrete_workflow import ConcreteAgentWorkflow, LLMDistillationTool, SimpleRAGTool
+from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
+from rag.retrievers.faiss_retriever import FAISSRetriever
+from pathlib import Path
 
 class AgenticPipeline(BasePipeline):
     """
@@ -20,6 +25,9 @@ class AgenticPipeline(BasePipeline):
     
     def __init__(self, agent: BaseAgentWorkflow):
         super().__init__()
+        self.main_llm = prepare_agent(get_config().get('main_pipeline.agent_logic.main_llm',
+                                      get_config().get_default_agent()))
+        self.rate_limit_delay = get_config().get('agent.rate_limit_delay', 0)
         self.agent = agent.build_graph()
         
     def run_agentic_workflow(self, state: AgentGraphState) -> AgentGraphState:
@@ -86,6 +94,67 @@ class AgenticPipeline(BasePipeline):
             "final_answer": state["generation"]
         }
     
+    def generate_answer(self, state):
+        print("--- NODE: Generate Answer (Main LLM) ---")
+        prompt = state["prompt"]
+        
+        if state["verbose"]:
+            print(f"💬 → LLM Prompt:\n{prompt}\n")
+        
+        if self.rate_limit_delay > 0:
+            time.sleep(self.rate_limit_delay)
+            
+        generation = self.main_llm.generate_response(prompt)
+        
+        if state["verbose"]:
+            print(f"💬 → LLM RAW Generation:\n{generation}\n")
+        
+        return {"generation": generation}
+    
+    def grade_answer(self, state):
+        final_answer = state["final_answer"]
+        reference_answer = state["reference_answer"]
+        print(self.benchmark_type)
+        if self.benchmark_type == 'cosine_similarity':
+            from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
+            print("--- NODE: Cosine Similarity Grade Answer ---")
+            
+            benchmark = CosineSimBenchmark(self.rag['embedder'])
+            
+            score = benchmark.compute_similarity(final_answer, reference_answer)
+            if state["verbose"]:
+                print(f"→ Similarity score with '{reference_answer}': {score:.4f}")
+            
+            grade = {"score": score,
+                    "question": state["question"],
+                    "llm_response": state["final_answer"],
+                    "reference": state["reference_answer"]}
+            
+            return {"grade": grade}
+        
+        elif self.benchmark_type == 'llm_as_a_judge':
+            from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark
+            print("--- NODE: Judge LLM Grade Answer ---")
+            
+            benchmark = LLMAsAJudgeBenchmark()
+            benchmark.initialize()
+
+            #delay to avoid too many requests
+            if self.rate_limit_delay > 0:
+                time.sleep(self.rate_limit_delay)
+            
+            score = benchmark.judge(final_answer, reference_answer)
+            
+            if state["verbose"]:
+                print(f"→ LLM Judge score with '{reference_answer}': {score}")
+            
+            grade = {"score": score,
+                    "question": state["question"],
+                    "llm_response": state["final_answer"],
+                    "reference": state["reference_answer"]}
+            
+            return {"grade": grade}
+    
     def build_agentic_qa_graph(self) -> StateGraph:
         """
         Builds the Advanced Agentic Pipeline.
@@ -132,15 +201,22 @@ class AgenticPipeline(BasePipeline):
         return workflow
 
 if __name__ == "__main__":
-    # Initialize tools for the agentic workflow (Mocks/Placeholders)
-    # In a real app, these would be injected with actual clients
-    rag_tool = BaseRAGTool(retriever=None)
+    
+    embedder = SentenceTransformerEmbedder(get_config().get_embedder_config())
+    embedder.initialize()
+    retriever = FAISSRetriever(get_config().get_retriever_config())
+    retriever.initialize(embedder.embedding_dimension)
+    
+    index_path = Path("data/faiss_index")
+    retriever.load_index(str(index_path))
+
+    rag_tool = SimpleRAGTool(retriever=retriever, embedder=embedder)
     grep_tool = BaseGrepTool(search_dirs=[])
     script_finder_tool = BaseScriptFinderTool(search_dirs=[])
-    distillation_tool = BaseDistillationTool()
+    distillation_tool = LLMDistillationTool()
     
     # Pre-compile the agent sub-graph to avoid recompiling on every node call
-    agent_workflow = BaseAgentWorkflow(
+    agent_workflow = ConcreteAgentWorkflow(
         rag_tool, 
         grep_tool, 
         script_finder_tool, 
@@ -160,7 +236,7 @@ if __name__ == "__main__":
         ],
         "sub_rag_system": sub_rag_system,
         "grades": [],
-        "verbose": False
+        "verbose": True
     }
 
     print("--- STARTING GRAPH EXECUTION ---")
