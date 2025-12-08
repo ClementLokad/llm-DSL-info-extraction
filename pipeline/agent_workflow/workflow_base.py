@@ -185,25 +185,11 @@ class BaseAgentWorkflow(StateGraph):
         prompt = (
             "### SYSTEM ROLE\n"
             "You are an expert technical assistant. \n"
-            "Your goal is to answer the user's question by planning and executing data retrieval steps.\n\n"
+            "Your goal is to answer the user's question by exploiting data from previous retrieval steps.\n\n"
             f"### QUESTION\n{question}\n\n"
         )
 
-        # B. Execution History (The "Strategy Log")
-        # This tells the Planner what has already been tried.
-        if history:
-            prompt += "### EXECUTION HISTORY (Previous Thoughts & Actions)\n"
-            for log in history:
-                prompt += (
-                    f"Step {log['step']}:\n"
-                    f"  - Thought: {log['thought']}\n"
-                    f"  - Action: {log['tool']}('{log['parameter']}')\n"
-                    f"  - Result: {log['outcome_summary']}\n\n"
-                )
-        else:
-            prompt += "### EXECUTION HISTORY\n(No previous actions taken.)\n\n"
-
-        # C. Accumulated Knowledge (The "Facts")
+        # B. Accumulated Knowledge (The "Facts")
         # This tells the Solver (and Planner) what we learned from those actions.
         if knowledge_bank:
             prompt += "### VERIFIED FACTS (Accumulated Knowledge)\n"
@@ -213,12 +199,61 @@ class BaseAgentWorkflow(StateGraph):
         else:
             prompt += "### VERIFIED FACTS\n(No relevant facts have been gathered yet.)\n\n"
 
-        # D. Current thought (for correction)
+        # C. Current thought (for correction)
         if thought:
             prompt += "### CURRENT THOUGHT\n"
             prompt += f"{thought}\n\n"
         
         return prompt
+    
+    def _get_optimized_history_str(self, history: List[ActionLog]) -> str:
+        """
+        Génère une chaîne de caractères optimisée pour l'historique.
+        Stratégie : Garder complet le début et la fin, résumer le milieu.
+        """
+        if not history:
+            return "(No previous actions taken.)"
+            
+        total_steps = len(history)
+        history_str = ""
+        
+        # Seuil : Si moins de 5 étapes, on affiche tout
+        if total_steps <= 5:
+            for log in history:
+                history_str += (
+                    f"- Step {log['step']}:\n"
+                    f"  * Thought: {log['thought']}\n"
+                    f"  * Tool: {log['tool']} -> {log['parameter']}\n"
+                    f"  * Outcome: {log['outcome_summary']}\n"
+                )
+            return history_str
+
+        # Sinon : Compression
+        # 1. Première étape (Contexte initial)
+        first = history[0]
+        history_str += (
+            f"- Step {first['step']} (Start):\n"
+            f"  * Thought: {first['thought']}\n"
+            f"  * Tool: {first['tool']} -> {first['parameter']}\n"
+            f"  * Outcome: {first['outcome_summary']}\n"
+        )
+        
+        # 2. Résumé du milieu (Texte statique pour économiser des tokens, pas d'appel LLM)
+        history_str += (
+            f"\n... [Steps 2 to {total_steps - 3} were executed. Details hidden for brevity. "
+            f"The agent tried various strategies which led to the current state.] ...\n\n"
+        )
+        
+        # 3. Les 3 dernières étapes (Détail complet pour la prise de décision immédiate)
+        for log in history[-3:]:
+            history_str += (
+                f"- Step {log['step']}:\n"
+                f"  * Thought: {log['thought']}\n"
+                f"  * Tool: {log['tool']} -> {log['parameter']}\n"
+                f"  * Outcome: {log['outcome_summary']}\n"
+            )
+            
+        return history_str
 
     def design_planner_prompt(self, state: WorkflowState) -> str:
         """
@@ -314,10 +349,7 @@ class BaseAgentWorkflow(StateGraph):
 
         # 5. Investigation History
         prompt += "### HISTORY (Previous Steps)\n"
-        for log in history:
-            prompt += (
-                f"- Step {log['step']}: {log['tool']}('{log['parameter']}') -> {log['outcome_summary']}\n"
-            )
+        prompt += self._get_optimized_history_str(history)
         prompt += "\n"
 
         # 6. Tool Specifications (Full Menu)

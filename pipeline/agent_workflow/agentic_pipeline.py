@@ -112,10 +112,9 @@ class AgenticPipeline(BasePipeline):
         else:
             if state["regenerate_needed"]:
                 print("    -> Route: clean and grade answer (retry limit reached)")
-                return "clean&grade"
             else:
-                print("    -> Route: grade answer (answer validated)")
-            return "grade"
+                print("    -> Route: clean and grade answer (answer validated)")
+            return "proceed"
     
     def generate_answer(self, state):
         print("--- NODE: Generate Answer (Main LLM) ---")
@@ -252,9 +251,7 @@ class AgenticPipeline(BasePipeline):
                 # If regenerate needed (first pass or new info found):
                 "regenerate": "generate_answer",
                 # If Agent is satisfied:
-                "grade": "grade_answer",
-                # If retry limit reached:
-                "clean&grade": "clean_answer"
+                "proceed": "clean_answer"
             }
         )
 
@@ -303,11 +300,12 @@ if __name__ == "__main__":
     
     inputs = {
         "qa_pairs": [
-            ("What is the capital of France?", "Paris is the capital of France.")
+            ("What is the capital of the USA?", "Washington, D.C."),
+            ("Who wrote 'Pride and Prejudice'?", "Jane Austen")
         ],
         "sub_rag_system": sub_rag_system,
         "grades": [],
-        "verbose": True
+        "verbose": False
     }
 
     print("--- STARTING GRAPH EXECUTION ---")

@@ -50,7 +50,7 @@ def prepend_original_paths(folder_path, mapping_file_path):
 
                 # Create the new header line
                 # We add a newline characters to separate it from the original code
-                header = f"///ORIGINAL_PATH: {original_path}\n\n"
+                header = f"///ORIGINAL_PATH: {original_path}.nvn\n\n"
                 
                 # Combine header and content
                 new_content = header + content
