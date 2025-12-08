@@ -3,6 +3,7 @@ from agents.mistral_agent import MistralAgent
 from agents.gpt_agent import GPTAgent
 from agents.llama3_agent import Llama3Agent
 from agents.groq_agent import GroqAgent
+from agents.qwen_agent import QwenAgent
 from agents.base import LLMAgent
 from config_manager import get_config
 
@@ -17,6 +18,8 @@ def prepare_agent(agent_name: str) -> LLMAgent:
             agent = GPTAgent()
         elif agent_name == 'llama3':
             agent = Llama3Agent()
+        elif agent_name == 'qwen':
+            agent = QwenAgent()
         elif agent_name == 'groq':
             agent = GroqAgent()
         else:

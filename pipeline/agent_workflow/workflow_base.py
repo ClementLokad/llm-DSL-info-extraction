@@ -521,8 +521,7 @@ class BaseAgentWorkflow(StateGraph):
             f"{base_prompt}"
             f"### INSTRUCTION\n"
             f"Code search for '{pattern}' completed. See results in Verified Facts/History.\n"
-            f"If additional information is needed, specify what is missing.\n"
-            f"Otherwise, analyze the results to answer the question."
+            f"If additional information is needed, specify what is missing. Otherwise, analyze the results to answer the question.\n"
         )
         return state
 
@@ -570,9 +569,9 @@ class BaseAgentWorkflow(StateGraph):
         base_prompt = self.design_first_part_prompt(state)
         state['rewritten_prompt'] = (
             f"{base_prompt}"
+            f"### INSTRUCTION\n"
             f"The scripts {found_paths} have been located and analyzed, the details have been added to Verified Facts.\n"
-            f"If additionnal information is needed, specify what is missing."
-            f"Otherwise, analyze the results to answer the question."
+            f"If additional information is needed, specify what is missing. Otherwise, analyze the results to answer the question.\n"
         )
         return state
 
@@ -587,8 +586,8 @@ class BaseAgentWorkflow(StateGraph):
         state['rewritten_prompt'] = (
             f"{base_prompt}"
             f"### INSTRUCTION\n"
-            f"The previous attempt resulted in an error. {additional_advice}\n"
-            f"Please try again, paying close attention to the previous error."
+            f"The previous attempt resulted in an unsatisfactory answer. {additional_advice}\n"
+            f"Please try again, paying close attention to the previous answer."
         )
         return state
 

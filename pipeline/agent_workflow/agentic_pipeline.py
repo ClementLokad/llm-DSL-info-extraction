@@ -112,9 +112,10 @@ class AgenticPipeline(BasePipeline):
         else:
             if state["regenerate_needed"]:
                 print("    -> Route: clean and grade answer (retry limit reached)")
+                return "clean&grade"
             else:
-                print("    -> Route: clean and grade answer (answer validated)")
-            return "proceed"
+                print("    -> Route: grade answer (answer validated)")
+            return "grade"
     
     def generate_answer(self, state):
         print("--- NODE: Generate Answer (Main LLM) ---")
@@ -149,6 +150,7 @@ class AgenticPipeline(BasePipeline):
             "Clean and format the following LLM-generated answer into a concise final answer.\n"
             "Remove any extraneous information, tool usage notes, or internal thoughts.\n"
             "Do NOT add ANY conversational filler.\n\n"
+            f"### QUESTION\n{state['question']}\n\n"
             "### OUTPUT FORMAT\n"
             "Respond strictly in this XML format:\n"
             "<final_answer>[The final answer]</final_answer>\n\n"
@@ -250,7 +252,9 @@ class AgenticPipeline(BasePipeline):
                 # If regenerate needed (first pass or new info found):
                 "regenerate": "generate_answer",
                 # If Agent is satisfied:
-                "proceed": "clean_answer"
+                "grade": "grade_answer",
+                # If retry limit reached:
+                "clean&grade": "clean_answer"
             }
         )
 
