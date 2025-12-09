@@ -11,7 +11,9 @@ from langgraph.graph import END, StateGraph, START
 from config_manager import get_config
 from pipeline.agent_workflow.workflow_base import *
 from langgraph_base import AgentGraphState, BasePipeline, GraphState
-from concrete_workflow import ConcreteAgentWorkflow, LLMDistillationTool, SimpleRAGTool
+from pipeline.agent_workflow.concrete_workflow import ConcreteAgentWorkflow
+from pipeline.agent_workflow.distillation_tool import LLMDistillationTool
+from pipeline.agent_workflow.rag_tool import SimpleRAGTool
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from rag.retrievers.faiss_retriever import FAISSRetriever
 from pathlib import Path
@@ -43,7 +45,7 @@ class AgenticPipeline(BasePipeline):
             # We must map AgentGraphState to WorkflowState (the TypedDict used in workflow_base)
             sub_input: WorkflowState = {
                 "pipeline_state": state, # Pass the full parent state
-                "regenerate": state.get("regenerate_needed", False),
+                "regenerate": False,
                 "error": None, 
                 "tool": None,
                 "tool_parameter": None,
@@ -305,7 +307,7 @@ if __name__ == "__main__":
         ],
         "sub_rag_system": sub_rag_system,
         "grades": [],
-        "verbose": False
+        "verbose": True
     }
 
     print("--- STARTING GRAPH EXECUTION ---")

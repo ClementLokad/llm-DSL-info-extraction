@@ -448,7 +448,7 @@ class BaseAgentWorkflow(StateGraph):
         state['tool'] = tool
         state['tool_parameter'] = parameter
         
-        state["regenerate"] = (tool != "grade_answer")
+        state["regenerate"] = (tool != "grade_answer" and state["pipeline_state"]["retry_count"] <= get_config().get("main_pipeline.agent_logic.max_retries", 5))
         
         if state["pipeline_state"]["verbose"]:
             print("Planner Prompt:")
@@ -461,12 +461,10 @@ class BaseAgentWorkflow(StateGraph):
     def decide_after_routing(self, state: WorkflowState) -> str:
         print("--- SUB-DECISION: After Routing ---")
         
-        if state["regenerate"] and state["pipeline_state"]["retry_count"] <= get_config().get("main_pipeline.agent_logic.max_retries", 2):
-            if state["tool"] is not None:
-                if state["pipeline_state"]["verbose"]:
-                    print(f"    -> Routing to tool: {state['tool']}")
-                state["pipeline_state"]["regenerate_needed"] = True
-                return f"{state['tool']}"
+        if state["regenerate"]:
+            if state["pipeline_state"]["verbose"]:
+                print(f"    -> Routing to tool: {state['tool']}")
+            return f"{state['tool']}"
         return "grade_answer"
 
     # --- 6. The Tools (Producers of History) ---
