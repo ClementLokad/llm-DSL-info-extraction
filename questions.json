@@ -1,78 +1,155 @@
-[
-    {
-        "question": "Combien de scripts lisent /Clean/Items.ion ?",
-        "answer": "12"
-    },
-    {
-        "question": "Quels scripts lisent /Clean/Items.ion ?",
-        "answer": "/3. Inspectors/6 Compare to Min-Max strategy\n/3. Inspectors/5 - Supplier Inspector\n/3. Inspectors/4 - Stores Analysis\n/3. Inspectors/3 - Stock Inspector\n/3. Inspectors/2 - Sales Analysis\n/3. Inspectors/1 - Item Inspector\n/2. Data sanity/3 - High Level Data Health\n/3. Inspectors/6 Compare to Min-Max strategy\t05/10/2025 18:20\t13/05/2025 15:18\t B. Manessi\t B. Manessi\n/3. Inspectors/5 - Supplier Inspector\t05/10/2025 18:20\t29/06/2025 18:14\t ScriptUpgrad...\t S. Bareilhe\n/3. Inspectors/4 - Stores Analysis\t05/10/2025 18:19\t29/06/2025 18:13\t ScriptUpgrad...\t S. Bareilhe\n/3. Inspectors/3 - Stock Inspector\t05/10/2025 18:19\t29/06/2025 18:13\t ScriptUpgrad...\t ScriptUpgrad...\n/3. Inspectors/2 - Sales Analysis\t05/10/2025 18:19\t07/07/2025 13:51\t E. Langella\t E. Langella\n/3. Inspectors/1 - Item Inspector\t05/10/2025 18:18\t29/06/2025 18:12\t ScriptUpgrad...\t S. Bareilhe\n/2. Data sanity/3 - High Level Data Health\t05/10/2025 18:18\t29/06/2025 18:12\t ScriptUpgrad...\t S. Bareilhe\n/4. Optimization workflow/07 Standard Dispatch Suggestion New\n/4. Optimization workflow/07 Standard Dispatch Suggestion\n/4. Optimization workflow/06 Purchasing results\n/4. Optimization workflow/05. Standard Purchase Suggestions\n/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff\n/4. Optimization workflow/04 Economic Parameters\n/4. Optimization workflow/03.b. Forecasting\n/4. Optimization workflow/02 Suppliers\n/4. Optimization workflow/01 Inventory Optimization Overview\n/4. Optimization workflow/01 Inventory Optimization Overview (New Dashboards)\n/4. Optimization workflow/05.New Standard Purchase Suggestions\n/1. utilities/1. populating dataset/03 - Manual Inputs\n/4. Optimization workflow/05.b. Long Term Purchase Suggestions\n/4. Optimization workflow/FR/05. Suggestions d'achat\n/3. Inspectors/7 - Global Business Cockpit\n/4. Optimization workflow/French/05.Recommandations d'Achats\n/4. Optimization workflow/French/07 Recommandations de Dispatch (clone)\n/4. Optimization workflow/French/07 Recommandations de Dispatch\n/4. Optimization workflow/09.Simulation ROP and EOQ Dispatch\n/4. Optimization workflow/08. Dispatch ROP definition"
-    },
-    {
-        "question": "Combien de scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
-        "answer": "2"
-    },
-    {
-        "question": "Quels scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
-        "answer": "/3. Inspectors/1 - Item Inspector\n/4. Optimization workflow/03.b. Forecasting"
-    },
-    {
-        "question": "Quels scripts écrivent /Clean/Forecast/Periodic/FcItems.ion?",
-        "answer": "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff "
-    },
-    {
-        "question": "Quels sont les modules utilisés ?",
-        "answer": "/1. utilities/Modules/Global Parameters\n/1. utilities/Modules/Functions\n/1. utilities/Modules/PathSchemas\n/1. utilities/Modules/Colors"
-    },
-    {
-        "question": "Où sont calculés les meilleurs vendeurs ?",
-        "answer": "/3. Inspectors/4 - Stores Analysis"
-    },
-    {
-        "question": "Où est définie la logique d'actualisation du stock ?",
-        "answer": "???"
-    },
-    {
-        "question": "Que contient le fichier /Clean/LongTermPlanning/Parametrisation/General.ion ?",
-        "answer": ""
-    },
-    {
-        "question": "Dans le script High Level Forecast Cockpit, comment est calculé la variable Category.SelectedGrowth ?",
-        "answer": ""
-    },
-    {
-        "question": "Quels sont les scripts affectés si je modifie le calcul de Category.SelectedGrowth ?",
-        "answer": ""
-    },
-    {
-        "question": "Dans l'autodiff du script [ 3 ] - Forecast Autodiff, quel est la loss qu'on essaie de minimiser ?",
-        "answer": ""
-    },
-    {
-        "question": "Quel est le rôle principal du script Pricing Rules ?",
-        "answer": ""
-    },
-    {
-        "question": "Quels sont les modules, scripts et fichiers dont dépend le script Forecasting ?",
-        "answer": ""
-    },
-    {
-        "question": "Quelle est la différence entre Standard Purchase Suggestions et Long Term Purchase Suggestions ?",
-        "answer": ""
-    },
-    {
-        "question": "Dans quels fichiers sont les données brutes ?",
-        "answer": ""
-    },
-    {
-        "question": "Quels sont les dashboards haut-niveaux (ceux qui redirigent vers d'autres dashboards, il faut regarder les hyperliens dans le code) ?",
-        "answer": ""
-    },
-    {
-        "question": "Comment sont nettoyées les données ?",
-        "answer": ""
-    },
-    {
-        "question": "Quels scripts utilisent la variable RedispatchCycleWeeks ?",
-        "answer": "???"
-    }
-]
+{
+    "answered": [
+        {
+            "question": "Combien de scripts lisent /Clean/Items.ion ?",
+            "deterministic": true,
+            "answers": [27]
+        },
+        {
+            "question": "Quels scripts lisent /Clean/Items.ion ?",
+            "deterministic": true,
+            "answers": [
+                "/1. utilities/1. populating dataset/03 - Manual Inputs",
+                "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff",
+                "/2. Data sanity/3 - High Level Data Health",
+                "/3. Inspectors/1 - Item Inspector",
+                "/3. Inspectors/2 - Sales Analysis",
+                "/3. Inspectors/3 - Stock Inspector",
+                "/3. Inspectors/4 - Stores Analysis",
+                "/3. Inspectors/5 - Supplier Inspector",
+                "/3. Inspectors/6 Compare to Min-Max strategy",
+                "/3. Inspectors/7 - Global Business Cockpit",
+                "/4. Optimization workflow/01 Inventory Optimization Overview",
+                "/4. Optimization workflow/02 Suppliers",
+                "/4. Optimization workflow/03.b. Forecasting",
+                "/4. Optimization workflow/04 Economic Parameters",
+                "/4. Optimization workflow/05. Standard Purchase Suggestions",
+                "/4. Optimization workflow/05.New Standard Purchase Suggestions",
+                "/4. Optimization workflow/05.b. Long Term Purchase Suggestions",
+                "/4. Optimization workflow/06 Purchasing results",
+                "/4. Optimization workflow/07 Standard Dispatch Suggestion",
+                "/4. Optimization workflow/07 Standard Dispatch Suggestion New",
+                "/4. Optimization workflow/08. Dispatch ROP definition",
+                "/4. Optimization workflow/09.Simulation ROP and EOQ Dispatch",
+                "/4. Optimization workflow/FR/05. Suggestions d'achat",
+                "/4. Optimization workflow/French/03 Forecasting",
+                "/4. Optimization workflow/French/05.Recommandations d'Achats",
+                "/4. Optimization workflow/French/07 Recommandations de Dispatch",
+                "/4. Optimization workflow/French/07 Recommandations de Dispatch (clone)",
+                "/8. Old/PurchaseOptimization"
+            ]
+        },
+        {
+            "question": "Combien de scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
+            "deterministic": true,
+            "answers": [3]
+        },
+        {
+            "question": "Quels scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
+            "deterministic": true,
+            "answers": [
+                "/3. Inspectors/1 - Item Inspector",
+                "/4. Optimization workflow/03.b. Forecasting",
+                "/4. Optimization workflow/French/03 Forecasting"
+            ]
+        },
+        {
+            "question": "Quels scripts écrivent /Clean/Forecast/Periodic/FcItems.ion?",
+            "deterministic": true,
+            "answers": [
+                "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff"
+            ]
+        },
+        {
+            "question": "Combien de scripts font mention de /Clean/Forecast/Periodic/FcItems.ion ?",
+            "deterministic": true,
+            "answers": [4]
+        },
+        {
+            "question": "Quels scripts font mention de /Clean/Forecast/Periodic/FcItems.ion ?",
+            "deterministic": true,
+            "answers": [
+                "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff",
+                "/3. Inspectors/1 - Item Inspector",
+                "/4. Optimization workflow/03.b. Forecasting",
+                "/4. Optimization workflow/French/03 Forecasting"
+            ]
+        },
+        {
+            "question": "Quels sont les modules utilisés ?",
+            "deterministic": true,
+            "answers": [
+                "/1. utilities/Modules/Global Parameters",
+                "/1. utilities/Modules/Functions",
+                "/1. utilities/Modules/PathSchemas",
+                "/1. utilities/Modules/Colors"
+            ]
+        },
+        {
+            "question": "Où sont calculés les meilleurs vendeurs ?",
+            "deterministic": true,
+            "answers": [
+                "/3. Inspectors/4 - Stores Analysis"
+            ]
+        },
+        {
+            "question": "Que fait-on dans ce compte ?",
+            "deterministic": false,
+            "answers": [
+                "Nettoyage des données",
+                "Analyses & diagnostics",
+                "Préparation des forecasts"
+            ]
+        }
+    ],
+    "unanswered": [
+        {
+            "question": "Où est définie la logique d'actualisation du stock ?",
+            "deterministic": true
+        },
+        {
+            "question": "Que contient le fichier /Clean/LongTermPlanning/Parametrisation/General.ion ?",
+            "deterministic": false
+        },
+        {
+            "question": "Dans le script High Level Forecast Cockpit, comment est calculé la variable Category.SelectedGrowth ?",
+            "deterministic": false
+        },
+        {
+            "question": "Quels sont les scripts affectés si je modifie le calcul de Category.SelectedGrowth ?",
+            "deterministic": true
+        },
+        {
+            "question": "Dans l'autodiff du script [ 3 ] - Forecast Autodiff, quel est la loss qu'on essaie de minimiser ?",
+            "deterministic": true
+        },
+        {
+            "question": "Quel est le rôle principal du script Pricing Rules ?",
+            "deterministic": false
+        },
+        {
+            "question": "Quels sont les modules, scripts et fichiers dont dépend le script Forecasting ?",
+            "deterministic": true
+        },
+        {
+            "question": "Quelle est la différence entre Standard Purchase Suggestions et Long Term Purchase Suggestions ?",
+            "deterministic": false
+        },
+        {
+            "question": "Dans quels fichiers sont les données brutes ?",
+            "deterministic": true
+        },
+        {
+            "question": "Quels sont les dashboards haut-niveaux (ceux qui redirigent vers d'autres dashboards, il faut regarder les hyperliens dans le code) ?",
+            "deterministic": true
+        },
+        {
+            "question": "Comment sont nettoyées les données ?",
+            "deterministic": false
+        },
+        {
+            "question": "Quels scripts utilisent la variable RedispatchCycleWeeks ?",
+            "deterministic": true
+        }
+    ]
+}
