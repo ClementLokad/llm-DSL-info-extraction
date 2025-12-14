@@ -1,3 +1,4 @@
+import re
 from typing import TypedDict, List, Optional, Dict, Any, Tuple
 from langgraph.graph import END, StateGraph, START
 from langgraph_base import AgentGraphState, ActionLog
@@ -82,7 +83,7 @@ class BaseGrepTool():
     def __init__(self, search_dirs: List[str]):
         self.search_dirs = search_dirs
 
-    def search(self, pattern: str, case_sensitive: bool = False) -> List[RetrievalResult]:
+    def search(self, pattern: str, sources: Optional[List[str]] = None) -> List[RetrievalResult]:
         """Search for pattern in source files"""
         matches = [] 
         # Implementation of grep logic would go here
@@ -169,6 +170,10 @@ class BaseAgentWorkflow(StateGraph):
             state['pipeline_state']["execution_history"] = []
         state['pipeline_state']["execution_history"].append(new_log)
 
+    def _parse_tag(self, tag, text):
+        match = re.search(f"<{tag}>(.*?)</{tag}>", text, re.DOTALL)
+        return match.group(1).strip() if match else ""
+
     # --- 4. The Context Assembler (Updated for History) ---
 
     def design_first_part_prompt(self, state: WorkflowState) -> str:
@@ -184,7 +189,8 @@ class BaseAgentWorkflow(StateGraph):
         # A. Identity
         prompt = (
             "### SYSTEM ROLE\n"
-            "You are an expert technical assistant. \n"
+            "You are an expert technical assistant working on a **Lokad Envision** codebase.\n"
+            "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"
             "Your goal is to answer the user's question by exploiting data from previous retrieval steps.\n\n"
             f"### QUESTION\n{question}\n\n"
         )
@@ -264,6 +270,25 @@ class BaseAgentWorkflow(StateGraph):
         """
         question = state['pipeline_state']['question']
         history = self._get_history(state)
+        
+        first_3_tools_desc = (
+            "1. rag_tool\n"
+            "   - Usage: Retrieve Envision concepts or Lokad business logic.\n"
+            "   - Parameter: A natural language query describing the concept to find.\n"
+            "   - Example: <parameter>how does the refund policy work?</parameter>\n\n"
+
+            "2. grep_tool\n"
+            "   - Usage: Find specific Envision code implementations, variable definitions, or error strings.\n"
+            "   - Parameter: A precise regex or string pattern. Optionally restrict scope by adding <sources>...</sources>.\n"
+            "   - Example:\n"
+            "     • Standard : <parameter>show linechart</parameter>\n"
+            "     • With source filter : <parameter>read \"/Manual/Dashboard.ion\" <sources>forecasting.nvn, income.nvn</sources></parameter>\n\n"
+
+            "3. script_finder_tool\n"
+            "   - Usage: Read specific files. Use RARELY and only when necessary due to high token cost; use grep_tool with sources instead whenever possible.\n"
+            "   - Parameter: Comma-separated filenames or path fragments.\n"
+            "   - Example: <parameter>config.nvn, utils/db.nvn</parameter>\n\n"
+        )
 
         # =================================================================
         # MODE 1: KICKOFF (First Pass - Simplified)
@@ -271,7 +296,8 @@ class BaseAgentWorkflow(StateGraph):
         if not history:
             prompt = (
                 "### SYSTEM ROLE\n"
-                "You are the **Strategic Planner** for an advanced RAG agent.\n"
+                "You are the **Strategic Planner** for an advanced RAG agent working on a **Lokad Envision** codebase.\n"
+                "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"
                 "You are initiating a new investigation. Your job is to determine the best FIRST step to gather information.\n\n"
                 
                 f"### MISSION GOAL\n{question}\n\n"
@@ -279,20 +305,7 @@ class BaseAgentWorkflow(StateGraph):
                 "### AVAILABLE TOOLS & SPECIFICATIONS\n"
                 "Select the tool best suited to start the investigation.\n\n"
                 
-                "1. rag_tool\n"
-                "   - Usage: Retrieve general concepts, business logic, or documentation. Best for 'How' or 'Why' questions.\n"
-                "   - Parameter: A natural language query.\n"
-                "   - Example: <parameter>how does the authentication middleware work?</parameter>\n\n"
-                
-                "2. grep_tool\n"
-                "   - Usage: Search for specific code patterns. Best for finding definitions or specific tokens mentioned in the question.\n"
-                "   - Parameter: A precise regex or string pattern.\n"
-                "   - Example: <parameter>class UserManager</parameter>\n\n"
-                
-                "3. script_finder_tool\n"
-                "   - Usage: Locate files if the question mentions specific filenames.\n"
-                "   - Parameter: Comma-separated filenames.\n"
-                "   - Example: <parameter>config.py, routes.py</parameter>\n\n"
+                ) + first_3_tools_desc + (
 
                 "### PLANNING INSTRUCTIONS\n"
                 "1. Analyze the 'Mission Goal'. Identify the most critical keyword or concept.\n"
@@ -320,7 +333,8 @@ class BaseAgentWorkflow(StateGraph):
         # 1. System Role: The Strategist
         prompt = (
             "### SYSTEM ROLE\n"
-            "You are the **Investigation Supervisor**.\n"
+            "You are the **Investigation Supervisor** for an advanced RAG agent working on a **Lokad Envision** codebase.\n"
+            "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"
             "Your primary goal is EFFICIENCY. You must decide if the current information is sufficient to answer the question.\n"
             "If the answer is found, you MUST stop the investigation immediately.\n\n"
         )
@@ -357,20 +371,7 @@ class BaseAgentWorkflow(StateGraph):
             "### AVAILABLE TOOLS & SPECIFICATIONS\n"
             "Select the most precise tool for the current need.\n\n"
             
-            "1. rag_tool\n"
-            "   - Usage: Retrieve general concepts, business logic, or documentation.\n"
-            "   - Parameter: A natural language query describing the concept to find.\n"
-            "   - Example: <parameter>how does the refund policy work?</parameter>\n\n"
-            
-            "2. grep_tool\n"
-            "   - Usage: Find specific code implementations, variable definitions, or error strings.\n"
-            "   - Parameter: A precise regex or string pattern.\n"
-            "   - Example: <parameter>def calculate_tax</parameter>\n\n"
-            
-            "3. script_finder_tool\n"
-            "   - Usage: Locate file paths or read specific files found in previous steps.\n"
-            "   - Parameter: Comma-separated filenames or path fragments.\n"
-            "   - Example: <parameter>config.nvn, utils/db.nvn</parameter>\n\n"
+            ) + first_3_tools_desc + (
             
             "4. simple_regeneration_tool\n"
             "   - Usage: Use ONLY if the previous step failed due to a logical error and you want to re-think without using new tools.\n"
@@ -390,10 +391,10 @@ class BaseAgentWorkflow(StateGraph):
             "   - YES -> STOP. Select <tool>grade_answer</tool>.\n"
             "   - NO -> Proceed to Step 2.\n\n"
             
-            "2. **REDUNDANCY CHECK**: Do NOT search for 'confirmation' or 'corroboration' if the facts are already clear.\n"
-            "   - If you are just double-checking -> STOP. Select <tool>grade_answer</tool>.\n\n"
+#            "2. **REDUNDANCY CHECK**: Do NOT search for 'confirmation' or 'corroboration' if the facts are already clear.\n"
+#            "   - If you are just double-checking -> STOP. Select <tool>grade_answer</tool>.\n\n"
             
-            "3. **GAP ANALYSIS**: If the answer is genuinely missing (e.g., 'I don't know' or 'File not found'), select the tool to find that specific missing piece.\n"
+            "2. **GAP ANALYSIS**: If the answer is genuinely missing or unsatisfactory (e.g., 'I don't know' or 'File not found'), select the tool to find that specific missing piece.\n"
             "   - Look at the 'History'. Have we already tried the obvious step? If yes, try a different angle (e.g., if grep failed, try RAG).\n"
             "   - Be specific in your parameter choice. Vague parameters yield vague results.\n\n"
             
@@ -432,15 +433,10 @@ class BaseAgentWorkflow(StateGraph):
         """
         
         # Parse XML (Simple regex helper)
-        import re
-        def parse_tag(tag, text):
-            match = re.search(f"<{tag}>(.*?)</{tag}>", text, re.DOTALL)
-            return match.group(1).strip() if match else ""
-
-        thought = parse_tag("thought", response_text)
-        tool = parse_tag("tool", response_text)
+        thought = self._parse_tag("thought", response_text)
+        tool = self._parse_tag("tool", response_text)
         # TODO: Map tool name to actual tool if needed
-        parameter = parse_tag("parameter", response_text)
+        parameter = self._parse_tag("parameter", response_text)
 
         # 5. Update State
         # We store the thought in 'current_thought' so the Tool node can access it later
@@ -515,11 +511,31 @@ class BaseAgentWorkflow(StateGraph):
     def use_grep_tool(self, state: WorkflowState) -> WorkflowState:
         print("--- SUB-NODE: Grep Tool ---")
         pattern = state["tool_parameter"]
+        
+        sources_match = self._parse_tag("sources", pattern)
+    
+        sources = None
+
+        if sources_match:
+            # Extract the CSV string inside <sources>
+            sources_str = sources_match.group(1)
+            # Convert to a clean list of filenames
+            sources = [s.strip() for s in sources_str.split(',') if s.strip()]
+            
+            # Remove the entire <sources> block from raw_content to isolate the grep pattern
+            # This handles cases like: "read <sources>file1</sources>" -> "read"
+            pattern = pattern.replace(sources_match.group(0), "").strip()
+        
         # Retrieve the thought generated by the Planner
         thought = state.get("current_thought", "No reasoning provided.")
         
         # 1. Execute
-        results = self.grep_tool.search(pattern=pattern)
+        results = self.grep_tool.search(pattern=pattern, sources=sources)
+        
+        shortened_res = False
+        if len(results) > get_config.get("main_pipeline.grep_tool.max_results"):
+            results = results[:get_config.get("main_pipeline.agent_logic.max_grep_results")]
+            shortened_res = True
         
         if state['pipeline_state']['verbose']:
             print(f"Grep found {len(results)} matches for pattern: '{pattern}'")
@@ -542,16 +558,25 @@ class BaseAgentWorkflow(StateGraph):
         
         # 3. Update History
         match_count = len(results)
-        outcome_str = f"Grep found {match_count} matches. Code context analyzed and added to Knowledge Bank."
+        outcome_str = f"Grep found {match_count} matches."
+        if shortened_res:
+            outcome_str += f"Only the first {get_config.get('main_pipeline.grep_tool.max_results')} were analyzed."
+        outcome_str += f"Extracted {len(new_facts)} relevant facts."
         self._append_history(state, "grep_tool", pattern, outcome_str, thought)
         
         # 4. Design Prompt for Solver
         base_prompt = self.design_first_part_prompt(state)
         state['rewritten_prompt'] = (
             f"{base_prompt}"
-            f"### INSTRUCTION\n"
-            f"Code search for '{pattern}' completed. See results in Verified Facts/History.\n"
-            f"If additional information is needed, specify what is missing. Otherwise, analyze the results to answer the question.\n"
+            "### INSTRUCTION\n"
+            f"Code search for '{pattern}' completed. "
+        )
+        if shortened_res:
+            state['rewritten_prompt'] += f'\nWARNING: Results truncated, only first {get_config.get("main_pipeline.grep_tool.max_results")} were analyzed.\n'
+
+        state['rewritten_prompt'] += (
+            "See results in Verified Facts/History.\n"
+            "If additional information is needed, specify what is missing. Otherwise, analyze the results to answer the question.\n"
         )
         return state
 
@@ -616,7 +641,7 @@ class BaseAgentWorkflow(StateGraph):
         state['rewritten_prompt'] = (
             f"{base_prompt}"
             f"### INSTRUCTION\n"
-            f"The previous attempt resulted in an unsatisfactory answer. {additional_advice}\n"
+            f"The previous attempt resulted in an unsatisfactory answer.\n{additional_advice}\n"
             f"Please try again, paying close attention to the previous answer."
         )
         return state
