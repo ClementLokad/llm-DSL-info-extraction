@@ -30,14 +30,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         response = self.planner_llm.generate_response(planning_prompt)
         
         # Parse XML (Simple regex helper)
-        import re
-        def parse_tag(tag, text):
-            match = re.search(f"<{tag}>(.*?)</{tag}>", text, re.DOTALL)
-            return match.group(1).strip() if match else ""
-
-        thought = parse_tag("thought", response)
-        raw_tool = parse_tag("tool", response)
-        parameter = parse_tag("parameter", response)
+        thought = self._parse_tag("thought", response)
+        raw_tool = self._parse_tag("tool", response)
+        parameter = self._parse_tag("parameter", response)
 
         VALID_TOOLS = {
             "rag_tool", 

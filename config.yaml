@@ -307,6 +307,9 @@ main_pipeline:
     main_llm: "qwen"
     planner_llm: "qwen"
     cleaning_llm: "qwen"
+  grep_tool:
+    max_results: 20
+    lines_context: 3 # Number of context lines to include around each grep match (before and after)
 
     
 # =============================================================================

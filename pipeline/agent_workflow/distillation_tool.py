@@ -16,10 +16,10 @@ class LLMDistillationTool(BaseDistillationTool):
             f"Query: {query}\n"
             f"Planner Thought: {thought}\n\n"
             f"### CONTENT TO ANALYZE\n"
-            f"{content[:8000]}\n\n" # Safety truncation
+            f"{content[:200_000]}\n\n" # Safety truncation
             f"### INSTRUCTION\n"
-            f"Extract a concise summary from the CONTENT that specifically answers the Query.\n"
-            f"If the content is irrelevant to the query, return 'IRRELEVANT'.\n"
+            f"Extract a concise summary from the CONTENT that specifically answers the Query or the Thought.\n"
+            f"If the content is irrelevant, return 'IRRELEVANT'.\n"
             f"Do not add conversational filler."
         )
         
@@ -55,7 +55,7 @@ class LLMDistillationTool(BaseDistillationTool):
 
         prompt_text += (
             "### INSTRUCTION\n"
-            "Analyze the items above. Extract key facts that help answer the Query.\n"
+            "Analyze the items above. Extract key facts that help answer the Query or the Thought.\n"
             "Discard irrelevant text. Combine duplicate information.\n"
             "\n"
             "### CRITICAL OUTPUT FORMAT\n"
