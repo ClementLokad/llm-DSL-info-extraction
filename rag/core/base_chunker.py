@@ -29,7 +29,6 @@ class CodeChunk:
     """
     content: str
     chunk_type: str
-    summary: str = None
     original_blocks: List[CodeBlock] = None
     context: str = ""
     size_tokens: int = 0

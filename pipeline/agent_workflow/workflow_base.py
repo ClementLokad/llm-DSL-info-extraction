@@ -512,7 +512,7 @@ class BaseAgentWorkflow(StateGraph):
         print("--- SUB-NODE: Grep Tool ---")
         pattern = state["tool_parameter"]
         
-        sources_match = self._parse_tag("sources", pattern)
+        sources_match = re.search(f"<sources>(.*?)</sources>", pattern, re.DOTALL)
     
         sources = None
 
@@ -533,9 +533,10 @@ class BaseAgentWorkflow(StateGraph):
         results = self.grep_tool.search(pattern=pattern, sources=sources)
         
         shortened_res = False
-        if len(results) > get_config.get("main_pipeline.grep_tool.max_results"):
-            results = results[:get_config.get("main_pipeline.agent_logic.max_grep_results")]
+        if len(results) > get_config().get("main_pipeline.grep_tool.max_results"):
+            results = results[:get_config().get("main_pipeline.agent_logic.max_results")]
             shortened_res = True
+        
         
         if state['pipeline_state']['verbose']:
             print(f"Grep found {len(results)} matches for pattern: '{pattern}'")
@@ -552,6 +553,10 @@ class BaseAgentWorkflow(StateGraph):
         new_facts = self.distillation_tool.distill_batch(items=items_to_distill, query=pattern,
                                                          thought=thought, verbose=state['pipeline_state']['verbose'])
         
+        if results == []:
+            new_facts.append((f"No matches found for pattern '{pattern}' in {', '.join(sources) if sources else 'All Sources'}.",
+                              ", ".join(sources) if sources else "All Sources"))
+        
         if "knowledge_bank" not in state['pipeline_state']:
             state['pipeline_state']["knowledge_bank"] = []
         state['pipeline_state']["knowledge_bank"].extend(new_facts)
@@ -560,7 +565,7 @@ class BaseAgentWorkflow(StateGraph):
         match_count = len(results)
         outcome_str = f"Grep found {match_count} matches."
         if shortened_res:
-            outcome_str += f"Only the first {get_config.get('main_pipeline.grep_tool.max_results')} were analyzed."
+            outcome_str += f"Only the first {get_config().get('main_pipeline.grep_tool.max_results')} were analyzed."
         outcome_str += f"Extracted {len(new_facts)} relevant facts."
         self._append_history(state, "grep_tool", pattern, outcome_str, thought)
         
@@ -572,8 +577,9 @@ class BaseAgentWorkflow(StateGraph):
             f"Code search for '{pattern}' completed. "
         )
         if shortened_res:
-            state['rewritten_prompt'] += f'\nWARNING: Results truncated, only first {get_config.get("main_pipeline.grep_tool.max_results")} were analyzed.\n'
-
+            state['rewritten_prompt'] += f'\nWARNING: Results truncated, only first {get_config().get("main_pipeline.grep_tool.max_results")} were analyzed.\n'
+        elif results == []:
+            state['rewritten_prompt'] += f"\nWARNING: No matches were found for pattern '{pattern}' in {', '.join(sources) if sources else 'All Sources'}.\n"
         state['rewritten_prompt'] += (
             "See results in Verified Facts/History.\n"
             "If additional information is needed, specify what is missing. Otherwise, analyze the results to answer the question.\n"

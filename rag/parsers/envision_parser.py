@@ -86,9 +86,7 @@ class EnvisionParser(BaseParser):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-                i = content.find('\n')
-                content = content[i+2:] if i != -1 else content # Skip first line because it contains ORIGINAL_PATH
-            return self.parse_content(content, file_path)
+                return self.parse_content(content, file_path)
         except FileNotFoundError:
             raise FileNotFoundError(f"Envision file not found: {file_path}")
         except Exception as e:

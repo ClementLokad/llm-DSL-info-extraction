@@ -1,9 +1,11 @@
 """Syntactic search using grep-like operations"""
 import re
+import os
 from pathlib import Path
 from typing import List
 from rag.core.base_retriever import RetrievalResult
 from rag.core.base_chunker import CodeChunk
+from get_mapping import get_file_mapping
 
 
 class GrepRetriever:
@@ -11,6 +13,7 @@ class GrepRetriever:
     
     def __init__(self, search_dirs: List[str]):
         self.search_dirs = search_dirs
+        self.mapping = get_file_mapping()
         
     def search(self, pattern: str, case_sensitive: bool = False) -> List[RetrievalResult]:
         """Search for pattern in source files"""
@@ -28,7 +31,7 @@ class GrepRetriever:
                         original_path = None
                         for num, line in enumerate(f):
                             if num == 0 and line.startswith("///ORIGINAL_PATH: "):
-                                original_path = line.replace("///ORIGINAL_PATH: ", "").strip()
+                                original_path = self.mapping.get(os.path.splitext(os.path.basename(file_path))[0], None)
                             if re.search(pattern, line, flags):
                                 matches.append(RetrievalResult(
                                     chunk=CodeChunk(content=line.strip(),

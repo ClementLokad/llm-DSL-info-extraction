@@ -38,6 +38,8 @@ paths:
   input_dirs: ["env_scripts"]  # Default directories to process for indexing and testing
   test_dirs: ["env_scripts"]   # Directories used for testing components
   
+  mapping_path: "mapping.txt"  # Path to file ID to original path mapping file
+  
   # File extensions
   # log_extension: ".log"
   pickle_extension: ".pkl" 
@@ -309,7 +311,8 @@ main_pipeline:
     cleaning_llm: "qwen"
   grep_tool:
     max_results: 20
-    lines_context: 3 # Number of context lines to include around each grep match (before and after)
+    index_path: "./data/grep_index"
+    case_sensitive: false
 
     
 # =============================================================================

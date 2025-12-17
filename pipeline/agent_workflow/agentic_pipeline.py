@@ -13,6 +13,8 @@ from pipeline.agent_workflow.workflow_base import *
 from langgraph_base import AgentGraphState, BasePipeline, GraphState
 from pipeline.agent_workflow.concrete_workflow import ConcreteAgentWorkflow
 from pipeline.agent_workflow.distillation_tool import LLMDistillationTool
+from pipeline.agent_workflow.grep_tool import GrepTool
+from pipeline.agent_workflow.script_finder_tool import PathScriptFinder
 from pipeline.agent_workflow.rag_tool import SimpleRAGTool
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from rag.retrievers.faiss_retriever import FAISSRetriever
@@ -281,8 +283,8 @@ if __name__ == "__main__":
     retriever.load_index(str(index_path))
 
     rag_tool = SimpleRAGTool(retriever=retriever, embedder=embedder)
-    grep_tool = BaseGrepTool(search_dirs=[])
-    script_finder_tool = BaseScriptFinderTool(search_dirs=[])
+    grep_tool = GrepTool()
+    script_finder_tool = PathScriptFinder()
     distillation_tool = LLMDistillationTool()
     
     # Pre-compile the agent sub-graph to avoid recompiling on every node call
@@ -302,7 +304,7 @@ if __name__ == "__main__":
     
     inputs = {
         "qa_pairs": [
-            ("What is the capital of the USA?", "Washington, D.C."),
+            ("Combien de scripts lisent /Clean/Items.ion ?", "27"),
             ("Who wrote 'Pride and Prejudice'?", "Jane Austen")
         ],
         "sub_rag_system": sub_rag_system,

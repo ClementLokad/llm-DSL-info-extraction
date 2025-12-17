@@ -23,7 +23,7 @@ class CodeBlock:
         name: Identifier/name of the block if available
         line_start: Starting line number in source file
         line_end: Ending line number in source file
-        file_path: Path to the source file
+        file_path: Path to the physical source file
         dependencies: List of dependencies/imports this block uses
         metadata: Additional parser-specific metadata
     """

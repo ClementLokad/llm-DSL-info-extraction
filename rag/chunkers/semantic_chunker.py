@@ -7,9 +7,11 @@ meaningful chunks that respect functional boundaries and logical groupings.
 
 from typing import List, Dict, Any, Optional
 import logging
+import os
 
 from rag.core.base_chunker import BaseChunker, CodeChunk
 from rag.core.base_parser import CodeBlock
+from get_mapping import get_file_mapping
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,7 @@ class SemanticChunker(BaseChunker):
         
         # Get strategies from configuration
         strategies = self.config.get('strategies', {})
+        self.mapping = get_file_mapping()
         self.group_by_section = strategies.get('group_by_section', True)
         self.group_related_assignments = strategies.get('group_related_assignments', True)
         self.keep_read_statements_separate = strategies.get('keep_read_statements_separate', True)
@@ -281,11 +284,7 @@ class SemanticChunker(BaseChunker):
         
         file_path = blocks[0].file_path
         # Extract original file path from the first block's file if available
-        with open(file_path, 'r', encoding='utf-8') as f:
-            header = f.readline().strip()
-            if header.startswith('///ORIGINAL_PATH: '):
-                original_path = header.replace('///ORIGINAL_PATH: ', '').strip()
-                metadata['original_file_path'] = original_path
+        metadata['original_file_path'] = self.mapping.get(os.path.splitext(os.path.basename(file_path))[0], None)
         
         # Add specific metadata based on chunk type
         if chunk_type == 'read_statement':
