@@ -304,8 +304,7 @@ if __name__ == "__main__":
     
     inputs = {
         "qa_pairs": [
-            ("Combien de scripts lisent /Clean/Items.ion ?", "27"),
-            ("Who wrote 'Pride and Prejudice'?", "Jane Austen")
+            ("Combien de fois /Clean/Items.ion est lu dans /3. Inspectors/5 - Supplier Inspector.nvn?", "")
         ],
         "sub_rag_system": sub_rag_system,
         "grades": [],

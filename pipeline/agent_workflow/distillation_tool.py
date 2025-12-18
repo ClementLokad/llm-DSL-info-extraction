@@ -61,7 +61,7 @@ class LLMDistillationTool(BaseDistillationTool):
             "### CRITICAL OUTPUT FORMAT\n"
             "You MUST output the results in strict XML format.\n"
             "Wrap each distinct fact in an <entry> tag.\n"
-            "Inside <entry>, use <fact> for the content and <source> for the Item ID number.\n"
+            "Inside <entry>, use <fact> for the content and <source> for the Item ID number (or comma-separated list of IDs).\n"
             "\n"
             "Example:\n"
             "<entry>\n"
@@ -97,23 +97,26 @@ class LLMDistillationTool(BaseDistillationTool):
                 
                 if fact_match and source_tag_match:
                     fact_text = fact_match.group(1).strip()
-                    source_content = source_tag_match.group(1).strip()
+                    source_content = source_tag_match.group(1).strip().split(",")
                     
                     # ROBUST PARSING: Find the first integer sequence inside the source tag
                     # This handles: "1", "Item 1", "Source: 1", "ID #1" -> all become 1
-                    id_match = re.search(r"(\d+)", source_content)
+                    id_matches = [re.search(r"(\d+)", source) for source in source_content]
+                    sources = set()
                     
-                    if id_match:
-                        item_id = int(id_match.group(1))
-                        
-                        # Map back to the original file path
-                        if item_id in indexed_sources and fact_text:
-                            original_source = indexed_sources[item_id]
-                            distilled_results.append((fact_text, original_source))
+                    for id_match in id_matches:
+                        if id_match:
+                            item_id = int(id_match.group(1))
+                            
+                            # Map back to the original file path
+                            if item_id in indexed_sources and fact_text:
+                                original_source = indexed_sources[item_id]
+                                sources.add(original_source)
+                            elif fact_text:
+                                sources.add("Unknown Source")
                         elif fact_text:
-                            distilled_results.append((fact_text, "Unknown Source"))
-                    elif fact_text:
-                        distilled_results.append((fact_text, "Unknown Source"))
+                            sources.add("Unknown Source")
+                    distilled_results.append((fact_text, ", ".join(list(sources))))
                         
             except (ValueError, AttributeError):
                 continue

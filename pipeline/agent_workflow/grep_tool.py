@@ -37,7 +37,7 @@ class GrepTool(BaseGrepTool):
         except:
             self.build_save_index()
     
-    def check_suffix_match(self, f: str, L: List[str]) -> bool:
+    def check_suffix_match(self, f: str, L: List[str], inverse = False) -> bool:
         """
         Checks if any path 'g' in L (without extension) is a suffix of 
         path 'f' (without extension).
@@ -45,6 +45,7 @@ class GrepTool(BaseGrepTool):
         Args:
             f (str): The main file path.
             L (list): A list of potentially incomplete file paths.
+            inverse (bool): If True, checks if f is a suffix of any path in L.
 
         Returns:
             bool: True if a suffix match is found, False otherwise.
@@ -67,11 +68,18 @@ class GrepTool(BaseGrepTool):
             
             # Check if g_root is a suffix of f_root
             # The 'endswith()' string method performs this check efficiently.
-            if f_root.endswith(g_root):
-                return True # Match found, exit immediately
+            if inverse:
+                if g_root.endswith(f_root):
+                    return True # Match found, exit immediately
+            else:
+                if f_root.endswith(g_root):
+                    return True # Match found, exit immediately
 
         # 3. If the loop completes without finding a match, return False
         return False
+    
+
+        
 
     def search(
         self,
@@ -85,9 +93,20 @@ class GrepTool(BaseGrepTool):
         Convention:
             - query_embedding is a numpy array of shape (1,) containing a string
         """
+        
+        if sources is not None:
+            valid = False
+            for s in sources:
+                if self.check_suffix_match(s.strip(), list(self.mapping.values()), inverse=True):
+                    valid = True
+                    break
+            if not valid:
+                sources = None  # Ignore invalid source filters
+            
 
-        # 1. Escape the pattern to treat all characters literally
-        literal_pattern = re.escape(pattern)
+        pattern = pattern.strip().strip("/")
+
+        regex = re.compile(pattern, 0 if self.case_sensitive else re.IGNORECASE)
 
         results = []
         rank = 1
@@ -98,7 +117,7 @@ class GrepTool(BaseGrepTool):
                 continue
 
             # Match on the full chunk content
-            if re.search(literal_pattern, block.content):
+            if regex.search(block.content):
                 results.append(
                     RetrievalResult(
                         chunk=CodeChunk(
@@ -107,7 +126,8 @@ class GrepTool(BaseGrepTool):
                             original_blocks=[block],
                             context="Grep match",
                             size_tokens=len(block.content) // self.config.get('chunker.chars_per_token', 4),
-                            metadata={"file_path": getattr(block, "file_path", None)}
+                            metadata={"file_path": getattr(block, "file_path", None),
+                                      "original_file_path": block.metadata["original_file_path"]}
                         ),
                         score=1.0,            # constant score (grep has no similarity metric)
                         rank=rank,
@@ -175,6 +195,6 @@ class GrepTool(BaseGrepTool):
 
 if __name__ == "__main__":
     grep_tool = GrepTool()
-    results = grep_tool.search(pattern="show", sources=["Data Integrity Check.nvn"])
+    results = grep_tool.search(pattern="Clean/Items.ion", sources=["1 - Item Inspector"])
     for res in results:
-        print(f"File: {res.metadata['original_file_path']}\nContent:\n{res.chunk.content}\n{'-'*40}\n")
+        print(f"File: {res.metadata['original_file_path']}\n")#Content:\n{res.chunk.content}\n{'-'*40}\n")

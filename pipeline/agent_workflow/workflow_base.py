@@ -279,7 +279,8 @@ class BaseAgentWorkflow(StateGraph):
 
             "2. grep_tool\n"
             "   - Usage: Find specific Envision code implementations, variable definitions, or error strings.\n"
-            "   - Parameter: A precise regex or string pattern. Optionally restrict scope by adding <sources>...</sources>.\n"
+            "   - Parameter: A precise regex or string pattern. Optionally restrict scope by adding <sources>...</sources>"
+            " but use ONLY when NECESSARY as you may miss relevant information.\n"
             "   - Example:\n"
             "     • Standard : <parameter>show linechart</parameter>\n"
             "     • With source filter : <parameter>read \"/Manual/Dashboard.ion\" <sources>forecasting.nvn, income.nvn</sources></parameter>\n\n"

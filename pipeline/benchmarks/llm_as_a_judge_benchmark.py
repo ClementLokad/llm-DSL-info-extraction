@@ -19,7 +19,13 @@ class LLMAsAJudgeBenchmark(Benchmark):
     
     def judge (self, llm_response: str, reference: str)-> int:
         """Returns 1 if the llm_response is considered correct by the judge llm, else 0"""
-        text_score = self.agent.generate_response("You are a strict evaluator. When I give you a question and an LLM’s answer, you must output ONLY a single character: 1 if the answer is fully correct, or 0 if the answer is incorrect. Do NOT output explanations, chain-of-thought, tags, spaces, punctuation, or any extra text. If you output anything other than exactly 1 or 0, you have failed the task. Your entire reply must be exactly one character: 1 or 0." + "Question :" + llm_response + "Expected answer :" + reference)
+        text_score = self.agent.generate_response("You are a strict evaluator. When I give you a question and an LLM’s an"
+                                                  "swer, you must output ONLY a single character: 1 if the answer is full"
+                                                  "y correct, or 0 if the answer is incorrect. Do NOT output explanations"
+                                                  ", chain-of-thought, tags, spaces, punctuation, or any extra text. If y"
+                                                  "ou output anything other than exactly 1 or 0, you have failed the task"
+                                                  ". Your entire reply must be exactly one character: 1 or 0." + "Questio"
+                                                  "n :" + llm_response + "Expected answer :" + reference)
         return(int(text_score))
 
 
