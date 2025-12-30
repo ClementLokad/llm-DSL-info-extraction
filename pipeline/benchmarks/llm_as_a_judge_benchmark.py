@@ -4,7 +4,7 @@ import numpy as np
 import agents.prepare_agent as prepare_agent
 import config_manager
 
-default_prompt = "Tu es un évaluateur strict. Lorsque je te soumets une , la vraie réponse et la réponse d'un LLM, tu dois générer UNIQUEMENT un seul caractère : 1 si la réponse du LLM est entièrement correcte, ou 0 si la réponse est incorrecte. Si la réponse du LLM est incomplète et qu'il manque un élément, mets la note de 0. Si la réponse du LLM a le même sens que la vraie réponse, mets la note de 1. Ne génère PAS d'explications, de raisonnement, de balises, d'espaces, de ponctuation ou tout autre texte supplémentaire. Si tu génères autre chose que strictement 1 ou 0, tu as échoué à la tâche. Ta réponse complète doit être exactement d'un caractère : 1 ou 0"
+default_prompt = "Tu es un évaluateur strict. Lorsque je te soumets une question, la vraie réponse et la réponse d'un LLM, tu dois générer UNIQUEMENT un seul caractère : 1 si la réponse du LLM est entièrement correcte, ou 0 si la réponse est incorrecte. Si la réponse du LLM est incomplète et qu'il manque un élément, mets la note de 0. Si la réponse du LLM a le même sens que la vraie réponse, mets la note de 1. Ne génère PAS d'explications, de raisonnement, de balises, d'espaces, de ponctuation ou tout autre texte supplémentaire. Si tu génères autre chose que strictement 1 ou 0, tu as échoué à la tâche. Ta réponse complète doit être exactement d'un caractère : 1 ou 0"
 
 class LLMAsAJudgeBenchmark(Benchmark):
     """
@@ -22,7 +22,7 @@ class LLMAsAJudgeBenchmark(Benchmark):
     def judge(self, question: str, llm_response: str, reference: str) -> int:
         """Returns 1 if the llm_response is considered correct by the judge llm, else 0"""
         text_score = self.agent.generate_response(self.prompt + f"\n\nQuestion : {question}\nVraie réponse : {reference}\nRéponse du LLM : {llm_response}")
-        # print(text_score)
+        print(text_score)
         if text_score not in ["1", "0"]:
             raise Exception("Score invalide")
         return (int(text_score))
