@@ -1,0 +1,263 @@
+[
+    {
+        "question": "Combien de scripts lisent /Clean/Items.ion ?",
+        "llm_answer": "14 scripts lisent `/Clean/Items.ion`.",
+        "reference": [
+            27
+        ],
+        "score" : 0
+    },
+    {
+        "question": "Combien de scripts lisent /Clean/Items.ion ?",
+        "llm_answer": "27 scripts lisent `/Clean/Items.ion`.",
+        "reference": [
+            27
+        ],
+        "score":1
+    },
+    {
+        "question": "Quels scripts lisent /Clean/Items.ion ?",
+        "llm_answer": "Les scripts suivants lisent `/Clean/Items.ion` :\n\n*   `/2. Data sanity/3 - High Level Data Health`\n*   `/3. Inspectors/1",
+        "reference": [
+            "/1. utilities/1. populating dataset/03 - Manual Inputs",
+            "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff",
+            "/2. Data sanity/3 - High Level Data Health",
+            "/3. Inspectors/1 - Item Inspector",
+            "/3. Inspectors/2 - Sales Analysis",
+            "/3. Inspectors/3 - Stock Inspector",
+            "/3. Inspectors/4 - Stores Analysis",
+            "/3. Inspectors/5 - Supplier Inspector",
+            "/3. Inspectors/6 Compare to Min-Max strategy",
+            "/3. Inspectors/7 - Global Business Cockpit",
+            "/4. Optimization workflow/01 Inventory Optimization Overview",
+            "/4. Optimization workflow/02 Suppliers",
+            "/4. Optimization workflow/03.b. Forecasting",
+            "/4. Optimization workflow/04 Economic Parameters",
+            "/4. Optimization workflow/05. Standard Purchase Suggestions",
+            "/4. Optimization workflow/05.New Standard Purchase Suggestions",
+            "/4. Optimization workflow/05.b. Long Term Purchase Suggestions",
+            "/4. Optimization workflow/06 Purchasing results",
+            "/4. Optimization workflow/07 Standard Dispatch Suggestion",
+            "/4. Optimization workflow/07 Standard Dispatch Suggestion New",
+            "/4. Optimization workflow/08. Dispatch ROP definition",
+            "/4. Optimization workflow/09.Simulation ROP and EOQ Dispatch",
+            "/4. Optimization workflow/FR/05. Suggestions d'achat",
+            "/4. Optimization workflow/French/03 Forecasting",
+            "/4. Optimization workflow/French/05.Recommandations d'Achats",
+            "/4. Optimization workflow/French/07 Recommandations de Dispatch",
+            "/4. Optimization workflow/French/07 Recommandations de Dispatch (clone)",
+            "/8. Old/PurchaseOptimization"
+        ],
+        "score":0
+    },
+    {
+        "question": "Quels scripts lisent /Clean/Items.ion ?",
+        "llm_answer": "Les scripts suivants lisent `/Clean/Items.ion` :\n\n*   /1. utilities/1. populating dataset/03 - Manual Inputs, /1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff, /2. Data sanity/3 - High Level Data Health, /3. Inspectors/1 - Item Inspector, /3. Inspectors/2 - Sales Analysis, /3. Inspectors/3 - Stock Inspector, /3. Inspectors/4 - Stores Analysis, /3. Inspectors/5 - Supplier Inspector, /3. Inspectors/6 Compare to Min-Max strategy, /3. Inspectors/7 - Global Business Cockpit, /4. Optimization workflow/01 Inventory Optimization Overview, /4. Optimization workflow/02 Suppliers, /4. Optimization workflow/03.b. Forecasting, /4. Optimization workflow/04 Economic Parameters, /4. Optimization workflow/05. Standard Purchase Suggestions, /4. Optimization workflow/05.New Standard Purchase Suggestions, /4. Optimization workflow/05.b. Long Term Purchase Suggestions, /4. Optimization workflow/06 Purchasing results, /4. Optimization workflow/07 Standard Dispatch Suggestion, /4. Optimization workflow/07 Standard Dispatch Suggestion New, /4. Optimization workflow/08. Dispatch ROP definition, /4. Optimization workflow/09.Simulation ROP and EOQ Dispatch, /4. Optimization workflow/FR/05. Suggestions d'achat, /4. Optimization workflow/French/03 Forecasting, /4. Optimization workflow/French/05.Recommandations d'Achats, /4. Optimization workflow/French/07 Recommandations de Dispatch, /4. Optimization workflow/French/07 Recommandations de Dispatch (clone), /8. Old/PurchaseOptimization",
+        "reference": [
+            "/1. utilities/1. populating dataset/03 - Manual Inputs",
+            "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff",
+            "/2. Data sanity/3 - High Level Data Health",
+            "/3. Inspectors/1 - Item Inspector",
+            "/3. Inspectors/2 - Sales Analysis",
+            "/3. Inspectors/3 - Stock Inspector",
+            "/3. Inspectors/4 - Stores Analysis",
+            "/3. Inspectors/5 - Supplier Inspector",
+            "/3. Inspectors/6 Compare to Min-Max strategy",
+            "/3. Inspectors/7 - Global Business Cockpit",
+            "/4. Optimization workflow/01 Inventory Optimization Overview",
+            "/4. Optimization workflow/02 Suppliers",
+            "/4. Optimization workflow/03.b. Forecasting",
+            "/4. Optimization workflow/04 Economic Parameters",
+            "/4. Optimization workflow/05. Standard Purchase Suggestions",
+            "/4. Optimization workflow/05.New Standard Purchase Suggestions",
+            "/4. Optimization workflow/05.b. Long Term Purchase Suggestions",
+            "/4. Optimization workflow/06 Purchasing results",
+            "/4. Optimization workflow/07 Standard Dispatch Suggestion",
+            "/4. Optimization workflow/07 Standard Dispatch Suggestion New",
+            "/4. Optimization workflow/08. Dispatch ROP definition",
+            "/4. Optimization workflow/09.Simulation ROP and EOQ Dispatch",
+            "/4. Optimization workflow/FR/05. Suggestions d'achat",
+            "/4. Optimization workflow/French/03 Forecasting",
+            "/4. Optimization workflow/French/05.Recommandations d'Achats",
+            "/4. Optimization workflow/French/07 Recommandations de Dispatch",
+            "/4. Optimization workflow/French/07 Recommandations de Dispatch (clone)",
+            "/8. Old/PurchaseOptimization"
+        ],
+        "score":1
+    },
+    {
+        "question": "Quels scripts lisent /Clean/Items.ion ?",
+        "llm_answer": "Les scripts suivants lisent `/Clean/Items.ion` :\n\n*   /1. utilities/1. populating dataset/03 - Manual Inputs, /1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff, /2. Data sanity/3 - High Level Data Health, /3. Inspectors/1 - Item Inspector, /3. Inspectors/2 - Sales Analysis, /3. Inspectors/3 - Stock Inspector, /3. Inspectors/4 - Stores Analysis, /3. Inspectors/5 - Supplier Inspector, /3. Inspectors/6 Compare to Min-Max strategy, /3. Inspectors/7 - Global Business Cockpit, /4. Optimization workflow/01 Inventory Optimization Overview, /4. Optimization workflow/02 Suppliers, /4. Optimization workflow/03.b. Forecasting, /4. Optimization workflow/04 Economic Parameters, /4. Optimization workflow/05. Standard Purchase Prices, /4. Optimization workflow/05. Standard Purchase Suggestions, /4. Optimization workflow/05.b. Long Term Purchase Suggestions, /4. Optimization workflow/06 Purchasing results, /4. Optimization workflow/07 Standard Dispatch Suggestion, /4. Optimization workflow/07 Standard Dispatch Suggestion New, /4. Optimization workflow/08. Dispatch ROP definition, /4. Optimization workflow/09.Simulation ROP and EOQ Dispatch, /4. Optimization workflow/FR/05. Suggestions d'achat, /4. Optimization workflow/French/03 Forecasting, /4. Optimization workflow/French/05.Recommandations d'Achats, /4. Optimization workflow/French/07 Recommandations de Dispatch, /4. Optimization workflow/French/07 Recommandations de Dispatch (clone), /8. Old/PurchaseOptimization",
+        "reference": [
+            "/1. utilities/1. populating dataset/03 - Manual Inputs",
+            "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff",
+            "/2. Data sanity/3 - High Level Data Health",
+            "/3. Inspectors/1 - Item Inspector",
+            "/3. Inspectors/2 - Sales Analysis",
+            "/3. Inspectors/3 - Stock Inspector",
+            "/3. Inspectors/4 - Stores Analysis",
+            "/3. Inspectors/5 - Supplier Inspector",
+            "/3. Inspectors/6 Compare to Min-Max strategy",
+            "/3. Inspectors/7 - Global Business Cockpit",
+            "/4. Optimization workflow/01 Inventory Optimization Overview",
+            "/4. Optimization workflow/02 Suppliers",
+            "/4. Optimization workflow/03.b. Forecasting",
+            "/4. Optimization workflow/04 Economic Parameters",
+            "/4. Optimization workflow/05. Standard Purchase Suggestions",
+            "/4. Optimization workflow/05. Standard Purchase Suggestions",
+            "/4. Optimization workflow/05.b. Long Term Purchase Suggestions",
+            "/4. Optimization workflow/06 Purchasing results",
+            "/4. Optimization workflow/07 Standard Dispatch Suggestion",
+            "/4. Optimization workflow/07 Standard Dispatch Suggestion New",
+            "/4. Optimization workflow/08. Dispatch ROP definition",
+            "/4. Optimization workflow/09.Simulation ROP and EOQ Dispatch",
+            "/4. Optimization workflow/FR/05. Suggestions d'achat",
+            "/4. Optimization workflow/French/03 Forecasting",
+            "/4. Optimization workflow/French/05.Recommandations d'Achats",
+            "/4. Optimization workflow/French/07 Recommandations de Dispatch",
+            "/4. Optimization workflow/French/07 Recommandations de Dispatch (clone)",
+            "/8. Old/PurchaseOptimization"
+        ],
+        "score":0
+    },
+    {
+        "question": "Combien de scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
+        "llm_answer": "D'après le contexte fourni, **un seul script** lit `/Clean/Forecast/Periodic/FcItems.ion`.\n\nIl s'agit du script `/3. Inspectors/1 - Item Inspector`.\n\nLe contexte ne fournit pas d'informations sur d'autres scripts qui pourraient potentiellement lire ce fichier.",
+        "reference": [
+            3
+        ],
+        "score":0
+    },
+    {
+        "question": "Combien de scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
+        "llm_answer": "D'après le contexte fourni, **trois scripts** lisent `/Clean/Forecast/Periodic/FcItems.ion`.\n\nIl s'agit des scripts `/3. Inspectors/1 - Item Inspector`, /3. Inspectors/2 - Sales Analysis, /3. Inspectors/3 - Stock Inspector.\n\nLe contexte ne fournit pas d'informations sur d'autres scripts qui pourraient potentiellement lire ce fichier.",
+        "reference": [
+            3
+        ],
+        "score":1
+    },
+    {
+        "question": "Quels scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
+        "llm_answer": "D'après le contexte fourni, le script qui lit `/Clean/Forecast/Periodic/FcItems.ion` est :\n\n`/3. Inspectors/1 - Item Inspector`",
+        "reference": [
+            "/3. Inspectors/1 - Item Inspector",
+            "/4. Optimization workflow/03.b. Forecasting",
+            "/4. Optimization workflow/French/03 Forecasting"
+        ],
+        "score":0
+    },
+    {
+        "question": "Quels scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
+        "llm_answer": "D'après le contexte fourni, le script qui lit `/Clean/Forecast/Periodic/FcItems.ion` est :\n\n`/3. Inspectors/1 - Item Inspector`",
+        "reference": [
+            "/3. Inspectors/1 - Item Inspector",
+            "/4. Optimization workflow/03.b. Forecasting",
+            "/4. Optimization workflow/French/03 Forecasting"
+        ],
+        "score":0
+    },
+    {
+        "question": "Quels scripts écrivent /Clean/Forecast/Periodic/FcItems.ion?",
+        "llm_answer": "Le script fourni (`/3. Inspectors/1 - Item Inspector`) **lit** le fichier `/Clean/Forecast/Periodic/FcItems.ion`.\n\nAvec le contexte donné, nous ne pouvons pas déterminer quels scripts **écrivent** `/Clean/Forecast/Periodic/FcItems.ion`. L'extrait montre seulement une opération de lecture.",
+        "reference": [
+            "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff"
+        ],
+        "score":0
+    },
+    {
+        "question": "Combien de scripts font mention de /Clean/Forecast/Periodic/FcItems.ion ?",
+        "llm_answer": "D'après le contexte fourni, **un seul script** ( `/3. Inspectors/1 - Item Inspector`) fait mention de `/Clean/Forecast/Periodic/FcItems.ion`.",
+        "reference": [
+            4
+        ],
+        "score":0
+    },
+    {
+        "question": "Combien de scripts font mention de /Clean/Forecast/Periodic/FcItems.ion ?",
+        "llm_answer": "D'après le contexte fourni, **quatre scripts** font mention de `/Clean/Forecast/Periodic/FcItems.ion`.",
+        "reference": [
+            4
+        ],
+        "score":1
+    },
+    {
+        "question": "Quels scripts font mention de /Clean/Forecast/Periodic/FcItems.ion ?",
+        "llm_answer": "Le script qui mentionne `/Clean/Forecast/Periodic/FcItems.ion` est :\n\n*   `/3. Inspectors/1 - Item Inspector`",
+        "reference": [
+            "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff",
+            "/3. Inspectors/1 - Item Inspector",
+            "/4. Optimization workflow/03.b. Forecasting",
+            "/4. Optimization workflow/French/03 Forecasting"
+        ],
+        "score":0
+    },
+    {
+        "question": "Quels scripts font mention de /Clean/Forecast/Periodic/FcItems.ion ?",
+        "llm_answer": "Les scripts qui mentionnent `/Clean/Forecast/Periodic/FcItems.ion` sont /1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff, /3. Inspectors/1 - Item Inspector, /4. Optimization workflow/03.b. Forecasting, /4. Optimization workflow/French/03 Forecasting",
+        "reference": [
+            "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff",
+            "/3. Inspectors/1 - Item Inspector",
+            "/4. Optimization workflow/03.b. Forecasting",
+            "/4. Optimization workflow/French/03 Forecasting"
+        ],
+        "score":1
+    },
+    {
+        "question": "Quels sont les modules utilisés ?",
+        "llm_answer": "Les modules utilisés, identifiés par les chemins de fichiers et les `///ORIGINAL_PATH`, sont les suivants :\n\n1.  `/8. Old/PurchaseOptimization`\n2.  `/4. Optimization workflow/French/05.Recommandations d'Achats`\n3.  `/4. Optimization workflow/French/03 Forecasting`\n4.  `/3. Inspectors/7 - Global Business Cockpit`\n5.  `/4. Optimization workflow/French/07 Recommandations de Dispatch (clone)`\n6.  `/4. Optimization workflow/07 Standard Dispatch Suggestion New`\n7.  `/4. Optimization workflow/03 Forecast Menu`\n8.  `/4. Optimization workflow/FR",
+        "reference": [
+            "/1. utilities/Modules/Global Parameters",
+            "/1. utilities/Modules/Functions",
+            "/1. utilities/Modules/PathSchemas",
+            "/1. utilities/Modules/Colors"
+        ],
+        "score":0
+    },
+    {
+        "question": "Quels sont les modules utilisés ?",
+        "llm_answer": "Les modules utilisés, identifiés par les chemins de fichiers et les `///ORIGINAL_PATH`, sont les suivants :\n\n1.  /1. utilities/Modules/Global Parameters, /1. utilities/Modules/Functions, /1. utilities/Modules/PathSchemas, /1. utilities/Modules/Colors",
+        "reference": [
+            "/1. utilities/Modules/Global Parameters",
+            "/1. utilities/Modules/Functions",
+            "/1. utilities/Modules/PathSchemas",
+            "/1. utilities/Modules/Colors"
+        ],
+        "score":1
+    },
+    {
+        "question": "Où sont calculés les meilleurs vendeurs ?",
+        "llm_answer": "Les extraits de code fournis **ne montrent pas** où sont calculés les meilleurs vendeurs.\n\nIls décrivent principalement :\n*   Un écran de recommandation d'achats basé sur une optimisation probabiliste (sans montrer le calcul sous-jacent des \"meilleurs vendeurs\").\n*   Des formulaires et des paramètres pour",
+        "reference": [
+            "/3. Inspectors/4 - Stores Analysis"
+        ],
+        "score":0
+    },
+    {
+        "question": "Où sont calculés les meilleurs vendeurs ?",
+        "llm_answer": "D'après les extraits de code fournis les meilleurs vendeurs sont calculés dans /3. Inspectors/4 - Stores Analysis",
+        "reference": [
+            "/3. Inspectors/4 - Stores Analysis"
+        ],
+        "score":1
+    },
+    {
+        "question": "Que fait-on dans ce compte ?",
+        "llm_answer": "Dans ce compte Lokad, on réalise l'**optimisation des achats** en utilisant l'approche probabiliste de Lokad pour la **maximisation du retour sur investissement**.\n\nPlus précisément :\n*   Il **recommande les achats à faire ce jour** pour atteindre un `Taux de couverture` (fill rate) cible.\n*   Il **calcule le `fill",
+        "reference": [
+            "Nettoyage des données",
+            "Analyses & diagnostics",
+            "Préparation des forecasts"
+        ],
+        "score":0
+    },
+    {
+        "question": "Que fait-on dans ce compte ?",
+        "llm_answer": "Dans ce compte Lokad, on nettoie et analyse les données et l'on prépare des forecasts afin d'optimiser la supply chain du client.",
+        "reference": [
+            "Nettoyage des données",
+            "Analyses & diagnostics",
+            "Préparation des forecasts"
+        ],
+        "score":1
+    }
+]

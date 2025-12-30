@@ -4,30 +4,28 @@ import numpy as np
 import agents.prepare_agent as prepare_agent
 import config_manager
 
-default_prompt = "You're an expert at judging answers to questions by answering only a single number. Return JUST 1 if the LLM response to the answer give is correct, else JUST return 0. Don't explain anything just give the number 1 or 0 so it can go into a int() function"
+default_prompt = "Tu es un évaluateur strict. Lorsque je te soumets une , la vraie réponse et la réponse d'un LLM, tu dois générer UNIQUEMENT un seul caractère : 1 si la réponse du LLM est entièrement correcte, ou 0 si la réponse est incorrecte. Si la réponse du LLM est incomplète et qu'il manque un élément, mets la note de 0. Si la réponse du LLM a le même sens que la vraie réponse, mets la note de 1. Ne génère PAS d'explications, de raisonnement, de balises, d'espaces, de ponctuation ou tout autre texte supplémentaire. Si tu génères autre chose que strictement 1 ou 0, tu as échoué à la tâche. Ta réponse complète doit être exactement d'un caractère : 1 ou 0"
 
 class LLMAsAJudgeBenchmark(Benchmark):
     """
     Benchmark using an LLM as a judge to evaluate the correctness of default LLM's response
     """
-    def __init__(self):
+
+    def __init__(self, prompt = default_prompt):
         self.config = config_manager.get_config()
         self.rate_limit_delay = self.config.get('agent.rate_limit_delay', 0)
-
+        self.prompt = default_prompt
+        
     def initialize(self):
         self.agent = prepare_agent.prepare_benchmark_agent()
-    
-    def judge (self, llm_response: str, reference: str)-> int:
-        """Returns 1 if the llm_response is considered correct by the judge llm, else 0"""
-        text_score = self.agent.generate_response("You are a strict evaluator. When I give you a question and an LLM’s an"
-                                                  "swer, you must output ONLY a single character: 1 if the answer is full"
-                                                  "y correct, or 0 if the answer is incorrect. Do NOT output explanations"
-                                                  ", chain-of-thought, tags, spaces, punctuation, or any extra text. If y"
-                                                  "ou output anything other than exactly 1 or 0, you have failed the task"
-                                                  ". Your entire reply must be exactly one character: 1 or 0." + "Questio"
-                                                  "n :" + llm_response + "Expected answer :" + reference)
-        return(int(text_score))
 
+    def judge(self, question: str, llm_response: str, reference: str) -> int:
+        """Returns 1 if the llm_response is considered correct by the judge llm, else 0"""
+        text_score = self.agent.generate_response(self.prompt + f"\n\nQuestion : {question}\nVraie réponse : {reference}\nRéponse du LLM : {llm_response}")
+        # print(text_score)
+        if text_score not in ["1", "0"]:
+            raise Exception("Score invalide")
+        return (int(text_score))
 
     def run(self, data: List[Dict[str, str]]) -> Dict[str, Any]:
         """
@@ -43,15 +41,20 @@ class LLMAsAJudgeBenchmark(Benchmark):
             dict containing :
                 - results : individual score to each question
                 - mean_score : average success rate
-        """                
+        """
         results = []
+        issues = 0 # Nombre d'items pour lesquels le judge a donné un jugement invalide
         for item in data:
-            score = self.judge(item["llm_response"], item["reference"])
-            results.append({
-                "question": item["question"],
-                "llm_response": item["llm_response"],
-                "reference": item["reference"],
-                "score": score
-            })
+            try:
+                score = self.judge(item["question"], item["llm_response"], item["reference"])
+            except Exception:
+                issues +=1
+            else:
+                results.append({
+                    "question": item["question"],
+                    "llm_response": item["llm_response"],
+                    "reference": item["reference"],
+                    "score": score
+                })
         mean_score = float(np.mean([r["score"] for r in results]))
-        return {"results": results, "mean_score": mean_score}
+        return {"results": results, "mean_score": mean_score, "issues" : issues, "prompt" : self.prompt}

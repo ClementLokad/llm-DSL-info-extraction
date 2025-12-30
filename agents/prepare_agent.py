@@ -18,6 +18,9 @@ def prepare_agent(agent_name: str) -> LLMAgent:
             agent = GPTAgent()
         elif agent_name == 'llama3':
             agent = Llama3Agent()
+            agent = GPTAgent()
+        elif agent_name == 'llama3.2':
+            agent = Llama3Agent('llama3.2')
         elif agent_name == 'qwen':
             agent = QwenAgent()
         elif agent_name == 'groq':

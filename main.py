@@ -190,7 +190,7 @@ class DSLQuerySystem(BasePipeline):
             if self.rate_limit_delay > 0:
                 time.sleep(self.rate_limit_delay)
             
-            score = benchmark.judge(final_answer, reference_answer)
+            score = benchmark.judge(state["question"], final_answer, reference_answer)
             
             if state["verbose"]:
                 print(f"→ LLM Judge score with '{reference_answer}': {score}")
@@ -418,7 +418,7 @@ EXAMPLES:
                 questions = json.load(f)
                 
             input_state = BenchmarkState(
-                qa_pairs=[(q["question"], q["answer"]) for q in questions],
+                qa_pairs=[(q["question"], q["answers"]) for q in questions['answered']],
                 verbose=verbose,
                 sub_rag_system=sub_rag_system
             )

@@ -13,7 +13,7 @@ class Llama3Agent(LLMAgent):
             model: The Llama3 model to use (default: llama3:latest)
         """
         super().__init__()
-        self._model = model
+        self.model = model
     
     def initialize(self):
         """No itialization needed for Llama3 via ollama"""
@@ -37,7 +37,7 @@ class Llama3Agent(LLMAgent):
         
 
         response = ollama.generate(
-            model='llama3',
+            model=self.model,
             prompt=prompt,
             stream=False # Request the full response at once
         )
