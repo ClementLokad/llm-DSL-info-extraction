@@ -40,7 +40,9 @@ class LLMDistillationTool(BaseDistillationTool):
 
         # 1. Construct a batch prompt
         prompt_text = (
-            f"### CONTEXT\nQuery: {query}\nCurrent Thought: {thought}\n\n"
+            f"### SYSTEM ROLE\n"
+            f"You are the assistant of a complex RAG Agent. The agent has to answer the query that follows."
+            f"### CONTEXT\nQuery: {query}\nCurrent Thought of the agent: {thought}\n\n"
             f"### DOCUMENTS TO ANALYZE\n"
         )
         
@@ -55,7 +57,9 @@ class LLMDistillationTool(BaseDistillationTool):
 
         prompt_text += (
             "### INSTRUCTION\n"
-            "Analyze the items above. Extract key facts that help answer the Query or the Thought.\n"
+            "Analyze the items above. Extract concise and yet sufficient key facts that help answer the Query or the Thought.\n"
+            "Your goal is thus to help build a persistent memory for the RAG Agent. The Agent will not have access to the "
+            "sources you are analyzing so you must not discard any important information.\n"
             "Discard irrelevant text. Combine duplicate information.\n"
             "\n"
             "### CRITICAL OUTPUT FORMAT\n"

@@ -304,7 +304,7 @@ if __name__ == "__main__":
     
     inputs = {
         "qa_pairs": [
-            ("Combien de fois /Clean/Items.ion est lu dans /3. Inspectors/5 - Supplier Inspector.nvn?", "")
+            ("Existe-t-il un endroit où retrouver des informations condensées pour analyser les différents fournisseurs ?", "27")
         ],
         "sub_rag_system": sub_rag_system,
         "grades": [],
