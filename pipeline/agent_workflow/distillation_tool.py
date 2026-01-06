@@ -41,7 +41,7 @@ class LLMDistillationTool(BaseDistillationTool):
         # 1. Construct a batch prompt
         prompt_text = (
             f"### SYSTEM ROLE\n"
-            f"You are the assistant of a complex RAG Agent. The agent has to answer the query that follows."
+            f"You are the assistant of a complex RAG Agent. The agent has to answer the query that follows.\n\n"
             f"### CONTEXT\nQuery: {query}\nCurrent Thought of the agent: {thought}\n\n"
             f"### DOCUMENTS TO ANALYZE\n"
         )
@@ -69,12 +69,12 @@ class LLMDistillationTool(BaseDistillationTool):
             "\n"
             "Example:\n"
             "<entry>\n"
-            "  <fact>The API endpoint is /v1/users</fact>\n"
-            "  <source>0</source>\n"
+            "  <fact>Overall, 9 files read \"Data.ion\"</fact>\n"
+            "  <source>1,2,3,4,5,7,8,9,10</source>\n"
             "</entry>\n"
             "<entry>\n"
-            "  <fact>The timeout is set to 30s</fact>\n"
-            "  <source>2</source>\n"
+            "  <fact>4 files read \"Data.ion\" as \"Data[Id unsafe]\"</fact>\n"
+            "  <source>1,2,5,7</source>\n"
             "</entry>\n"
             "\n"
             "Begin XML output:"

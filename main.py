@@ -14,11 +14,18 @@ import config_manager
 import agents.prepare_agent as prepare_agent
 from rag.parsers.envision_parser import EnvisionParser
 from rag.chunkers.semantic_chunker import SemanticChunker
+from rag.core.base_embedder import BaseEmbedder
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from rag.retrievers.faiss_retriever import FAISSRetriever
 from rag.retrievers.grep_retriever import GrepRetriever
 from rag.router import Router, QueryType
 from rag.core.base_retriever import RetrievalResult
+from pipeline.agent_workflow.concrete_workflow import ConcreteAgentWorkflow
+from pipeline.agent_workflow.distillation_tool import LLMDistillationTool
+from pipeline.agent_workflow.grep_tool import GrepTool
+from pipeline.agent_workflow.script_finder_tool import PathScriptFinder
+from pipeline.agent_workflow.rag_tool import SimpleRAGTool
+from pipeline.agent_workflow.agentic_pipeline import AgenticPipeline
 from langgraph_base import BasePipeline, GraphState, BenchmarkState
 
 # Dynamic agent imports - only import when needed
@@ -36,20 +43,59 @@ def merge_rag_results(results):
     results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
     return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
 
-class DSLQuerySystem(BasePipeline):
-    def __init__(self):
-        self.config_manager = config_manager.get_config()
-        self.router = None
-        self.grep = None
-        self.rag = {}
-        self.agent = None
-        self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
-        self.benchmark_type= self.config_manager.get_benchmark_type()
+# Main grading function used in both pipelines
+def main_grade_answer(state: GraphState, embedder: BaseEmbedder):
+    cm = config_manager.get_config()
+    rate_limit_delay = cm.get('agent.rate_limit_delay', 0)
+    final_answer = state["final_answer"]
+    reference_answer = state["reference_answer"]
+    if cm.get_benchmark_type() == 'cosine_similarity':
+        from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
+        print("--- NODE: Cosine Similarity Grade Answer ---")
         
-    def initialize(self, verbose=True):
+        benchmark = CosineSimBenchmark(embedder)
+        
+        score = benchmark.compute_similarity(final_answer, reference_answer)
+        if state["verbose"]:
+            print(f"→ Similarity score with '{reference_answer}': {score:.4f}")
+        
+        grade = {"score": score,
+                "question": state["question"],
+                "llm_response": state["final_answer"],
+                "reference": state["reference_answer"]}
+        
+        return {"grade": grade}
+    
+    elif cm.get_benchmark_type() == 'llm_as_a_judge':
+        from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark
+        print("--- NODE: Judge LLM Grade Answer ---")
+        
+        benchmark = LLMAsAJudgeBenchmark()
+        benchmark.initialize()
+
+        #delay to avoid too many requests
+        if rate_limit_delay > 0:
+            time.sleep(rate_limit_delay)
+        
+        score = benchmark.judge(state["question"], final_answer, reference_answer)
+        
+        if state["verbose"]:
+            print(f"→ LLM Judge score with '{reference_answer}': {score}")
+        
+        grade = {"score": score,
+                "question": state["question"],
+                "llm_response": state["final_answer"],
+                "reference": state["reference_answer"]}
+        
+        return {"grade": grade}
+
+class MainLinearPipeline(BasePipeline):
+    def __init__(self, verbose=True):
         if verbose:
             print("🚀 Initializing...")
-            
+        self.config_manager = config_manager.get_config()
+        self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
+
         self.agent = prepare_agent.prepare_default_agent()
         self.router = Router(self.agent)
         
@@ -84,9 +130,10 @@ class DSLQuerySystem(BasePipeline):
             retriever.load_index(str(index_path))
             
         self.rag = {'embedder': embedder, 'retriever': retriever}
+
         if verbose:
             print("✅ Ready\n")
-    
+
     def retrieve_documents(self, state):
         print("--- NODE: Retrieve Documents ---")
         question = state["question"]
@@ -160,57 +207,83 @@ class DSLQuerySystem(BasePipeline):
         return {"generation": generation}
     
     def grade_answer(self, state):
-        final_answer = state["final_answer"]
-        reference_answer = state["reference_answer"]
-        if self.benchmark_type == 'cosine_similarity':
-            from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
-            print("--- NODE: Cosine Similarity Grade Answer ---")
-            
-            benchmark = CosineSimBenchmark(self.rag['embedder'])
-            
-            score = benchmark.compute_similarity(final_answer, reference_answer)
-            if state["verbose"]:
-                print(f"→ Similarity score with '{reference_answer}': {score:.4f}")
-            
-            grade = {"score": score,
-                    "question": state["question"],
-                    "llm_response": state["final_answer"],
-                    "reference": state["reference_answer"]}
-            
-            return {"grade": grade}
-        
-        elif self.benchmark_type == 'llm_as_a_judge':
-            from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark
-            print("--- NODE: Judge LLM Grade Answer ---")
-            
-            benchmark = LLMAsAJudgeBenchmark()
-            benchmark.initialize()
+        return main_grade_answer(state, self.rag['embedder'])
 
-            #delay to avoid too many requests
-            if self.rate_limit_delay > 0:
-                time.sleep(self.rate_limit_delay)
+class MainAgenticPipeline(AgenticPipeline):
+    def __init__(self, verbose=True):
+        if verbose:
+            print("🚀 Initializing...")
+        
+        self.config_manager = config_manager.get_config()
+        self.agent = None
+        self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
+        
+        dirs = self.config_manager.get('paths.input_dirs', ["env_scripts"])
+        
+        parser = EnvisionParser(self.config_manager.get_parser_config())
+        chunker = SemanticChunker(self.config_manager.get_chunker_config())
+        embedder = SentenceTransformerEmbedder(self.config_manager.get_embedder_config())
+        embedder.initialize()
+        retriever = FAISSRetriever(self.config_manager.get_retriever_config())
+        retriever.initialize(embedder.embedding_dimension)
+        
+        index_path = Path("data/faiss_index")
+        metadata_file = index_path / "metadata.pkl"
+        
+        if not metadata_file.exists():
+            if verbose:
+                print("Building index...")
+            blocks = []
+            for d in dirs:
+                p = Path(d)
+                if p.exists():
+                    for f in p.glob("*.nvn"):
+                        blocks.extend(parser.parse_file(str(f)))
+            chunks = chunker.chunk_blocks(blocks)
+            embs = embedder.embed_chunks(chunks)
+            retriever.add_chunks(chunks, embs)
+            index_path.mkdir(parents=True, exist_ok=True)
+            retriever.save_index(str(index_path))
+        else:
+            retriever.load_index(str(index_path))
             
-            score = benchmark.judge(state["question"], final_answer, reference_answer)
+        self.rag = {'embedder': embedder, 'retriever': retriever}
             
-            if state["verbose"]:
-                print(f"→ LLM Judge score with '{reference_answer}': {score}")
-            
-            grade = {"score": score,
-                    "question": state["question"],
-                    "llm_response": state["final_answer"],
-                    "reference": state["reference_answer"]}
-            
-            return {"grade": grade}
+        rag_tool = SimpleRAGTool(retriever=retriever, embedder=embedder)
+        grep_tool = GrepTool()
+        script_finder_tool = PathScriptFinder()
+        distillation_tool = LLMDistillationTool()
+        
+        # Pre-compile the agent sub-graph to avoid recompiling on every node call
+        agent_workflow = ConcreteAgentWorkflow(
+            rag_tool, 
+            grep_tool, 
+            script_finder_tool, 
+            distillation_tool
+        )
+        
+        super().__init__(agent_workflow)
+
+        if verbose:
+            print("✅ Ready\n")
+    
+    def grade_answer(self, state):
+        return main_grade_answer(state, self.rag['embedder'])
+
+class DSLQuerySystem():
+    def __init__(self, pipeline: BasePipeline):
+        self.config_manager = config_manager.get_config()
+        self.pipeline = pipeline
 
     def query(self, question, verbose=True):
-        simple_qa_graph = self.build_single_qa_graph()
+        simple_qa_graph = self.pipeline.build_single_qa_graph()
         app = simple_qa_graph.compile()
-        input_state = GraphState(question=question, verbose=verbose, reference_answer="")
+        input_state = GraphState(question=question, verbose=verbose, reference_answer="", retry_count=0)
         final_state = app.invoke(input_state)
         return final_state.get("final_answer", "No answer generated")
             
     def interactive(self, verbose=False):
-        simple_qa_graph = self.build_single_qa_graph()
+        simple_qa_graph = self.pipeline.build_single_qa_graph()
         app = simple_qa_graph.compile()
         print("\n💬 Interactive (exit to quit)")
         print("=" * 60)
@@ -220,7 +293,7 @@ class DSLQuerySystem(BasePipeline):
                 if q.lower() in ['exit', 'quit', 'q']:
                     break
                 if q:
-                    input_state = GraphState(question=q, verbose=verbose, reference_answer="")
+                    input_state = GraphState(question=q, verbose=verbose, reference_answer="", retry_count=0)
                     final_state = app.invoke(input_state)
                     print(f"\n💡 {final_state.get('final_answer', 'No answer generated')}")
             except KeyboardInterrupt:
@@ -228,6 +301,40 @@ class DSLQuerySystem(BasePipeline):
             except Exception as e:
                 print(f"❌ {e}")
         print("\n👋")
+    
+    def benchmark(self, questions_json_path: str, verbose=False):
+        # Build the sub-graph for single Q/A processing
+        sub_rag_system = self.pipeline.build_single_qa_graph()
+        
+        # Build the full benchmark graph
+        workflow = self.pipeline.build_full_benchmark_graph()
+
+        # Compile the graph
+        app = workflow.compile()
+
+        # Charger les questions
+        with open(questions_json_path, "r", encoding="utf-8") as f:
+            questions = json.load(f)
+            
+        input_state = BenchmarkState(
+            qa_pairs=[(q["question"], "\n".join([str(a) for a in q["answers"]])) for q in questions['answered']],
+            verbose=verbose,
+            sub_rag_system=sub_rag_system
+        )
+
+        final_state = app.invoke(input_state)
+
+        print("\n📊 Résultats du benchmark")
+        print("=" * 60)
+        for r in final_state["grades"]:
+            print(f"Q: {r['question']}")
+            if verbose:
+                print(f"  Référence : {r['reference']}")
+                print(f"  LLM Response: {r['llm_response']}")
+            print(f"→ Score: {r['score']:.4f}")
+            print("\n" + "-" * 40 + "\n")
+
+        print(f"\nMoyenne globale : {final_state['benchmark_results']['average_score']:.4f}")
 
 
 def main():
@@ -271,10 +378,17 @@ EXAMPLES:
         help="Show system status and configuration"
     )
     
+    # Agentic Toggle
+    parser.add_argument(
+        "--agentic",
+        action="store_true",
+        help="Toggle the agentic mode"
+    )
+    
     # Agent selection
     parser.add_argument(
         "--agent", "-a",
-        choices=["gemini", "gpt", "mistral", "llama3", "groq"],
+        choices=["gemini", "gpt", "mistral", "llama3", "groq", "qwen"],
         help="Override default agent from config"
     )
     
@@ -311,7 +425,7 @@ EXAMPLES:
 
     parser.add_argument(
         "--benchmarkagent", "-ba",
-        choices=["gemini", "gpt", "mistral", "llama3"],
+        choices=["gemini", "gpt", "mistral", "llama3", "groq", "qwen"],
         help="Override benchmark agent from config"
     )
 
@@ -398,48 +512,19 @@ EXAMPLES:
             # Default: silent for interactive mode, visible for query mode
             verbose = bool(args.query)
         
-        # Create and initialize system for query modes
-        system = DSLQuerySystem()   
-        system.initialize(verbose=verbose)
+        # Create and initialize system
+        if args.agentic:
+            pipeline = MainAgenticPipeline(verbose=verbose)
+        else:
+            pipeline = MainLinearPipeline(verbose=verbose)
+        system = DSLQuerySystem(pipeline)
 
         # Benchmark mode
         if args.benchmarkpath:
-            # Build the sub-graph for single Q/A processing
-            sub_rag_system = system.build_single_qa_graph()
-            
-            # Build the full benchmark graph
-            workflow = system.build_full_benchmark_graph()
-
-            # Compile the graph
-            app = workflow.compile()
-
-            # Charger les questions
-            with open(args.benchmarkpath, "r", encoding="utf-8") as f:
-                questions = json.load(f)
-                
-            input_state = BenchmarkState(
-                qa_pairs=[(q["question"], q["answers"]) for q in questions['answered']],
-                verbose=verbose,
-                sub_rag_system=sub_rag_system
-            )
-
-            final_state = app.invoke(input_state)
-
-            print("\n📊 Résultats du benchmark")
-            print("=" * 60)
-            for r in final_state["grades"]:
-                print(f"Q: {r['question']}")
-                if verbose:
-                    print(f"  Référence : {r['reference']}")
-                    print(f"  LLM Response: {r['llm_response']}")
-                print(f"→ Score: {r['score']:.4f}")
-                print("\n" + "-" * 40 + "\n")
-
-            print(f"\nMoyenne globale : {final_state['benchmark_results']['average_score']:.4f}")
-            return
+            system.benchmark(args.benchmarkpath, verbose=verbose)
        
         # Determine mode and execute
-        if args.query:
+        elif args.query:
             
             # Single query mode
             if args.quiet:

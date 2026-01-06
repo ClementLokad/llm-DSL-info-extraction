@@ -1,0 +1,59 @@
+{
+    "answered": [
+        {
+            "question": "Combien de scripts lisent /Clean/Items.ion ?",
+            "deterministic": true,
+            "answers": [27]
+        }
+    ],
+    "unanswered": [
+        {
+            "question": "Où est définie la logique d'actualisation du stock ?",
+            "deterministic": true
+        },
+        {
+            "question": "Que contient le fichier /Clean/LongTermPlanning/Parametrisation/General.ion ?",
+            "deterministic": false
+        },
+        {
+            "question": "Dans le script High Level Forecast Cockpit, comment est calculé la variable Category.SelectedGrowth ?",
+            "deterministic": false
+        },
+        {
+            "question": "Quels sont les scripts affectés si je modifie le calcul de Category.SelectedGrowth ?",
+            "deterministic": true
+        },
+        {
+            "question": "Dans l'autodiff du script [ 3 ] - Forecast Autodiff, quel est la loss qu'on essaie de minimiser ?",
+            "deterministic": true
+        },
+        {
+            "question": "Quel est le rôle principal du script Pricing Rules ?",
+            "deterministic": false
+        },
+        {
+            "question": "Quels sont les modules, scripts et fichiers dont dépend le script Forecasting ?",
+            "deterministic": true
+        },
+        {
+            "question": "Quelle est la différence entre Standard Purchase Suggestions et Long Term Purchase Suggestions ?",
+            "deterministic": false
+        },
+        {
+            "question": "Dans quels fichiers sont les données brutes ?",
+            "deterministic": true
+        },
+        {
+            "question": "Quels sont les dashboards haut-niveaux (ceux qui redirigent vers d'autres dashboards, il faut regarder les hyperliens dans le code) ?",
+            "deterministic": true
+        },
+        {
+            "question": "Comment sont nettoyées les données ?",
+            "deterministic": false
+        },
+        {
+            "question": "Quels scripts utilisent la variable RedispatchCycleWeeks ?",
+            "deterministic": true
+        }
+    ]
+}

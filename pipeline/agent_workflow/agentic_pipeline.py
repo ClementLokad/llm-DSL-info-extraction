@@ -175,55 +175,7 @@ class AgenticPipeline(BasePipeline):
         
         return {"final_answer": final_answer}
     
-    def grade_answer(self, state):
-        final_answer = state["final_answer"]
-        reference_answer = state["reference_answer"]
-        
-        if state["verbose"]:
-            print(f"✅ → Final Answer to Grade:\n{final_answer}\n")
-            print(f"💡 → Reference Answer:\n{reference_answer}\n")
-
-        if self.benchmark_type == 'cosine_similarity':
-            from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
-            print("--- NODE: Cosine Similarity Grade Answer ---")
-            
-            benchmark = CosineSimBenchmark()
-            
-            score = benchmark.compute_similarity(final_answer, reference_answer)
-            if state["verbose"]:
-                print(f"→ Similarity score with '{reference_answer}': {score:.4f}")
-            
-            grade = {"score": score,
-                    "question": state["question"],
-                    "llm_response": state["final_answer"],
-                    "reference": state["reference_answer"]}
-            
-            return {"grade": grade}
-        
-        elif self.benchmark_type == 'llm_as_a_judge':
-            from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark
-            print("--- NODE: Judge LLM Grade Answer ---")
-            
-            benchmark = LLMAsAJudgeBenchmark()
-            benchmark.initialize()
-
-            #delay to avoid too many requests
-            if self.rate_limit_delay > 0:
-                time.sleep(self.rate_limit_delay)
-            
-            score = benchmark.judge(final_answer, reference_answer)
-            
-            if state["verbose"]:
-                print(f"→ LLM Judge score with '{reference_answer}': {score}")
-            
-            grade = {"score": score,
-                    "question": state["question"],
-                    "llm_response": state["final_answer"],
-                    "reference": state["reference_answer"]}
-            
-            return {"grade": grade}
-    
-    def build_agentic_qa_graph(self) -> StateGraph:
+    def build_single_qa_graph(self) -> StateGraph:
         """
         Builds the Advanced Agentic Pipeline.
         Flow: START -> Agent -> Logic -> Generate -> Agent ... -> Grade -> END
@@ -297,7 +249,7 @@ if __name__ == "__main__":
     pipeline = AgenticPipeline(agent_workflow)
     
     print(">>> Building AGENTIC Pipeline")
-    sub_rag_system = pipeline.build_agentic_qa_graph()
+    sub_rag_system = pipeline.build_single_qa_graph()
     
     workflow = pipeline.build_full_benchmark_graph()
     app = workflow.compile()
@@ -307,7 +259,6 @@ if __name__ == "__main__":
             ("Existe-t-il un endroit où retrouver des informations condensées pour analyser les différents fournisseurs ?", "27")
         ],
         "sub_rag_system": sub_rag_system,
-        "grades": [],
         "verbose": True
     }
 
