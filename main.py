@@ -6,6 +6,13 @@ import json
 import time
 from pathlib import Path
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.markdown import Markdown
+from rich.table import Table
+
+console = Console()
+
 from transformers import pipeline
 
 sys.path.append(str(Path(__file__).parent))
@@ -49,15 +56,17 @@ def main_grade_answer(state: GraphState, embedder: BaseEmbedder):
     rate_limit_delay = cm.get('agent.rate_limit_delay', 0)
     final_answer = state["final_answer"]
     reference_answer = state["reference_answer"]
+    
     if cm.get_benchmark_type() == 'cosine_similarity':
         from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
-        print("--- NODE: Cosine Similarity Grade Answer ---")
+        if state["verbose"]:
+            console.print("[dim]--- NODE: Cosine Similarity Grade Answer ---[/dim]")
         
         benchmark = CosineSimBenchmark(embedder)
         
         score = benchmark.compute_similarity(final_answer, reference_answer)
         if state["verbose"]:
-            print(f"→ Similarity score with '{reference_answer}': {score:.4f}")
+            console.print(f"[dim]→ Similarity score with reference: {score:.4f}[/dim]")
         
         grade = {"score": score,
                 "question": state["question"],
@@ -68,7 +77,8 @@ def main_grade_answer(state: GraphState, embedder: BaseEmbedder):
     
     elif cm.get_benchmark_type() == 'llm_as_a_judge':
         from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark
-        print("--- NODE: Judge LLM Grade Answer ---")
+        if state["verbose"]:
+            console.print("[dim]--- NODE: Judge LLM Grade Answer ---[/dim]")
         
         benchmark = LLMAsAJudgeBenchmark()
         benchmark.initialize()
@@ -80,7 +90,7 @@ def main_grade_answer(state: GraphState, embedder: BaseEmbedder):
         score = benchmark.judge(state["question"], final_answer, reference_answer)
         
         if state["verbose"]:
-            print(f"→ LLM Judge score with '{reference_answer}': {score}")
+            console.print(f"[dim]→ LLM Judge score with reference: {score}[/dim]")
         
         grade = {"score": score,
                 "question": state["question"],
@@ -92,7 +102,7 @@ def main_grade_answer(state: GraphState, embedder: BaseEmbedder):
 class MainLinearPipeline(BasePipeline):
     def __init__(self, verbose=True):
         if verbose:
-            print("🚀 Initializing...")
+            console.print("[bold green]🚀 Initializing...[/bold green]")
         self.config_manager = config_manager.get_config()
         self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
 
@@ -114,7 +124,7 @@ class MainLinearPipeline(BasePipeline):
         
         if not metadata_file.exists():
             if verbose:
-                print("Building index...")
+                console.print("[dim]Building index...[/dim]")
             blocks = []
             for d in dirs:
                 p = Path(d)
@@ -132,10 +142,11 @@ class MainLinearPipeline(BasePipeline):
         self.rag = {'embedder': embedder, 'retriever': retriever}
 
         if verbose:
-            print("✅ Ready\n")
+            console.print("[bold green]✅ Ready[/bold green]\n")
 
     def retrieve_documents(self, state):
-        print("--- NODE: Retrieve Documents ---")
+        if state["verbose"]:
+            console.print("[dim]--- NODE: Retrieve Documents ---[/dim]")
         question = state["question"]
         retrieved_context = []
         
@@ -143,7 +154,8 @@ class MainLinearPipeline(BasePipeline):
             time.sleep(self.rate_limit_delay)
             
         c = self.router.classify(question)
-        print(f"🎯 Router decision: {c.qtype.value} ({c.confidence:.0%} confidence)")
+        if state["verbose"]:
+            console.print(f"[dim]🎯 Router decision: {c.qtype.value} ({c.confidence:.0%} confidence)[/dim]")
         
         top_k = self.config_manager.get('rag.top_k_chunks', 5)
         
@@ -157,7 +169,7 @@ class MainLinearPipeline(BasePipeline):
                 
             raw_questions = self.agent.generate_response(base_fusion_question + question)
             if state["verbose"]:
-                print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
+                console.print(f"[dim]Raw answer from LLM for decomposition of the query : {raw_questions}[/dim]")
             questions = raw_questions.split("$")
             for sub_question in questions:
                 emb = self.rag['embedder'].embed_text(sub_question)
@@ -168,13 +180,14 @@ class MainLinearPipeline(BasePipeline):
             retrieved_context = self.rag['retriever'].search(emb, top_k=top_k)
         
         if state["verbose"]:
-            print(f"🔍 → Retrieved {len(retrieved_context)} documents :")
-            print(retrieved_context)
+            console.print(f"[dim]🔍 → Retrieved {len(retrieved_context)} documents :[/dim]")
+            # console.print(retrieved_context)
 
         return {"retrieved_context": retrieved_context}
     
     def engineer_prompt(self, state):
-        print("--- NODE: Engineer Prompt ---")
+        if state["verbose"]:
+            console.print("[dim]--- NODE: Engineer Prompt ---[/dim]")
         
         question = state["question"]
         context = state["retrieved_context"]
@@ -188,12 +201,13 @@ class MainLinearPipeline(BasePipeline):
         prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
         
         if state["verbose"]:
-            print(f"→ Generated prompt:\n{prompt}\n")
+            console.print(f"[dim]→ Generated prompt size: {len(prompt)} chars[/dim]")
         
         return {"prompt": prompt}
     
     def generate_answer(self, state):
-        print("--- NODE: Generate Answer (Main LLM) ---")
+        if state["verbose"]:
+            console.print("[dim]--- NODE: Generate Answer (Main LLM) ---[/dim]")
         prompt = state["prompt"]
         
         if self.rate_limit_delay > 0:
@@ -202,7 +216,7 @@ class MainLinearPipeline(BasePipeline):
         generation = self.agent.generate_response(prompt)
         
         if state["verbose"]:
-            print(f"💬 → LLM RAW Generation:\n{generation}\n")
+            console.print(f"[dim]💬 → LLM RAW Generation complete[/dim]")
         
         return {"generation": generation}
     
@@ -212,7 +226,7 @@ class MainLinearPipeline(BasePipeline):
 class MainAgenticPipeline(AgenticPipeline):
     def __init__(self, verbose=True):
         if verbose:
-            print("🚀 Initializing...")
+            console.print("[bold green]🚀 Initializing...[/bold green]")
         
         self.config_manager = config_manager.get_config()
         self.agent = None
@@ -232,7 +246,7 @@ class MainAgenticPipeline(AgenticPipeline):
         
         if not metadata_file.exists():
             if verbose:
-                print("Building index...")
+                console.print("[dim]Building index...[/dim]")
             blocks = []
             for d in dirs:
                 p = Path(d)
@@ -265,7 +279,7 @@ class MainAgenticPipeline(AgenticPipeline):
         super().__init__(agent_workflow)
 
         if verbose:
-            print("✅ Ready\n")
+            console.print("[bold green]✅ Ready[/bold green]\n")
     
     def grade_answer(self, state):
         return main_grade_answer(state, self.rag['embedder'])
@@ -285,22 +299,30 @@ class DSLQuerySystem():
     def interactive(self, verbose=False):
         simple_qa_graph = self.pipeline.build_single_qa_graph()
         app = simple_qa_graph.compile()
-        print("\n💬 Interactive (exit to quit)")
-        print("=" * 60)
+        
+        console.print(Panel("Envision Copilot (Ctrl+C to exit)", title="Interactive", border_style="purple"))
+        
         while True:
             try:
-                q = input("\n❓ ").strip()
-                if q.lower() in ['exit', 'quit', 'q']:
+                user_input = console.input("[bold purple]User:[/bold purple] ")
+                if not user_input.strip(): continue
+                if user_input.lower() in ['exit', 'quit', 'q']:
                     break
-                if q:
-                    input_state = GraphState(question=q, verbose=verbose, reference_answer="", retry_count=0)
-                    final_state = app.invoke(input_state)
-                    print(f"\n💡 {final_state.get('final_answer', 'No answer generated')}")
+                
+                if verbose:
+                    console.print("[dim]Thinking...[/dim]")
+
+                input_state = GraphState(question=user_input, verbose=verbose, reference_answer="", retry_count=0)
+                final_state = app.invoke(input_state)
+                raw = final_state.get('final_answer', 'No answer generated')
+                answer = extract_answer(raw)
+                
+                console.print(Panel(Markdown(answer), title="Copilot", border_style="blue"))
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                print(f"❌ {e}")
-        print("\n👋")
+                console.print(f"[bold red]Error:[/bold red] {e}")
+        console.print("\n[bold]👋 Goodbye![/bold]")
     
     def benchmark(self, questions_json_path: str, verbose=False):
         # Build the sub-graph for single Q/A processing
@@ -324,17 +346,20 @@ class DSLQuerySystem():
 
         final_state = app.invoke(input_state)
 
-        print("\n📊 Résultats du benchmark")
-        print("=" * 60)
+        console.print(Panel("Benchmark Results", title="Results", border_style="green"))
+        
+        table = Table(title="Benchmark Grades")
+        table.add_column("Question", style="cyan", no_wrap=False)
+        table.add_column("Score", style="magenta")
+        
         for r in final_state["grades"]:
-            print(f"Q: {r['question']}")
+            table.add_row(r['question'], f"{r['score']:.4f}")
             if verbose:
-                print(f"  Référence : {r['reference']}")
-                print(f"  LLM Response: {r['llm_response']}")
-            print(f"→ Score: {r['score']:.4f}")
-            print("\n" + "-" * 40 + "\n")
+                console.print(f"[dim]  Ref: {r['reference'][:100]}...[/dim]")
+                console.print(f"[dim]  LLM: {r['llm_response'][:100]}...[/dim]")
 
-        print(f"\nMoyenne globale : {final_state['benchmark_results']['average_score']:.4f}")
+        console.print(table)
+        console.print(f"\n[bold]Moyenne globale : {final_state['benchmark_results']['average_score']:.4f}[/bold]")
 
 
 def main():
@@ -438,16 +463,15 @@ EXAMPLES:
     try:
         # Status mode - lightweight check without full initialization
         if args.status:
-            print("🔍 SYSTEM STATUS CHECK")
-            print("=" * 50)
+            console.print("[bold]🔍 SYSTEM STATUS CHECK[/bold]")
             
             # Check configuration
             try:
                 from config_manager import ConfigManager
                 config_mgr = ConfigManager()
                 default_agent = config_mgr.get_default_agent()
-                print(f"✅ Configuration loaded")
-                print(f"   Default agent: {default_agent}")
+                console.print(f"✅ Configuration loaded")
+                console.print(f"   Default agent: [cyan]{default_agent}[/cyan]")
 
                 # Check if API keys are configured
                 try:
@@ -459,14 +483,14 @@ EXAMPLES:
                         api_key = config_mgr.get_api_key('GEMINI_API_KEY')
                     
                     if api_key:
-                        print(f"   ✅ API key configured for {default_agent}")
+                        console.print(f"   ✅ API key configured for {default_agent}")
                     else:
-                        print(f"   ⚠️ API key missing for {default_agent}")
+                        console.print(f"   [yellow]⚠️ API key missing for {default_agent}[/yellow]")
                 except:
-                    print(f"   ⚠️ API key check failed for {default_agent}")
+                    console.print(f"   [yellow]⚠️ API key check failed for {default_agent}[/yellow]")
                     
             except Exception as e:
-                print(f"❌ Configuration error: {e}")
+                console.print(f"[bold red]❌ Configuration error:[/bold red] {e}")
                 return
                 
             # Check index status
@@ -475,13 +499,13 @@ EXAMPLES:
                 index_path = "data/faiss_index"
                 if os.path.exists(index_path):
                     files = os.listdir(index_path)
-                    print(f"✅ Index found: {len(files)} files")
+                    console.print(f"✅ Index found: {len(files)} files")
                 else:
-                    print("⚠️ No index found - run build_index.py first")
+                    console.print("[yellow]⚠️ No index found - run build_index.py first[/yellow]")
             except Exception as e:
-                print(f"❌ Index check failed: {e}")
+                console.print(f"[bold red]❌ Index check failed:[/bold red] {e}")
                 
-            print("\n💡 Use --help for available commands")
+            console.print("\n[dim]💡 Use --help for available commands[/dim]")
             return
         
         # Override agent if specified
@@ -530,17 +554,20 @@ EXAMPLES:
             if args.quiet:
                 # Just the response, no transparency
                 response = system.query(args.query, verbose=False)
-                print(response)
+                print(response) # Keep raw print for piping
             else:
                 # Full transparency if verbose
+                if verbose:
+                    console.print("[dim]Reasoning...[/dim]")
                 response = system.query(args.query, verbose=args.verbose)
-                print(response)
+                
+                console.print(Panel(Markdown(response), title="Copilot Result", border_style="blue"))
         else:
             # Interactive mode (default) - always clean interface
             system.interactive(verbose=args.verbose)
             
     except KeyboardInterrupt:
-        print("\n\n👋 Goodbye!")
+        console.print("\n\n[bold]👋 Goodbye![/bold]")
 
 
 if __name__ == "__main__":
