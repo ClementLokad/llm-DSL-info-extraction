@@ -193,15 +193,67 @@ class MainLinearPipeline(BasePipeline):
         context = state["retrieved_context"]
         
         ctx: str
-        if len(context) ==0:
+        if len(context) == 0:
             ctx = "No relevant context found."
         else:
-            ctx = "\n\n----------------------\n\n".join([r.to_str_for_generation() for r in context])
-        
-        prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
+            # Check if likely a grep result to apply specific statistics behavior
+            # Grep results usually have chunk_type='grep_match' or 'smart_reference'
+            is_grep = len(context) > 0 and context[0].chunk.chunk_type in ['grep_match', 'smart_reference']
+
+            if is_grep:
+                # Stats calculation for precise counting tasks
+                total_hits = len(context)
+                unique_files_set = set(r.chunk.metadata.get('original_file_path', 'unknown') for r in context)
+                unique_files = list(unique_files_set)
+                unique_files.sort()
+                unique_files_count = len(unique_files)
+                
+                # Group content by file to present a distinct list to the LLM
+                grouped_content = {}
+                for r in context:
+                    fpath = r.chunk.metadata.get('original_file_path', 'unknown')
+                    if fpath not in grouped_content:
+                        grouped_content[fpath] = []
+                    
+                    # Annotate content with resolution info if available
+                    content_str = r.chunk.content
+                    if r.chunk.metadata.get('resolved_path'):
+                         content_str += f"   (System resolved: {r.chunk.metadata['resolved_path']})"
+                    
+                    grouped_content[fpath].append(content_str)
+                
+                # Construct a clear, deduplicated context string
+                context_parts = []
+                for fpath in unique_files:
+                    snippets = "\n".join([f"  - {s}" for s in grouped_content.get(fpath, [])])
+                    context_parts.append(f"[File: {fpath}]\n{snippets}")
+                
+                context_str = "\n\n".join(context_parts)
+
+                # Construct the context string with explicit instructions and stats
+                stats_header = (
+                    f"SEARCH REPORT:\n"
+                    f"The system has performed a rigorous search resolving all variables (constants).\n"
+                    f"The findings below are verified matches. Do not exclude any entry.\n"
+                    f"- Total occurrences found: {total_hits}\n"
+                    f"- Distinct scripts/files involved: {unique_files_count}\n"
+                    f"\nDETAILED FINDINGS (Grouped by file):\n"
+                    f"----------------------\n"
+                )
+                
+                ctx = stats_header + context_str
+                prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question based mainly on the SEARCH REPORT statistics above:\n{question}"
+            
+            else:
+                # Standard RAG context formatting
+                context_str = "\n\n----------------------\n\n".join([r.to_str_for_generation() for r in context])
+                ctx = context_str
+                prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
         
         if state["verbose"]:
             console.print(f"[dim]→ Generated prompt size: {len(prompt)} chars[/dim]")
+
+        # print(prompt)
         
         return {"prompt": prompt}
     
@@ -315,9 +367,8 @@ class DSLQuerySystem():
                 input_state = GraphState(question=user_input, verbose=verbose, reference_answer="", retry_count=0)
                 final_state = app.invoke(input_state)
                 raw = final_state.get('final_answer', 'No answer generated')
-                answer = extract_answer(raw)
                 
-                console.print(Panel(Markdown(answer), title="Copilot", border_style="blue"))
+                console.print(Panel(Markdown(raw), title="Copilot", border_style="blue"))
             except KeyboardInterrupt:
                 break
             except Exception as e:
