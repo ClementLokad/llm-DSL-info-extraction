@@ -23,7 +23,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         The Planner Node.
         Generates a Plan (Thought) and selects a Tool.
         """
-        print("--- SUB-NODE: Agentic Router (Planner) ---")
+        self.console.print("[dim]--- SUB-NODE: Agentic Router (Planner) ---[/dim]")
         
         planning_prompt = self.design_planner_prompt(state)
         
@@ -69,9 +69,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         state["regenerate"] = (state['tool'] != "grade_answer" and state["pipeline_state"]["retry_count"] <= self.config_manager.get("main_pipeline.agent_logic.max_retries", 5))
         
         if state["pipeline_state"]["verbose"]:
-            print("Planner Prompt:")
-            print(planning_prompt)
-            print(f"\n\nPlanner selected tool: {state['tool']} with parameter: {state['tool_parameter']}")
-            print(f"Thought: {thought}")
+            prompt_content = Panel(planning_prompt, title="Planner Prompt", border_style="purple")
+            tool_content = Text.from_markup(f"\nPlanner selected tool: [bold green]{state['tool']}[/bold green] with "
+                                            f"parameter: [bold orange3]{state['tool_parameter']}[/bold orange3]\n")
+            thought_content = Panel(Markdown(thought), title="Planner Thought", border_style="blue")
+            self.console.print(Panel(Group(prompt_content, tool_content, thought_content), title="Planner", border_style="bright_red"))
         
         return state

@@ -1,6 +1,12 @@
 from typing import List, Tuple
 import re
 from pipeline.agent_workflow.workflow_base import BaseDistillationTool
+from rich.console import Console, Group
+from rich.panel import Panel
+from rich.text import Text
+from rich.markdown import Markdown
+from rich.table import Table
+
 
 class LLMDistillationTool(BaseDistillationTool):
     """
@@ -26,8 +32,9 @@ class LLMDistillationTool(BaseDistillationTool):
         response = self.llm.generate_response(prompt)
         
         if verbose:
-            print(f"💬 → Distillation LLM Prompt:\n{prompt}\n")
-            print(f"💬 → Distillation LLM Response:\n{response}\n")
+            prompt_content = Panel(prompt, title="Distillation LLM Prompt", border_style="purple")
+            response_content = Panel(Markdown(response), title="Distillation LLM Response", border_style="blue")
+            self.console.print(Panel(Group(prompt_content, response_content), title="Distillation Tool", border_style="yellow"))
         
         return response
 
@@ -67,7 +74,7 @@ class LLMDistillationTool(BaseDistillationTool):
             "Wrap each distinct fact in an <entry> tag.\n"
             "Inside <entry>, use <fact> for the content and <source> for the Item ID number (or comma-separated list of IDs).\n"
             "\n"
-            "Example:\n"
+            "Example 1:\n"
             "<entry>\n"
             "  <fact>Overall, 9 files read \"Data.ion\"</fact>\n"
             "  <source>1,2,3,4,5,7,8,9,10</source>\n"
@@ -75,6 +82,12 @@ class LLMDistillationTool(BaseDistillationTool):
             "<entry>\n"
             "  <fact>4 files read \"Data.ion\" as \"Data[Id unsafe]\"</fact>\n"
             "  <source>1,2,5,7</source>\n"
+            "</entry>\n"
+            "\n"
+            "Example 2:\n"
+            "<entry>\n"
+            "  <fact>The script /4. Optimization workflow/03.b. Forecasting tries to predict future demand.</fact>\n"
+            "  <source>3</source>\n"
             "</entry>\n"
             "\n"
             "Begin XML output:"
@@ -126,8 +139,15 @@ class LLMDistillationTool(BaseDistillationTool):
                 continue
         
         if verbose:
-            print(f"💬 → Distillation LLM Prompt:\n{prompt_text}\n")
-            print(f"💬 → Distillation LLM Response:\n{response}\n")
-            print(f"💬 → Parsed Distilled Results:\n{distilled_results}\n")
+            prompt_content = Panel(prompt_text, title="Distillation LLM Prompt", border_style="purple")
+            if not response.strip().startswith("```"):
+                response = f"```xml\n{response.strip()}\n```"
+            response_content = Panel(Markdown(response), title="Distillation LLM Response", border_style="blue")
+            results_content = Table(title="Parsed Distilled Results", border_style="bold bright_yellow", show_lines=True)
+            results_content.add_column("Fact", style="cyan", no_wrap=False)
+            results_content.add_column("Sources", style="magenta", no_wrap=False)
+            for fact, sources in distilled_results:
+                results_content.add_row(fact, sources.replace(", ", ",\n"))
+            self.console.print(Panel(Group(prompt_content, response_content, results_content), title="Distillation Tool", border_style="yellow"))
 
         return distilled_results

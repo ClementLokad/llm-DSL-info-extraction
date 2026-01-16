@@ -3,6 +3,11 @@ from langgraph.graph import END, StateGraph, START
 from rag.core.base_retriever import RetrievalResult
 from config_manager import get_config
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.markdown import Markdown
+from rich.table import Table
+
 # --- 1. Define Graph State ---
 # The state is a dictionary that flows through the graph.
 # Each node reads this state and writes its results to it.
@@ -97,13 +102,16 @@ class BenchmarkState(TypedDict):
 # and returns a dictionary containing the state keys to update.
 
 class BasePipeline:
+    def __init__(self, console: Optional[Console] = None):
+        self.console = console or Console()
+    
     def retrieve_documents(self, state: GraphState) -> GraphState:
         """
         Node: 'Retrieval Augmented Generation (RAG)'
         Takes the 'question' from the state and retrieves relevant context.
         (Implies the 'Parser' and 'Data Base' steps upstream).
         """
-        print("--- NODE: Retrieve Documents ---")
+        self.console.print("[dim]--- NODE: Retrieve Documents ---[/dim]")
         question = state["question"]
         
         # ... Your Retriever logic (e.g., BM25, ChromaDB, etc.) ...
@@ -120,7 +128,7 @@ class BasePipeline:
         Builds the final prompt using the question and the retrieved context.
         Also accounts for past errors if in a correction loop.
         """
-        print("--- NODE: Engineer Prompt ---")
+        self.console.print("[dim]--- NODE: Engineer Prompt ---[/dim]")
         question = state["question"]
         context = state["retrieved_context"]
         
@@ -136,7 +144,7 @@ class BasePipeline:
         Node: 'Main LLM'
         Calls the main language model with the prompt.
         """
-        print("--- NODE: Generate Answer (Main LLM) ---")
+        self.console.print("[dim]--- NODE: Generate Answer (Main LLM) ---[/dim]")
         prompt = state["prompt"]
         
         # ... Your LLM call logic ...
@@ -153,20 +161,20 @@ class BasePipeline:
         Verifies the LLM's generation. If an error is found, it flags it.
         Otherwise, it validates the 'final_answer'.
         """
-        print("--- NODE: Check Logic ---")
+        self.console.print("[dim]--- NODE: Check Logic ---[/dim]")
         generation = state["generation"]
         error_count = state.get("error_count", 0)
         
         # ... Your verification logic (e.g., call another LLM, regex, etc.) ...
         
         if False: # Placeholder error detection logic to avoid overcharging the LLM
-            print("  ⚠️  -> Error detected. Incrementing counter.")
+            self.console.print("[dim]  ⚠️  -> Error detected. Incrementing counter.[/dim]")
             return {
                 "regenerate_needed": True,
                 "retry_count": error_count + 1
             }
         else:
-            print("  ✅  -> No error detected. Validating answer.")
+            self.console.print("[dim]  ✅  -> No error detected. Validating answer.[/dim]")
             return {
                 "regenerate_needed": False,
                 "final_answer": generation # The generation is validated
@@ -177,13 +185,15 @@ class BasePipeline:
         Node: 'Answer Grader'
         Compares the 'final_answer' with the 'reference_answer' to produce a score.
         """
-        print("--- NODE: Grade Answer ---")
+        self.console.print("[dim]--- NODE: Grade Answer ---[/dim]")
         final_answer = state["final_answer"]
         reference_answer = state["reference_answer"]
         
         # ... Your grading logic (e.g., call a "judge" LLM, ROUGE score, etc.) ...
         
-        grade = {"score": 0.9, "reasoning": "The answer is relevant."} # Placeholder
+        grade = {"score": 0.9, "reasoning": "The answer is relevant.",
+                 "question": state["question"], "llm_response": final_answer,
+                 "reference": reference_answer} # Placeholder
         
         return {"grade": grade}
 
@@ -192,14 +202,15 @@ class BasePipeline:
         Node: 'Run Q/A Pairs'
         Executes the sub-graph for each Q/A pair and collects grades.
         """
-        print("--- NODE: Run Q/A Pairs ---")
+        self.console.print("[dim]--- NODE: Run Q/A Pairs ---[/dim]")
         qa_pairs = state["qa_pairs"]
         sub_rag_system = state["sub_rag_system"]
         
         grades = []
         
         for question, reference_answer in qa_pairs:
-            print(f"\n    -> Processing Q/A pair:\nQuestion: {question}\nReference Answer: {reference_answer}")
+            self.console.print(f"-> Processing Q/A pair:\n  [bold green]Question: {question}[/bold green]\n"
+                               f"  [bold purple]Reference Answer: {reference_answer}[/bold purple]")
             # Initialize state for the sub-graph
             sub_state: GraphState = {
                 "question": question,
@@ -229,7 +240,7 @@ class BasePipeline:
         Node: 'Benchmark'
         Aggregates grades from multiple Q/A pairs into benchmark results.
         """
-        print("--- NODE: Benchmark ---")
+        self.console.print("[dim]--- NODE: Benchmark ---[/dim]")
         grades = state["grades"]
         
         # ... Your benchmark aggregation logic ...
@@ -249,16 +260,16 @@ class BasePipeline:
         - 'if error detected': Returns to 'engineer_prompt' (loop).
         - 'else': Continues to 'grade_answer' (and 'Final Answer' is implicit).
         """
-        print("--- DECISION: After Logic Check ---")
+        self.console.print("[dim]--- DECISION: After Logic Check ---[/dim]")
         
         if state["regenerate_needed"] and state["retry_count"] <= get_config().get("main_pipeline.agent_logic.max_retries", 2):
-            print("    -> Route: 're-generate' (loop)")
+            self.console.print("[dim]    -> Route: 're-generate' (loop)[/dim]")
             return "regenerate"
         else:
             if state["regenerate_needed"]:
-                print("    -> Route: 'grade_answer' (retry limit reached)")
+                self.console.print("[dim]    -> Route: 'grade_answer' (retry limit reached)[/dim]")
             else:
-                print("    -> Route: 'grade_answer' (answer validated)")
+                self.console.print("[dim]    -> Route: 'grade_answer' (answer validated)[/dim]")
             return "proceed"
 
     # --- 4. Assemble the Graph ---

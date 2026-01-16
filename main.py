@@ -10,8 +10,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.table import Table
-
-console = Console()
+from rich.align import Align
 
 from transformers import pipeline
 
@@ -51,7 +50,7 @@ def merge_rag_results(results):
     return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
 
 # Main grading function used in both pipelines
-def main_grade_answer(state: GraphState, embedder: BaseEmbedder):
+def main_grade_answer(state: GraphState, embedder: BaseEmbedder, console: Console) -> GraphState:
     cm = config_manager.get_config()
     rate_limit_delay = cm.get('agent.rate_limit_delay', 0)
     final_answer = state["final_answer"]
@@ -59,8 +58,7 @@ def main_grade_answer(state: GraphState, embedder: BaseEmbedder):
     
     if cm.get_benchmark_type() == 'cosine_similarity':
         from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
-        if state["verbose"]:
-            console.print("[dim]--- NODE: Cosine Similarity Grade Answer ---[/dim]")
+        console.print("[dim]--- NODE: Cosine Similarity Grade Answer ---[/dim]")
         
         benchmark = CosineSimBenchmark(embedder)
         
@@ -77,8 +75,7 @@ def main_grade_answer(state: GraphState, embedder: BaseEmbedder):
     
     elif cm.get_benchmark_type() == 'llm_as_a_judge':
         from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark
-        if state["verbose"]:
-            console.print("[dim]--- NODE: Judge LLM Grade Answer ---[/dim]")
+        console.print("[dim]--- NODE: Judge LLM Grade Answer ---[/dim]")
         
         benchmark = LLMAsAJudgeBenchmark()
         benchmark.initialize()
@@ -100,9 +97,9 @@ def main_grade_answer(state: GraphState, embedder: BaseEmbedder):
         return {"grade": grade}
 
 class MainLinearPipeline(BasePipeline):
-    def __init__(self, verbose=True):
-        if verbose:
-            console.print("[bold green]🚀 Initializing...[/bold green]")
+    def __init__(self, console: Console, verbose=True):
+        super().__init__(console)
+        self.console.print("[bold green]🚀 Initializing...[/bold green]")
         self.config_manager = config_manager.get_config()
         self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
 
@@ -124,7 +121,7 @@ class MainLinearPipeline(BasePipeline):
         
         if not metadata_file.exists():
             if verbose:
-                console.print("[dim]Building index...[/dim]")
+                self.console.print("[dim]Building index...[/dim]")
             blocks = []
             for d in dirs:
                 p = Path(d)
@@ -141,12 +138,10 @@ class MainLinearPipeline(BasePipeline):
             
         self.rag = {'embedder': embedder, 'retriever': retriever}
 
-        if verbose:
-            console.print("[bold green]✅ Ready[/bold green]\n")
+        self.console.print("[bold green]✅ Ready[/bold green]\n")
 
     def retrieve_documents(self, state):
-        if state["verbose"]:
-            console.print("[dim]--- NODE: Retrieve Documents ---[/dim]")
+        self.console.print("[dim]--- NODE: Retrieve Documents ---[/dim]")
         question = state["question"]
         retrieved_context = []
         
@@ -154,8 +149,7 @@ class MainLinearPipeline(BasePipeline):
             time.sleep(self.rate_limit_delay)
             
         c = self.router.classify(question)
-        if state["verbose"]:
-            console.print(f"[dim]🎯 Router decision: {c.qtype.value} ({c.confidence:.0%} confidence)[/dim]")
+        self.console.print(f"[dim]🎯 Router decision: {c.qtype.value} ({c.confidence:.0%} confidence)[/dim]")
         
         top_k = self.config_manager.get('rag.top_k_chunks', 5)
         
@@ -169,7 +163,7 @@ class MainLinearPipeline(BasePipeline):
                 
             raw_questions = self.agent.generate_response(base_fusion_question + question)
             if state["verbose"]:
-                console.print(f"[dim]Raw answer from LLM for decomposition of the query : {raw_questions}[/dim]")
+                self.console.print(f"[dim]Raw answer from LLM for decomposition of the query : {raw_questions}[/dim]")
             questions = raw_questions.split("$")
             for sub_question in questions:
                 emb = self.rag['embedder'].embed_text(sub_question)
@@ -179,15 +173,14 @@ class MainLinearPipeline(BasePipeline):
             emb = self.rag['embedder'].embed_text(question)
             retrieved_context = self.rag['retriever'].search(emb, top_k=top_k)
         
+        self.console.print(f"[dim]🔍 → Retrieved {len(retrieved_context)} documents :[/dim]")
         if state["verbose"]:
-            console.print(f"[dim]🔍 → Retrieved {len(retrieved_context)} documents :[/dim]")
-            # console.print(retrieved_context)
+            self.console.print(retrieved_context)
 
         return {"retrieved_context": retrieved_context}
     
     def engineer_prompt(self, state):
-        if state["verbose"]:
-            console.print("[dim]--- NODE: Engineer Prompt ---[/dim]")
+        self.console.print("[dim]--- NODE: Engineer Prompt ---[/dim]")
         
         question = state["question"]
         context = state["retrieved_context"]
@@ -250,16 +243,14 @@ class MainLinearPipeline(BasePipeline):
                 ctx = context_str
                 prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
         
-        if state["verbose"]:
-            console.print(f"[dim]→ Generated prompt size: {len(prompt)} chars[/dim]")
+        self.console.print(f"[dim]→ Generated prompt size: {len(prompt)} chars[/dim]")
 
         # print(prompt)
         
         return {"prompt": prompt}
     
     def generate_answer(self, state):
-        if state["verbose"]:
-            console.print("[dim]--- NODE: Generate Answer (Main LLM) ---[/dim]")
+        self.console.print("[dim]--- NODE: Generate Answer (Main LLM) ---[/dim]")
         prompt = state["prompt"]
         
         if self.rate_limit_delay > 0:
@@ -267,18 +258,16 @@ class MainLinearPipeline(BasePipeline):
             
         generation = self.agent.generate_response(prompt)
         
-        if state["verbose"]:
-            console.print(f"[dim]💬 → LLM RAW Generation complete[/dim]")
+        self.console.print(f"[dim]💬 → LLM RAW Generation complete[/dim]")
         
         return {"generation": generation}
     
     def grade_answer(self, state):
-        return main_grade_answer(state, self.rag['embedder'])
+        return main_grade_answer(state, self.rag['embedder'], self.console)
 
 class MainAgenticPipeline(AgenticPipeline):
-    def __init__(self, verbose=True):
-        if verbose:
-            console.print("[bold green]🚀 Initializing...[/bold green]")
+    def __init__(self, console: Console, verbose=True):
+        console.print("[bold green]🚀 Initializing...[/bold green]")
         
         self.config_manager = config_manager.get_config()
         self.agent = None
@@ -318,7 +307,7 @@ class MainAgenticPipeline(AgenticPipeline):
         rag_tool = SimpleRAGTool(retriever=retriever, embedder=embedder)
         grep_tool = GrepTool()
         script_finder_tool = PathScriptFinder()
-        distillation_tool = LLMDistillationTool()
+        distillation_tool = LLMDistillationTool(console=console)
         
         # Pre-compile the agent sub-graph to avoid recompiling on every node call
         agent_workflow = ConcreteAgentWorkflow(
@@ -328,18 +317,18 @@ class MainAgenticPipeline(AgenticPipeline):
             distillation_tool
         )
         
-        super().__init__(agent_workflow)
+        super().__init__(console, agent_workflow)
 
-        if verbose:
-            console.print("[bold green]✅ Ready[/bold green]\n")
+        self.console.print("[bold green]✅ Ready[/bold green]\n")
     
     def grade_answer(self, state):
-        return main_grade_answer(state, self.rag['embedder'])
+        return main_grade_answer(state, self.rag['embedder'], self.console)
 
 class DSLQuerySystem():
-    def __init__(self, pipeline: BasePipeline):
+    def __init__(self, pipeline: BasePipeline, console: Console):
         self.config_manager = config_manager.get_config()
         self.pipeline = pipeline
+        self.console = console
 
     def query(self, question, verbose=True):
         simple_qa_graph = self.pipeline.build_single_qa_graph()
@@ -352,28 +341,28 @@ class DSLQuerySystem():
         simple_qa_graph = self.pipeline.build_single_qa_graph()
         app = simple_qa_graph.compile()
         
-        console.print(Panel("Envision Copilot (Ctrl+C to exit)", title="Interactive", border_style="purple"))
+        self.console.print(Panel("Envision Copilot (Ctrl+C to exit)", title="Interactive", border_style="purple"))
         
         while True:
             try:
-                user_input = console.input("[bold purple]User:[/bold purple] ")
+                user_input = self.console.input("[bold purple]User:[/bold purple] ")
                 if not user_input.strip(): continue
                 if user_input.lower() in ['exit', 'quit', 'q']:
                     break
                 
                 if verbose:
-                    console.print("[dim]Thinking...[/dim]")
+                    self.console.print("[dim]Thinking...[/dim]")
 
                 input_state = GraphState(question=user_input, verbose=verbose, reference_answer="", retry_count=0)
                 final_state = app.invoke(input_state)
                 raw = final_state.get('final_answer', 'No answer generated')
                 
-                console.print(Panel(Markdown(raw), title="Copilot", border_style="blue"))
+                self.console.print(Panel(Markdown(raw), title="Copilot", border_style="blue"))
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                console.print(f"[bold red]Error:[/bold red] {e}")
-        console.print("\n[bold]👋 Goodbye![/bold]")
+                self.console.print(f"[bold red]Error:[/bold red] {e}")
+        self.console.print("\n[bold]👋 Goodbye![/bold]")
     
     def benchmark(self, questions_json_path: str, verbose=False):
         # Build the sub-graph for single Q/A processing
@@ -397,24 +386,30 @@ class DSLQuerySystem():
 
         final_state = app.invoke(input_state)
 
-        console.print(Panel("Benchmark Results", title="Results", border_style="green"))
-        
-        table = Table(title="Benchmark Grades")
+        self.console.print(Markdown("# Benchmark Results"))
+            
+        table = Table(title="Benchmark Grades", show_lines=True)
         table.add_column("Question", style="cyan", no_wrap=False)
         table.add_column("Score", style="magenta")
         
         for r in final_state["grades"]:
             table.add_row(r['question'], f"{r['score']:.4f}")
-            if verbose:
-                console.print(f"[dim]  Ref: {r['reference'][:100]}...[/dim]")
-                console.print(f"[dim]  LLM: {r['llm_response'][:100]}...[/dim]")
-
-        console.print(table)
-        console.print(f"\n[bold]Moyenne globale : {final_state['benchmark_results']['average_score']:.4f}[/bold]")
+            if final_state["verbose"]:
+                self.console.print(f"[bold green]Question: {r['question']} [/bold green]\n")
+                self.console.print(f"[bold purple]  Référence: {r['reference']}[/bold purple]")
+                self.console.print("\n[bold blue]  LLM: [/bold blue]")
+                self.console.print(Markdown(f"{r['llm_response']}"))
+        
+        self.console.print("\n")
+        self.console.print(Align.center(table))
+        self.console.print(f"\n[bold]Moyenne globale : {final_state['benchmark_results']['average_score']:.4f}[/bold]")
 
 
 def main():
     """Main entry point."""
+    
+    console = Console()
+    
     parser = argparse.ArgumentParser(
         description="DSL Query System - AI-powered code analysis and information extraction",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -589,10 +584,10 @@ EXAMPLES:
         
         # Create and initialize system
         if args.agentic:
-            pipeline = MainAgenticPipeline(verbose=verbose)
+            pipeline = MainAgenticPipeline(verbose=verbose, console=console)
         else:
-            pipeline = MainLinearPipeline(verbose=verbose)
-        system = DSLQuerySystem(pipeline)
+            pipeline = MainLinearPipeline(verbose=verbose, console=console)
+        system = DSLQuerySystem(pipeline, console)
 
         # Benchmark mode
         if args.benchmarkpath:

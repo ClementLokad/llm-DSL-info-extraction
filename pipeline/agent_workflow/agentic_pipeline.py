@@ -20,6 +20,11 @@ from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbed
 from rag.retrievers.faiss_retriever import FAISSRetriever
 from pathlib import Path
 
+from rich.console import Console, Group
+from rich.panel import Panel
+from rich.markdown import Markdown
+from rich.table import Table
+
 class AgenticPipeline(BasePipeline):
     """
     A LangGraph StateGraph that encapsulates an agentic workflow as a sub-graph.
@@ -27,9 +32,9 @@ class AgenticPipeline(BasePipeline):
     This graph node invokes the agent workflow defined in workflow_base.py,
     allowing for complex planning and tool usage within a larger pipeline.
     """
-    
-    def __init__(self, agent: BaseAgentWorkflow):
-        super().__init__()
+
+    def __init__(self, console: Console, agent: BaseAgentWorkflow):
+        super().__init__(console)
         self.main_llm = prepare_agent(get_config().get('main_pipeline.agent_logic.main_llm',
                                       get_config().get_default_agent()))
         self.rate_limit_delay = get_config().get('agent.rate_limit_delay', 0)
@@ -41,7 +46,7 @@ class AgenticPipeline(BasePipeline):
             Node: 'Agentic Workflow'
             Invokes the sub-graph defined in workflow_base.py.
             """
-            print("--- NODE: Agentic Workflow (Subgraph) ---")
+            self.console.print("[dim]--- NODE: Agentic Workflow (Subgraph) ---[/dim]")
             
             # 1. Prepare State for Sub-Graph
             # We must map AgentGraphState to WorkflowState (the TypedDict used in workflow_base)
@@ -82,20 +87,20 @@ class AgenticPipeline(BasePipeline):
         Node: 'Logic Checker (Agentic)'
         Decides if the loop should continue based on the Agent's actions.
         """
-        print("--- NODE: Check Agent Logic ---")
+        self.console.print("[dim]--- NODE: Check Agent Logic ---[/dim]")
         
         # 1. Check if this is the first pass (No generation yet)
         if not state.get("generation"):
-            print("    -> First pass detected. Forcing generation.")
+            self.console.print("[dim]    -> First pass detected. Forcing generation.[/dim]")
             return {"regenerate_needed": True}
         
         # 2. Check if the Agent requested regeneration
         if state["regenerate_needed"]:
-            print(f"    -> Agent used tool '{state['execution_history'][-1]['tool']}'. Regenerating answer.")
+            self.console.print(f"[dim]    -> Agent used tool '{state['execution_history'][-1]['tool']}'. Regenerating answer.[/dim]")
             return {"retry_count": state["retry_count"] + 1}
         
         # If we get here, the agent is satisfied (or max retries hit elsewhere)
-        print("    -> Agent is satisfied. Proceeding to grading.")
+        self.console.print("[dim]    -> Agent is satisfied. Proceeding to grading.[/dim]")
         return {"final_answer": state["generation"]}
     
     def decide_after_logic_check(self, state: GraphState) -> str:
@@ -105,27 +110,26 @@ class AgenticPipeline(BasePipeline):
         - 'if error detected': Returns to 'agentic_workflow' (loop).
         - 'else': Continues to 'clean_generated_answer'.
         """
-        print("--- DECISION: After Logic Check ---")
+        self.console.print("[dim]--- DECISION: After Logic Check ---[/dim]")
         
         if state["regenerate_needed"] and state["retry_count"] <= get_config().get("main_pipeline.agent_logic.max_retries", 2):
             if state["retry_count"] == 0:
-                print("    -> Route: 'generate' (first pass)")
+                self.console.print("[dim]    -> Route: 'generate' (first pass)[/dim]")
             else:
-                print("    -> Route: 're-generate' (loop)")
+                self.console.print("[dim]    -> Route: 're-generate' (loop)[/dim]")
             return "regenerate"
         else:
             if state["regenerate_needed"]:
-                print("    -> Route: clean and grade answer (retry limit reached)")
+                self.console.print("[dim]    -> Route: 'clean and grade answer' (retry limit reached)[/dim]")
             else:
-                print("    -> Route: clean and grade answer (answer validated)")
+                self.console.print("[dim]    -> Route: 'clean and grade answer' (answer validated)[/dim]")
             return "proceed"
     
     def generate_answer(self, state):
-        print("--- NODE: Generate Answer (Main LLM) ---")
+        self.console.print("[dim]--- NODE: Generate Answer (Main LLM) ---[/dim]")
         prompt = state["prompt"]
-        
         if state["verbose"]:
-            print(f"💬 → LLM Prompt:\n{prompt}\n")
+            prompt_content = Panel(prompt, title="Main LLM Prompt", border_style="purple")
         
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)
@@ -133,7 +137,8 @@ class AgenticPipeline(BasePipeline):
         generation = self.main_llm.generate_response(prompt)
         
         if state["verbose"]:
-            print(f"💬 → LLM RAW Generation:\n{generation}\n")
+            generation_content = Panel(Markdown(generation), title="LLM Raw Generation", border_style="blue")
+            self.console.print(Panel(Group(prompt_content, generation_content), title="Main LLM", border_style="cyan"))
         
         return {"generation": generation}
     
@@ -142,7 +147,7 @@ class AgenticPipeline(BasePipeline):
         Node: 'Clean Generated Answer'
         Cleans up the raw LLM generation into a final answer format.
         """
-        print("--- NODE: Clean Generated Answer ---")
+        self.console.print("[dim]--- NODE: Clean Generated Answer ---")
         raw_generation = state["generation"]
         
         cleaning_llm = prepare_agent(get_config().get('main_pipeline.agent_logic.cleaning_llm',
@@ -160,8 +165,10 @@ class AgenticPipeline(BasePipeline):
             f"### RAW GENERATION\n{raw_generation}\n"
         )
         
+        content = ""
+        
         if state["verbose"]:
-            print(f"🧹 → Cleaning LLM Prompt:\n{prompt}\n")
+            content += f"🧹[bold purple] → Cleaning LLM Prompt:[/bold purple]\n{prompt}\n"
         
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)
@@ -171,7 +178,8 @@ class AgenticPipeline(BasePipeline):
         final_answer = answer_match.group(1).strip() if answer_match else answer.strip()
         
         if state["verbose"]:
-            print(f"🧹 → Cleaned Final Answer:\n{final_answer}\n")
+            content += f"🧹[bold bright_blue] → Cleaned Final Answer:[/bold bright_blue]\n{final_answer}\n"
+            self.console.print(Panel(content, title="Cleaning", border_style="green"))
         
         return {"final_answer": final_answer}
     
@@ -226,6 +234,7 @@ class AgenticPipeline(BasePipeline):
 
 if __name__ == "__main__":
     
+    console = Console()
     embedder = SentenceTransformerEmbedder(get_config().get_embedder_config())
     embedder.initialize()
     retriever = FAISSRetriever(get_config().get_retriever_config())
@@ -237,7 +246,7 @@ if __name__ == "__main__":
     rag_tool = SimpleRAGTool(retriever=retriever, embedder=embedder)
     grep_tool = GrepTool()
     script_finder_tool = PathScriptFinder()
-    distillation_tool = LLMDistillationTool()
+    distillation_tool = LLMDistillationTool(console=console)
     
     # Pre-compile the agent sub-graph to avoid recompiling on every node call
     agent_workflow = ConcreteAgentWorkflow(
@@ -246,9 +255,9 @@ if __name__ == "__main__":
         script_finder_tool, 
         distillation_tool
     )
-    pipeline = AgenticPipeline(agent_workflow)
+    pipeline = AgenticPipeline(console, agent_workflow)
     
-    print(">>> Building AGENTIC Pipeline")
+    console.print("[dim]>>> Building AGENTIC Pipeline[/dim]")
     sub_rag_system = pipeline.build_single_qa_graph()
     
     workflow = pipeline.build_full_benchmark_graph()
@@ -262,17 +271,24 @@ if __name__ == "__main__":
         "verbose": True
     }
 
-    print("--- STARTING GRAPH EXECUTION ---")
+    console.print("[dim]--- STARTING GRAPH EXECUTION ---[/dim]")
     final_state = app.invoke(inputs, {"recursion_limit": 100})
-    print("--- END OF EXECUTION ---")
-    print("\n📊 Résultats du benchmark")
-    print("=" * 60)
+    console.print("[dim]--- END OF EXECUTION ---[/dim]")
+        
+    console.print(Markdown("# Benchmark Results"))
+        
+    table = Table(title="Benchmark Grades", show_lines=True)
+    table.add_column("Question", style="cyan", no_wrap=False)
+    table.add_column("Score", style="magenta")
+    
     for r in final_state["grades"]:
-        print(f"Q: {r['question']}")
+        console.print(f"[bold green]Question: {r['question']} [/bold green]\n")
+        table.add_row(r['question'], f"{r['score']:.4f}")
         if final_state["verbose"]:
-            print(f"  Référence : {r['reference']}")
-            print(f"  LLM Response: {r['llm_response']}")
-        print(f"→ Score: {r['score']:.4f}")
-        print("\n" + "-" * 40 + "\n")
+            console.print(f"[bold purple]  Référence: {r['reference']}[/bold purple]")
+            console.print("\n[bold blue]  LLM: [/bold blue]")
+            console.print(Markdown(f"{r['llm_response']}"))
 
-    print(f"\nMoyenne globale : {final_state['benchmark_results']['average_score']:.4f}")
+    console.print("\n")
+    console.print(table)
+    console.print(f"\n[bold]Moyenne globale : {final_state['benchmark_results']['average_score']:.4f}[/bold]")

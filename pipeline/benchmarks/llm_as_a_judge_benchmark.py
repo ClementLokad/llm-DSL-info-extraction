@@ -22,7 +22,6 @@ class LLMAsAJudgeBenchmark(Benchmark):
     def judge(self, question: str, llm_response: str, reference: str) -> int:
         """Returns 1 if the llm_response is considered correct by the judge llm, else 0"""
         text_score = self.agent.generate_response(self.prompt + f"\n\nQuestion : {question}\nVraie réponse : {reference}\nRéponse du LLM : {llm_response}")
-        print(text_score)
         if text_score not in ["1", "0"]:
             raise Exception("Score invalide")
         return (int(text_score))
