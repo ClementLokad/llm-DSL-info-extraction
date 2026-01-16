@@ -3,10 +3,6 @@ import re
 import pickle
 import os
 from typing import List, Optional
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from rag.core.base_retriever import RetrievalResult, CodeChunk
 from rag.core.base_parser import CodeBlock
@@ -14,6 +10,7 @@ from rag.parsers.envision_parser import EnvisionParser
 from pipeline.agent_workflow.workflow_base import BaseGrepTool
 from get_mapping import get_file_mapping
 from config_manager import get_config
+from rag.utils.script_scanner import collect_constants, scan_string_for_references
 
 
 class GrepTool(BaseGrepTool):
@@ -103,40 +100,78 @@ class GrepTool(BaseGrepTool):
             if not valid:
                 sources = None  # Ignore invalid source filters
             
-
-        pattern = pattern.strip().strip("/")
+        path_regex = r"(\/|\\)|(\.[a-zA-Z0-9]+$)"
+        is_path_search = bool(re.search(path_regex, pattern))
+        
+        file_consts = {}
+        
+        clean_target = pattern.strip().strip("/")
 
         regex = re.compile(pattern, 0 if self.case_sensitive else re.IGNORECASE)
 
-        results = []
-        rank = 1
+        matches = []
 
         for block in self._blocks:
             # Filter by file_path if provided
             if sources is not None and not self.check_suffix_match(block.metadata["original_file_path"], sources):
                 continue
-
-            # Match on the full chunk content
-            if regex.search(block.content):
-                results.append(
-                    RetrievalResult(
+            
+            if is_path_search:
+                if block.file_path not in file_consts:
+                    try:
+                        with open(block.file_path, "r", encoding="utf-8") as f:
+                            script_content = f.read()
+                    except FileNotFoundError:
+                        continue
+                    file_consts[block.file_path] = collect_constants(script_content)
+                
+                hits, cleaned_content = scan_string_for_references(block.content, clean_target,
+                                                  file_consts[block.file_path], need_cleaned_string=True)
+                if not hits:
+                    continue
+                else:
+                    matches.append(RetrievalResult(
                         chunk=CodeChunk(
-                            content=block.content,
+                            content=cleaned_content,
                             chunk_type=block.block_type,
                             original_blocks=[block],
                             context="Grep match",
                             size_tokens=len(block.content) // self.config.get('chunker.chars_per_token', 4),
-                            metadata={"file_path": getattr(block, "file_path", None),
-                                      "original_file_path": block.metadata["original_file_path"]}
+                            metadata={
+                                "file_path": getattr(block, "file_path", None),
+                                "original_file_path": block.metadata["original_file_path"],
+                                "verb": hits[0]['verb'],
+                                "resolved_path": hits[0]['resolved_path']
+                            }
                         ),
-                        score=1.0,            # constant score (grep has no similarity metric)
-                        rank=rank,
+                        score=1.0, # High confidence for exact resolved matches
+                        rank=1,
                         metadata={"pattern": pattern, "original_file_path": block.metadata["original_file_path"]}
+                    ))
+                
+            else:
+                # Match on the full chunk content
+                if regex.search(block.content):
+                    matches.append(
+                        RetrievalResult(
+                            chunk=CodeChunk(
+                                content=block.content,
+                                chunk_type=block.block_type,
+                                original_blocks=[block],
+                                context="Grep match",
+                                size_tokens=len(block.content) // self.config.get('chunker.chars_per_token', 4),
+                                metadata={
+                                    "file_path": getattr(block, "file_path", None),
+                                    "original_file_path": block.metadata["original_file_path"]
+                                }
+                            ),
+                            score=1.0,            # constant score (grep has no similarity metric)
+                            rank=1,
+                            metadata={"pattern": pattern, "original_file_path": block.metadata["original_file_path"]}
+                        )
                     )
-                )
-                rank += 1
-
-        return results
+        
+        return matches
     
     def _get_all_files(self, root_dirs: List[str]) -> List[str]:
         """
@@ -195,6 +230,6 @@ class GrepTool(BaseGrepTool):
 
 if __name__ == "__main__":
     grep_tool = GrepTool()
-    results = grep_tool.search(pattern="Clean/Items.ion", sources=["1 - Item Inspector"])
+    results = grep_tool.search(pattern="Clean/Items.ion")
     for res in results:
-        print(f"File: {res.metadata['original_file_path']}\n")#Content:\n{res.chunk.content}\n{'-'*40}\n")
+        print(f"File: {res.metadata['original_file_path']}\nContent:\n{res.chunk.content}\n{'-'*40}\n")

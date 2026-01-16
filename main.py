@@ -397,7 +397,7 @@ class DSLQuerySystem():
             if final_state["verbose"]:
                 self.console.print(f"[bold green]Question: {r['question']} [/bold green]\n")
                 self.console.print(f"[bold purple]  Référence: {r['reference']}[/bold purple]")
-                self.console.print("\n[bold blue]  LLM: [/bold blue]")
+                self.console.print("\n[bold blue]  LLM: [/bold blue]\n")
                 self.console.print(Markdown(f"{r['llm_response']}"))
         
         self.console.print("\n")

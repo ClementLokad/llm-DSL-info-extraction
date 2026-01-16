@@ -45,12 +45,17 @@ class LLMDistillationTool(BaseDistillationTool):
         if not items:
             return []
 
+        total_sources = set()
+        for (_, source) in items:
+            total_sources.add(source)
+
         # 1. Construct a batch prompt
         prompt_text = (
             f"### SYSTEM ROLE\n"
             f"You are the assistant of a complex RAG Agent. The agent has to answer the query that follows.\n\n"
             f"### CONTEXT\nQuery: {query}\nCurrent Thought of the agent: {thought}\n\n"
             f"### DOCUMENTS TO ANALYZE\n"
+            f"Here are the {len(items)} items to analyse which are from {len(total_sources)} distinct scripts:\n"
         )
         
         # We verify sources to map them back later
@@ -59,7 +64,7 @@ class LLMDistillationTool(BaseDistillationTool):
         for i, (content, source) in enumerate(items):
             # Limit content length per chunk to avoid context overflow
             snippet = content[:2000] 
-            prompt_text += f"--- ITEM {i+1} ---\n{snippet}\n\n"
+            prompt_text += f"--- ITEM {i+1} FROM {source} ---\n{snippet}\n\n"
             indexed_sources[i+1] = source
 
         prompt_text += (

@@ -26,7 +26,8 @@ class SentenceTransformerEmbedder(BaseEmbedder):
         super().__init__(config)
         
         # Model configuration
-        self.model_name = self.config.get('model_name', 'all-MiniLM-L6-v2')
+        self.model_name = self.config.get('embedder.sentence_transformer.model_name', 'all-MiniLM-L6-v2')
+        self.model_path = self.config.get('embedder.sentence_transformer.model_path', "data/sentence_transformer")  # Local path if available
         self.device = self.config.get('device', None)  # None = auto-detect
         self.trust_remote_code = self.config.get('trust_remote_code', False)
         
@@ -62,11 +63,19 @@ class SentenceTransformerEmbedder(BaseEmbedder):
         try:
             self.logger.info(f"Loading sentence-transformer model: {self.model_name}")
             
-            self.model = SentenceTransformer(
-                self.model_name,
-                device=self.device,
-                trust_remote_code=self.trust_remote_code
-            )
+            try:
+                self.model = SentenceTransformer(self.model_path,
+                                                 device=self.device,
+                                                 trust_remote_code=self.trust_remote_code, 
+                                                 local_files_only=True)
+            except Exception: 
+                print(f"Failed to load model from path {self.model_path}, saving model_name from hub.")
+                self.model = SentenceTransformer(
+                    self.model_name,
+                    device=self.device,
+                    trust_remote_code=self.trust_remote_code
+                )
+                self.model.save(self.model_path)  # Save locally for future use
             
             # Cache embedding dimension
             self._embedding_dim = self.model.get_sentence_embedding_dimension()

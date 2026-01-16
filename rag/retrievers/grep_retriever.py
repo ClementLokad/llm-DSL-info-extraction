@@ -57,7 +57,7 @@ class GrepRetriever:
                             chunk_type="smart_reference",
                             metadata={
                                 "original_file_path": original_path,
-                                "line_number": hit['line'] - 1, # 0-indexed for consistency
+                                "line_number": hit['line'],
                                 "verb": hit['verb'],
                                 "resolved_path": hit['resolved_path']
                             }
@@ -86,9 +86,6 @@ class GrepRetriever:
                         # For speed in standard grep, we might just read linear.
                         
                         lines = f.readlines()
-                        if lines and lines[0].startswith("///ORIGINAL_PATH: "):
-                             # Optimization: parse it once
-                             original_path = self.mapping.get(os.path.splitext(os.path.basename(file_path))[0], None)
                         
                         for num, line in enumerate(lines):
                             if re.search(pattern, line, flags):

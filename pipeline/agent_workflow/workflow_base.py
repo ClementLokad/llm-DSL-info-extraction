@@ -540,14 +540,17 @@ class BaseAgentWorkflow(StateGraph):
         # 1. Execute
         results = self.grep_tool.search(pattern=pattern, sources=sources)
         
+        if state['pipeline_state']['verbose']:
+            self.console.print(f"Grep found {len(results)} matches for pattern: '{pattern}'")
+        
         shortened_res = False
         if len(results) > get_config().get("main_pipeline.grep_tool.max_results"):
-            results = results[:get_config().get("main_pipeline.agent_logic.max_results")]
+            results = results[:get_config().get("main_pipeline.grep_tool.max_results")]
             shortened_res = True
         
         
-        if state['pipeline_state']['verbose']:
-            self.console.print(f"Grep found {len(results)} matches for pattern: '{pattern}'")
+        if state['pipeline_state']['verbose'] and shortened_res:
+                self.console.print(f"Only the first {get_config().get('main_pipeline.grep_tool.max_results')} were analysed")
         
         # 2. Batch Distillation
         # Instead of just listing matches, we analyze the code context around the match
