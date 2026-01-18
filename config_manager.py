@@ -141,6 +141,10 @@ class ConfigManager:
         """Get chunker configuration section."""
         return self.config.get('chunker', {})
     
+    def get_summarizer_config(self) -> Dict[str, Any]:
+        """Get summarizer configuration section."""
+        return self.config.get('summarizer', {})
+    
     def get_embedder_config(self, embedder_type: Optional[str] = None) -> Dict[str, Any]:
         """
         Get embedder configuration section.
@@ -188,10 +192,10 @@ class ConfigManager:
         """Get default agent from configuration."""
         return self.config.get('agent', {}).get('default_model', 'mistral')
     
-    def get_chunk_summary_agent(self) -> str:
+    def get_summary_agent(self) -> str:
         """Get agent for chunk summaries. Use benchmark_model if specified, otherwise default."""
-        return self.config.get('chunker', {}).get('summary_model', self.get_default_agent())
-    
+        return self.config.get('summarizer', {}).get('summary_model', self.get_default_agent())
+
     def get_benchmark_agent(self) -> str:
         """Get agent for llm as a judge. Use benchmark_model if specified, otherwise default."""
         return self.config.get('benchmark', {}).get('benchmark_model', self.get_default_agent())

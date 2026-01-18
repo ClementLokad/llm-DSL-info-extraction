@@ -69,13 +69,6 @@ parser:
 # =============================================================================
 chunker:
   type: "semantic"
-
-  # Summary embedding enabled
-  use_summary_embeddings: false
-  
-  # Agent and prompt used for summarizing chunks before embedding
-  summary_model: "qwen" # Options: "gemini", "gpt", "mistral", "groq"
-  summary_prompt: "Summarize what the following code chunk does as briefly as possible without writing a title like **Keyworks** or **Summary** :"
   
   # Core chunking parameters (all numeric values externalized)
   max_chunk_tokens: 512
@@ -100,6 +93,14 @@ chunker:
   # Token estimation settings
   chars_per_token: 4
   # min_chunk_size: 10
+
+# =============================================================================
+# SUMMARIZER CONFIGURATION
+# =============================================================================
+summarizer:
+  summary_model: "qwen" # Options: "gemini", "gpt", "mistral", "groq"
+  summary_prompt: "Summarize what the following code chunk does as briefly as possible using english words, no need to create full sentences. Write ONLY the summary without formatting like titles."
+  summary_list_path: "./data/chunk_summaries.csv"  # Path to store chunk summaries
 
 # =============================================================================
 # EMBEDDER CONFIGURATION

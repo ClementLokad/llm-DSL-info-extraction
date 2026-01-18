@@ -93,14 +93,6 @@ class SentenceTransformerEmbedder(BaseEmbedder):
         
         if not chunks:
             return np.array([]).reshape(0, self.embedding_dimension)
-        
-        # Add a summary to chunks if enabled
-        from config_manager import get_config
-        print("SUMMARY CONFIGURATION", get_config().get_chunker_config().get('use_summary_embeddings', False))
-        if get_config().get_chunker_config().get('use_summary_embeddings', False): # tests if summary embeddings are enabled
-            import rag.chunkers.chunk_summarizer as cs
-            summarizer = cs.ChunkSummarizer()
-            chunks = summarizer.summarize_chunks(chunks)
 
         # Prepare chunks for embedding
         texts = [self.prepare_chunk_for_embedding(chunk) for chunk in chunks]

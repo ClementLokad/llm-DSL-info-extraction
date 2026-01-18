@@ -18,6 +18,7 @@ from rag.core.base_retriever import BaseRetriever
 
 from rag.parsers.envision_parser import EnvisionParser
 from rag.chunkers.semantic_chunker import SemanticChunker
+from rag.summarizers.chunk_summarizer import ChunkSummarizer
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from rag.retrievers.faiss_retriever import FAISSRetriever
 
@@ -35,7 +36,7 @@ except ImportError:
 __version__ = "0.1.0"
 __all__ = [
     "BaseParser", "BaseChunker", "BaseEmbedder", "BaseRetriever",
-    "EnvisionParser", "SemanticChunker", 
+    "EnvisionParser", "SemanticChunker", "ChunkSummarizer",
     "SentenceTransformerEmbedder",
     "FAISSRetriever"
 ]

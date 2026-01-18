@@ -39,10 +39,6 @@ def prepare_benchmark_agent() -> LLMAgent:
     """Prepare and return the benchmark LLM agent based on configuration."""
     return prepare_agent(get_config().get_benchmark_agent().lower())
 
-def prepare_embedder_summary_agent() -> LLMAgent: #OLD BACKUP FUNCTION
+def prepare_summary_agent() -> LLMAgent:
     """Prepare and return the embedder summary LLM agent based on configuration."""
-    return prepare_agent(get_config().get_embedder_summary_agent().lower())
-
-def prepare_chunk_summary_agent() -> LLMAgent:
-    """Prepare and return the embedder summary LLM agent based on configuration."""
-    return prepare_agent(get_config().get_chunk_summary_agent().lower())
+    return prepare_agent(get_config().get_summary_agent().lower())
