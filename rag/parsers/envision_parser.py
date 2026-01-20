@@ -1,451 +1,888 @@
-"""
-Envision DSL parser for LOKAD's supply chain codebase.
-
-This parser understands the structure and semantics of Envision DSL files (.nvn)
-and extracts meaningful code blocks for embedding and retrieval.
-"""
-
 import re
-from typing import List, Dict, Any, Optional
-import logging
+from typing import List, Set, Optional, Tuple, Dict, Any
+from rag.core.base_parser import BlockType, CodeBlock, BaseParser
+from config_manager import get_config
 
-from rag.core.base_parser import BaseParser, CodeBlock
-
-logger = logging.getLogger(__name__)
 
 class EnvisionParser(BaseParser):
     """
-    Parser specifically designed for Envision DSL (.nvn) files.
-    
-    The parser recognizes:
-    - Comment blocks (/// style)
-    - Read statements (data ingestion)
-    - Table definitions and operations
-    - Show statements (visualizations)
-    - Variable assignments and calculations
-    - Control structures (if/then/else, when, etc.)
+    Parser for Envision scripts that identifies semantic blocks.
     """
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        from config_manager import get_config
-        
-        if config is None:
-            # Load from global configuration
-            global_config = get_config()
-            self.config = global_config.get_parser_config()
-        else:
-            # Use provided configuration
-            self.config = config
-        
-        # Initialize with base class if config was provided directly
-        if config is not None:
-            super().__init__(config)
-        
-        # Get regex compilation settings from config
-        case_sensitive = self.config.get('case_sensitive', False)
-        multiline_patterns = self.config.get('multiline_patterns', True)
-        
-        # Get section delimiter settings from config
-        section_config = self.config.get('section_delimiter', {})
-        min_chars = section_config.get('min_chars', 20)
-        valid_chars_pattern = ''.join(section_config.get('valid_chars', ['~', '=', '-']))
-        pattern_prefix = section_config.get('pattern_prefix', '///')
-        
-        # Compile regex patterns for better performance with config-driven flags
-        flags = re.MULTILINE
-        if multiline_patterns:
-            flags |= re.DOTALL
-        if not case_sensitive:
-            flags |= re.IGNORECASE
-        
-        # Apply case sensitivity setting to all patterns
-        comment_flags = re.MULTILINE
-        if not case_sensitive:
-            comment_flags |= re.IGNORECASE
-        
-        self._comment_block_pattern = re.compile(r'^///.*$', comment_flags)
-        self._read_statement_pattern = re.compile(r'^read\s+.*?(?=^(?:read|show|table|\w+\s*=|///|$))', flags)
-        self._table_definition_pattern = re.compile(r'^table\s+(\w+).*?(?=^(?:read|show|table|\w+\s*=|///|$))', flags)
-        self._show_statement_pattern = re.compile(r'^show\s+.*?(?=^(?:read|show|table|\w+\s*=|///|$))', flags)
-        self._assignment_pattern = re.compile(r'^(\w+(?:\.\w+)*)\s*=.*?(?=^(?:read|show|table|\w+\s*=|///|$))', flags)
-        
-        # Dynamic section delimiter pattern from config
-        delimiter_pattern = f'^{re.escape(pattern_prefix)}[{re.escape(valid_chars_pattern)}]{{{min_chars},}}.*$'
-        delimiter_flags = re.MULTILINE
-        if not case_sensitive:
-            delimiter_flags |= re.IGNORECASE
-        self._section_delimiter_pattern = re.compile(delimiter_pattern, delimiter_flags)
+    # Regex patterns for different block types
+    PATTERNS = {
+        'section_header': re.compile(r'^///\s*[~=\-]{3,}'),
+        'comment': re.compile(r'^///|^//'),
+        'import': re.compile(r'^\s*import\s+'),
+        'read': re.compile(r'^\s*read\s+'),
+        'write': re.compile(r'^\s*write\s+'),
+        'const': re.compile(r'^\s*const\s+'),
+        'export': re.compile(r'^\s*export\s+'),
+        'table': re.compile(r'^\s*table\s+'),
+        'show': re.compile(r'^\s*show\s+'),
+        'keep': re.compile(r'^\s*keep\s+'),
+        'where': re.compile(r'^\s*where\s+'),
+        'form_read': re.compile(r'^\s*read\s+form\s+'),
+    }
+    
+    # Pattern to extract variable/table names from assignments
+    ASSIGNMENT_PATTERN = re.compile(r'^\s*(\w+(?:\.\w+)?)\s*=')
+    
+    # Envision built-in functions and keywords (not dependencies)
+    BUILTINS = {
+        # Aggregation functions
+        'sum', 'max', 'min', 'avg', 'count', 'distinct', 'mode', 'median',
+        # Date/time functions
+        'date', 'year', 'month', 'week', 'day', 'monday', 'today',
+        # Math functions
+        'abs', 'round', 'floor', 'ceiling', 'sqrt', 'exp', 'log', 'pow',
+        # String functions
+        'concat', 'replace', 'substr', 'strlen', 'split',
+        # Table functions
+        'cross', 'extend', 'range', 'slice',
+        # Statistical functions
+        'random', 'uniform', 'poisson', 'normal',
+        # Logical
+        'if', 'then', 'else', 'when', 'where', 'not', 'and', 'or', 'all', 'any', 'assert',
+        # Aggregation keywords
+        'by', 'at', 'into', 'scan', 'same', 'default', 'group', 'order',
+        # Special
+        'as', 'with', 'expect', 'unsafe', 'keep', 'show', 'upload', 'form',
+        # Functions
+        'cumsum', 'rankd', 'rankrev', 'sliceSearchUrl', 'dashUrl', 'downloadUrl',
+        # Types
+        'text', 'number', 'date', 'boolean', 'ranvar', 'zedfunc',
+        # Colors
+        'rgb', 'rgba',
+    }
+    
+    # Common Envision table properties (not separate dependencies)
+    COMMON_PROPERTIES = {
+        'N', 'Id', 'date', 'week', 'month', 'year', 'day',
+    }
     
     @property
     def supported_extensions(self) -> List[str]:
         """Return supported file extensions from configuration."""
-        return self.config.get('supported_extensions', ['.nvn'])
+        return self.config.get('parser.supported_extensions', ['.nvn'])
     
+    def parse_content(self, content: str, file_path: str = "") -> List[CodeBlock]:
+        """
+        Parse an Envision script into semantic blocks.
+        
+        Args:
+            content: The full content of the Envision script
+            
+        Returns:
+            List of CodeBlock objects
+        """
+        lines = content.split('\n')
+        blocks = []
+        i = 0
+        
+        while i < len(lines):
+            block, lines_consumed = self._parse_block(lines, i)
+            if block:
+                block.file_path = file_path
+                blocks.append(block)
+            i += lines_consumed
+        
+        return blocks
+
     def parse_file(self, file_path: str) -> List[CodeBlock]:
-        """Parse an Envision file and extract code blocks."""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-                return self.parse_content(content, file_path)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Envision file not found: {file_path}")
+            return self.parse_content(content, file_path=file_path)
         except Exception as e:
-            raise ValueError(f"Error parsing Envision file {file_path}: {e}")
-    
-    def parse_content(self, content: str, file_path: str = "") -> List[CodeBlock]:
-        """Parse Envision content and extract code blocks."""
-        blocks = []
-        lines = content.split('\n')
-        
-        # First, identify major sections using delimiter comments
-        sections = self._identify_sections(content, lines)
-        
-        # Parse each section
-        for section_name, section_content, start_line, end_line in sections:
-            section_blocks = self._parse_section(section_content, section_name, start_line, file_path)
-            
-            # Validate that blocks don't exceed the section boundaries
-            for block in section_blocks:
-                if block.line_end > end_line:
-                    logger.warning(f"Block {block.name or 'unnamed'} extends beyond section {section_name} boundary (line {block.line_end} > {end_line})")
-                    # Adjust the block's end line to not exceed section boundary
-                    block.line_end = min(block.line_end, end_line)
-            
-            blocks.extend(section_blocks)
-        
-        # If no major sections found, parse the entire content as one section
-        if not sections:
-            blocks = self._parse_section(content, "main", 0, file_path)
-        
-        return blocks
-    
-    def _identify_sections(self, content: str, lines: List[str]) -> List[tuple]:
-        """Identify major sections in the Envision file."""
-        sections = []
-        current_section_start = 0
-        current_section_name = "header"
-        
-        # Use finditer on content for more consistent regex matching
-        delimiter_matches = list(self._section_delimiter_pattern.finditer(content))
-        
-        if not delimiter_matches:
-            # No section delimiters found, return empty to parse as single section
+            self.logger.error(f"Error reading file {file_path}: {e}")
             return []
-        
-        for match in delimiter_matches:
-            # Find which line this match is on
-            match_line_num = content[:match.start()].count('\n')
-            delimiter_line = lines[match_line_num]
-            
-            # Save previous section if it has content
-            if match_line_num > current_section_start:
-                section_content = '\n'.join(lines[current_section_start:match_line_num])
-                if section_content.strip():
-                    sections.append((
-                        current_section_name,
-                        section_content,
-                        current_section_start,
-                        match_line_num - 1
-                    ))
-            
-            # Extract section name from the delimiter comment
-            section_name = self._extract_section_name(delimiter_line)
-            current_section_name = section_name
-            current_section_start = match_line_num + 1
-        
-        # Add the last section
-        if current_section_start < len(lines):
-            section_content = '\n'.join(lines[current_section_start:])
-            if section_content.strip():
-                sections.append((
-                    current_section_name,
-                    section_content,
-                    current_section_start,
-                    len(lines) - 1
-                ))
-        
-        return sections
     
-    def _extract_section_name(self, delimiter_line: str) -> str:
-        """Extract section name from a delimiter comment line."""
-        # Remove /// and delimiter characters, extract the text in the middle
-        cleaned = re.sub(r'^///[~=-]*', '', delimiter_line)
-        cleaned = re.sub(r'[~=-]*$', '', cleaned)
-        section_name = cleaned.strip()
+    def _extract_table_references(self, code: str) -> Set[str]:
+        """
+        Extract table references from code, being careful to avoid false positives.
         
-        if not section_name:
-            return "section"
+        Returns only the base table names (e.g., "Items" from "Items.Field")
+        Properly handles Table.Field references to extract only "Table"
+        """
+        refs = set()
         
-        # We remove non alphanumeric caracters
-        section_name = re.sub(r'[^a-zA-Z0-9]+', '_', section_name).strip('_').lower()
-        return section_name or "section"
-    
-    def _parse_section(self, content: str, section_name: str, base_line: int, file_path: str) -> List[CodeBlock]:
-        """Parse a single section and extract code blocks."""
-        blocks = []
+        # Remove string literals first to avoid matching content inside strings
+        code_no_strings = self._remove_all_strings(code)
         
-        # Parse different types of blocks in order of specificity
-        blocks.extend(self._parse_read_statements(content, section_name, base_line, file_path))
-        blocks.extend(self._parse_table_definitions(content, section_name, base_line, file_path))
-        blocks.extend(self._parse_show_statements(content, section_name, base_line, file_path))
-        blocks.extend(self._parse_assignments(content, section_name, base_line, file_path))
-        blocks.extend(self._parse_comment_blocks(content, section_name, base_line, file_path))
+        # First pass: Find all Table.field patterns and collect both tables and fields
+        table_field_pattern = re.compile(r'\b([a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)')
+        field_names = set()  # Track field names to exclude them later
         
-        return blocks
-    
-    def _parse_read_statements(self, content: str, section_name: str, base_line: int, file_path: str) -> List[CodeBlock]:
-        """Parse read statements (data ingestion)."""
-        blocks = []
-        
-        for match in self._read_statement_pattern.finditer(content):
-            read_content = match.group(0).strip()
-            start_pos = match.start()
-            end_pos = match.end()
-            
-            # Calculate line numbers
-            start_line = content[:start_pos].count('\n') + base_line
-            end_line = content[:end_pos].count('\n') + base_line
-            
-            # Extract table name
-            table_name = self._extract_read_table_name(read_content)
-            
-            block = CodeBlock(
-                content=read_content,
-                block_type="read_statement",
-                name=table_name,
-                line_start=start_line,
-                line_end=end_line,
-                file_path=file_path,
-                metadata={
-                    "section": section_name,
-                    "table_name": table_name,
-                    "is_data_ingestion": True
-                }
-            )
-            blocks.append(block)
-        
-        return blocks
-    
-    def _parse_table_definitions(self, content: str, section_name: str, base_line: int, file_path: str) -> List[CodeBlock]:
-        """Parse table definitions and operations."""
-        blocks = []
-        
-        for match in self._table_definition_pattern.finditer(content):
-            table_content = match.group(0).strip()
+        for match in table_field_pattern.finditer(code_no_strings):
             table_name = match.group(1)
-            start_pos = match.start()
-            end_pos = match.end()
+            field_name = match.group(2)
             
-            # Calculate line numbers
-            start_line = content[:start_pos].count('\n') + base_line
-            end_line = content[:end_pos].count('\n') + base_line
+            field_names.add(field_name)  # Remember this is a field, not a table
             
-            block = CodeBlock(
-                content=table_content,
-                block_type="table_definition",
-                name=table_name,
-                line_start=start_line,
-                line_end=end_line,
-                file_path=file_path,
-                metadata={
-                    "section": section_name,
-                    "table_name": table_name,
-                    "is_table_operation": True
-                }
-            )
-            blocks.append(block)
+            if self._is_likely_table_name(table_name):
+                refs.add(table_name)
         
-        return blocks
-    
-    def _parse_show_statements(self, content: str, section_name: str, base_line: int, file_path: str) -> List[CodeBlock]:
-        """Parse show statements (visualizations and output)."""
-        blocks = []
+        # Second pass: Look for standalone identifiers, but only if:
+        # 1. They weren't seen as field names
+        # 2. They appear in a context suggesting table usage
+        standalone_pattern = re.compile(r'\b([A-Z][a-zA-Z0-9_]*)\b(?!\s*\.)')
         
-        for match in self._show_statement_pattern.finditer(content):
-            show_content = match.group(0).strip()
-            start_pos = match.start()
-            end_pos = match.end()
+        for match in standalone_pattern.finditer(code_no_strings):
+            identifier = match.group(1)
             
-            # Calculate line numbers
-            start_line = content[:start_pos].count('\n') + base_line
-            end_line = content[:end_pos].count('\n') + base_line
-            
-            # Extract show type and name
-            show_type, show_name = self._extract_show_info(show_content)
-            
-            block = CodeBlock(
-                content=show_content,
-                block_type="show_statement",
-                name=show_name,
-                line_start=start_line,
-                line_end=end_line,
-                file_path=file_path,
-                metadata={
-                    "section": section_name,
-                    "show_type": show_type,
-                    "show_name": show_name,
-                    "is_visualization": True
-                }
-            )
-            blocks.append(block)
-        
-        return blocks
-    
-    def _parse_assignments(self, content: str, section_name: str, base_line: int, file_path: str) -> List[CodeBlock]:
-        """Parse variable assignments and calculations."""
-        blocks = []
-        
-        for match in self._assignment_pattern.finditer(content):
-            assignment_content = match.group(0).strip()
-            variable_name = match.group(1)
-            start_pos = match.start()
-            end_pos = match.end()
-            
-            # Skip if this is part of a read, table, or show statement
-            if any(keyword in assignment_content.lower()[:20] for keyword in ['read ', 'table ', 'show ']):
+            # Skip if it's a field name from Table.field pattern
+            if identifier in field_names:
                 continue
             
-            # Calculate line numbers
-            start_line = content[:start_pos].count('\n') + base_line
-            end_line = content[:end_pos].count('\n') + base_line
+            # Skip if it's a builtin
+            if identifier.lower() in self.BUILTINS:
+                continue
             
-            # Determine assignment type
-            assignment_type = self._classify_assignment(assignment_content)
+            # Skip if it's a common property
+            if identifier in self.COMMON_PROPERTIES:
+                continue
             
-            block = CodeBlock(
-                content=assignment_content,
-                block_type="assignment",
-                name=variable_name,
-                line_start=start_line,
-                line_end=end_line,
-                file_path=file_path,
-                metadata={
-                    "section": section_name,
-                    "variable_name": variable_name,
-                    "assignment_type": assignment_type,
-                    "is_calculation": True
-                }
-            )
-            blocks.append(block)
+            # Get context to check if this is really a table reference
+            start = max(0, match.start() - 30)
+            end = min(len(code_no_strings), match.end() + 30)
+            context = code_no_strings[start:end]
+            
+            # Skip if it appears in a type definition (: Type)
+            if re.search(r':\s*' + re.escape(identifier) + r'\s*(?:$|\n|,)', context):
+                continue
+            
+            # Skip if it's after 'as' (likely a table being defined, not referenced)
+            if re.search(r'\bas\s+' + re.escape(identifier) + r'\b', context):
+                continue
+            
+            # Skip if it's before '=' at start of line (it's being defined)
+            line_start = code_no_strings.rfind('\n', 0, match.start())
+            if line_start == -1:
+                line_start = 0
+            line_end = code_no_strings.find('\n', match.end(), len(code_no_strings))
+            if line_end == -1:
+                line_end = len(code_no_strings)
+            line_portion = code_no_strings[line_start:line_end]
+            if re.match(r'^\s*' + re.escape(identifier) + r'\s*=', line_portion.lstrip()):
+                continue
+
+            if re.match(r'.*//.*' + re.escape(identifier), line_portion.lstrip()):
+                continue # Skip if in single-line comment
+            if re.match(r'.*///.*' + re.escape(identifier), line_portion.lstrip()):
+                continue # Skip if in triple-slash comment
+            
+            
+            # Only add if it's likely a table
+            if self._is_likely_table_name(identifier):
+                # Extra check: must be at least 3 chars for standalone (avoid "Id" etc)
+                if len(identifier) >= 3:
+                    refs.add(identifier)
         
-        return blocks
+        return refs
     
-    def _parse_comment_blocks(self, content: str, section_name: str, base_line: int, file_path: str) -> List[CodeBlock]:
-        """Parse comment blocks for documentation."""
-        blocks = []
-        lines = content.split('\n')
+    def _extract_definitions_from_lhs(self, code: str) -> Set[str]:
+        """
+        Extract variable/table definitions from left-hand side of assignments.
         
-        current_comment = []
-        comment_start_line = -1
+        Returns base names (e.g., "Items" from "Items.Field = ...")
+        """
+        defs = set()
         
-        for i, line in enumerate(lines):
-            if line.strip().startswith('///') and not self._section_delimiter_pattern.match(line.strip()):
-                if not current_comment:
-                    comment_start_line = i
-                current_comment.append(line.strip())
+        # Pattern: identifier = ... or Table.field = ...
+        # Look at start of lines (possibly with indentation)
+        for line in code.split('\n'):
+            # Skip empty lines and comments
+            stripped = line.strip()
+            if not stripped or stripped.startswith('//'):
+                continue
+            
+            # Check for assignment
+            match = re.match(r'^\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)\s*=', line)
+            if match:
+                var_name = match.group(1)
+                # Extract base name (before the dot if present)
+                base_name = var_name.split('.')[0]
+                defs.add(base_name)
+        
+        return defs
+    
+    def _remove_all_strings(self, code: str) -> str:
+        """
+        Remove all string literals from code to avoid matching their content.
+        Handles single quotes, double quotes, and triple quotes.
+        """
+        # Remove triple-quoted strings first
+        code = re.sub(r'""".*?"""', '""', code, flags=re.DOTALL)
+        code = re.sub(r"'''.*?'''", "''", code, flags=re.DOTALL)
+        # Remove double-quoted strings
+        code = re.sub(r'"(?:[^"\\]|\\.)*"', '""', code)
+        # Remove single-quoted strings
+        code = re.sub(r"'(?:[^'\\]|\\.)*'", "''", code)
+        return code
+    
+    def _extract_path_variables(self, code: str) -> Set[str]:
+        """Extract variables used in path interpolation like \\{varName}"""
+        return set(re.findall(r'\\\{(\w+)\}', code))
+    
+    def _extract_interpolated_variables(self, code: str) -> Set[str]:
+        """Extract variables from #(varName) interpolation syntax"""
+        # Pattern: #(identifier) or #(Table.field)
+        pattern = re.compile(r'#\(([a-zA-Z_]\w*(?:\.\w+)?)\)')
+        refs = set()
+        
+        for match in pattern.finditer(code):
+            var_ref = match.group(1)
+            # Extract base name (before dot if present)
+            base_name = var_ref.split('.')[0]
+            # Only add if it's likely a variable (not a builtin)
+            if base_name.lower() not in self.BUILTINS and len(base_name) >= 2:
+                refs.add(base_name)
+        
+        return refs
+    
+    def _is_likely_table_name(self, name: str) -> bool:
+        """Check if a name is likely to be a table name based on conventions."""
+        # Not a builtin
+        if name.lower() in self.BUILTINS:
+            return False
+        # Not a common property
+        if name in self.COMMON_PROPERTIES:
+            return False
+        # Has reasonable length (not too short)
+        if len(name) < 2:
+            return False
+        return True
+    
+    def _parse_block(self, lines: List[str], start_idx: int) -> Tuple[Optional[CodeBlock], int]:
+        """
+        Parse a single block starting at the given index.
+        
+        Args:
+            lines: List of all lines in the script
+            start_idx: Index to start parsing from
+            
+        Returns:
+            Tuple of (CodeBlock or None, number of lines consumed)
+        """
+        if start_idx >= len(lines):
+            return None, 0
+        
+        line = lines[start_idx]
+        
+        # Skip empty lines
+        if not line.strip():
+            return None, 1
+        
+        # Section header (special comment type)
+        if self.PATTERNS['section_header'].match(line):
+            return self._parse_section_header(lines, start_idx)
+        
+        # Form read (must be before regular read)
+        if self.PATTERNS['form_read'].match(line):
+            return self._parse_form_read(lines, start_idx)
+        
+        # Import statement
+        if self.PATTERNS['import'].match(line):
+            return self._parse_import(lines, start_idx)
+        
+        # Read statement
+        if self.PATTERNS['read'].match(line):
+            return self._parse_read(lines, start_idx)
+        
+        # Write statement
+        if self.PATTERNS['write'].match(line):
+            return self._parse_write(lines, start_idx)
+        
+        # Const declaration
+        if self.PATTERNS['const'].match(line):
+            return self._parse_const(lines, start_idx)
+        
+        # Export declaration
+        if self.PATTERNS['export'].match(line):
+            return self._parse_export(lines, start_idx)
+        
+        # Table definition
+        if self.PATTERNS['table'].match(line):
+            return self._parse_table(lines, start_idx)
+        
+        # Show statement
+        if self.PATTERNS['show'].match(line):
+            return self._parse_show(lines, start_idx)
+        
+        # Keep/Where statements
+        if self.PATTERNS['keep'].match(line) or self.PATTERNS['where'].match(line):
+            return self._parse_keep_where(lines, start_idx)
+        
+        # Comment
+        if self.PATTERNS['comment'].match(line):
+            return self._parse_comment(lines, start_idx)
+        
+        # Default: treat as assignment or unknown
+        return self._parse_assignment(lines, start_idx)
+    
+    def _parse_section_header(self, lines: List[str], start_idx: int) -> Tuple[CodeBlock, int]:
+        """Parse a section header comment block."""
+        content_lines = []
+        line_numbers = []
+        i = start_idx
+        
+        # Collect the header line and any following comment lines
+        while i < len(lines):
+            line = lines[i]
+            if not line.strip():
+                break
+            if self.PATTERNS['comment'].match(line):
+                content_lines.append(line)
+                line_numbers.append(i + 1)
+                i += 1
             else:
-                if current_comment:
-                    # End of comment block
-                    comment_content = '\n'.join(current_comment)
+                break
+        
+        # Extract section name from the header
+        # Pattern: ///==== Section Name ==== or ///~~~~ Section Name ~~~~
+        name = None
+        if content_lines:
+            for line in content_lines:
+                if self.PATTERNS['section_header'].match(line):
+                    # Remove comment markers and separator characters
+                    cleaned = re.sub(r'^///\s*[~=\-]+\s*', '', line)
+                    cleaned = re.sub(r'\s*[~=\-]+\s*/*\s*$', '', cleaned)
+                    cleaned = cleaned.strip()
+                    # Only use as name if there's actual text (not just separators)
+                    if cleaned and not re.match(r'^[~=\-/\s]*$', cleaned):
+                        name = cleaned
+                        break
+        
+        block = CodeBlock(
+            content='\n'.join(content_lines),
+            block_type=BlockType.SECTION_HEADER,
+            name=name,
+            line_start=start_idx + 1,
+            line_end=i,
+            metadata={'is_delimiter': True}
+        )
+        
+        return block, i - start_idx
+    
+    def _parse_comment(self, lines: List[str], start_idx: int) -> Tuple[CodeBlock, int]:
+        """Parse a comment block."""
+        content_lines = []
+        line_numbers = []
+        i = start_idx
+        
+        while i < len(lines):
+            line = lines[i]
+            if not line.strip():
+                i += 1
+                continue
+            if self.PATTERNS['section_header'].match(line):
+                break
+            if self.PATTERNS['comment'].match(line):
+                content_lines.append(line)
+                line_numbers.append(i + 1)
+                i += 1
+            else:
+                break
+        
+        block = CodeBlock(
+            block_type=BlockType.COMMENT,
+            content='\n'.join(content_lines),
+            line_start=start_idx + 1,
+            line_end=i
+        )
+        
+        return block, i - start_idx
+    
+    def _parse_import(self, lines: List[str], start_idx: int) -> Tuple[CodeBlock, int]:
+        """Parse an import statement."""
+        content_lines, i = self._collect_statement(lines, start_idx)
+        
+        # Extract imported items
+        dependencies = set()
+        definitions = set()
+        name = None
+        
+        content = '\n'.join(content_lines)
+        
+        # Extract alias if present (what this import defines) - use as name
+        alias_match = re.search(r'\s+as\s+(\w+)', content)
+        if alias_match:
+            name = alias_match.group(1)
+            definitions.add(name)
+        
+        # Extract imported items after 'with' (also definitions in current scope)
+        with_match = re.search(r'\s+with\s+(.*?)$', content, re.DOTALL)
+        if with_match:
+            items_text = with_match.group(1)
+            # Extract identifiers, but ignore keywords
+            for line in items_text.split('\n'):
+                line = line.strip()
+                if line and not line.startswith('//'):
+                    # Simple identifier on a line
+                    identifier_match = re.match(r'^([a-zA-Z_]\w*)(?:\s|$)', line)
+                    if identifier_match:
+                        item = identifier_match.group(1)
+                        if item not in self.BUILTINS:
+                            definitions.add(item)
+        
+        # Import statements typically don't have dependencies on other tables
+        
+        block = CodeBlock(
+            block_type=BlockType.IMPORT,
+            name=name,
+            content=content,
+            line_start=start_idx + 1,
+            line_end=i,
+            dependencies=dependencies,
+            definitions=definitions
+        )
+        
+        return block, i - start_idx
+    
+    def _parse_read(self, lines: List[str], start_idx: int) -> Tuple[CodeBlock, int]:
+        """Parse a read statement."""
+        content_lines, i = self._collect_statement(lines, start_idx)
+        content = '\n'.join(content_lines)
+        
+        # Extract table name (what this defines)
+        definitions = set()
+        dependencies = set()
+        name = None
+        
+        # Pattern: read "path" as TableName
+        as_match = re.search(r'\s+as\s+([a-zA-Z_]\w*)(?:\[|expect|\s|$)', content)
+        if as_match:
+            name = as_match.group(1)
+            definitions.add(name)
+        
+        # Extract path variables (these are dependencies)
+        path_vars = self._extract_path_variables(content)
+        dependencies.update(path_vars)
+        
+        # Field definitions in 'with' clause are NOT dependencies
+        # They define the schema, not reference other tables
+        
+        block = CodeBlock(
+            block_type=BlockType.READ,
+            name=name,
+            content=content,
+            line_start=start_idx + 1,
+            line_end=i,
+            dependencies=dependencies,
+            definitions=definitions
+        )
+        
+        return block, i - start_idx
+    
+    def _parse_write(self, lines: List[str], start_idx: int) -> Tuple[CodeBlock, int]:
+        """Parse a write statement."""
+        content_lines, i = self._collect_statement(lines, start_idx)
+        content = '\n'.join(content_lines)
+        
+        # Extract dependencies (what's being written)
+        dependencies = set()
+        name = None
+        
+        # Pattern: write TableName into "path"
+        # The table being written is a dependency
+        write_match = re.search(r'write\s+([a-zA-Z_]\w*)', content)
+        if write_match:
+            table_name = write_match.group(1)
+            name = table_name  # Use table name as block name
+            if self._is_likely_table_name(table_name):
+                dependencies.add(table_name)
+        
+        # Also check for path variables
+        path_vars = self._extract_path_variables(content)
+        dependencies.update(path_vars)
+        
+        block = CodeBlock(
+            block_type=BlockType.WRITE,
+            name=name,
+            content=content,
+            line_start=start_idx + 1,
+            line_end=i,
+            dependencies=dependencies
+        )
+        
+        return block, i - start_idx
+    
+    def _parse_const(self, lines: List[str], start_idx: int) -> Tuple[CodeBlock, int]:
+        """Parse a const declaration."""
+        content_lines, i = self._collect_statement(lines, start_idx)
+        content = '\n'.join(content_lines)
+        
+        definitions = set()
+        dependencies = set()
+        name = None
+        
+        # Extract const name
+        const_match = re.search(r'const\s+([a-zA-Z_]\w*)\s*=', content)
+        if const_match:
+            name = const_match.group(1)
+            definitions.add(name)
+        
+        # Extract dependencies from RHS (after =)
+        eq_pos = content.find('=')
+        if eq_pos != -1:
+            rhs = content[eq_pos + 1:]
+            # Extract table references from RHS
+            refs = self._extract_table_references(rhs)
+            dependencies.update(refs)
+            
+            # Also check for path variables
+            path_vars = self._extract_path_variables(rhs)
+            dependencies.update(path_vars)
+            
+            # Also check for interpolated variables
+            interpolated = self._extract_interpolated_variables(rhs)
+            dependencies.update(interpolated)
+        
+        block = CodeBlock(
+            block_type=BlockType.CONST,
+            name=name,
+            content=content,
+            line_start=start_idx + 1,
+            line_end=i,
+            dependencies=dependencies,
+            definitions=definitions
+        )
+        
+        return block, i - start_idx
+    
+    def _parse_export(self, lines: List[str], start_idx: int) -> Tuple[CodeBlock, int]:
+        """Parse an export declaration."""
+        content_lines, i = self._collect_statement(lines, start_idx)
+        content = '\n'.join(content_lines)
+        
+        definitions = set()
+        dependencies = set()
+        name = None
+        
+        # Extract exported variable/table name
+        export_match = re.search(r'export\s+(?:const\s+)?(?:table\s+)?([a-zA-Z_]\w*)', content)
+        if export_match:
+            name = export_match.group(1)
+            definitions.add(name)
+        
+        # Extract dependencies from RHS if there's an assignment
+        eq_pos = content.find('=')
+        if eq_pos != -1:
+            rhs = content[eq_pos + 1:]
+            refs = self._extract_table_references(rhs)
+            dependencies.update(refs)
+            
+            # Also extract interpolated variables
+            interpolated = self._extract_interpolated_variables(rhs)
+            dependencies.update(interpolated)
+            
+            # Remove self-reference
+            if definitions:
+                dependencies.discard(list(definitions)[0])
+        
+        block = CodeBlock(
+            block_type=BlockType.EXPORT,
+            name=name,
+            content=content,
+            line_start=start_idx + 1,
+            line_end=i,
+            dependencies=dependencies,
+            definitions=definitions
+        )
+        
+        return block, i - start_idx
+    
+    def _parse_table(self, lines: List[str], start_idx: int) -> Tuple[CodeBlock, int]:
+        """Parse a table definition."""
+        content_lines, i = self._collect_statement(lines, start_idx)
+        content = '\n'.join(content_lines)
+        
+        definitions = set()
+        dependencies = set()
+        name = None
+        
+        # Extract table name
+        table_match = re.search(r'table\s+([a-zA-Z_]\w*)\s*(?:\[.*?\])?\s*=', content)
+        if table_match:
+            name = table_match.group(1)
+            definitions.add(name)
+        
+        # Extract dependencies from RHS
+        eq_pos = content.find('=')
+        if eq_pos != -1:
+            rhs = content[eq_pos + 1:]
+            refs = self._extract_table_references(rhs)
+            dependencies.update(refs)
+            
+            # Also extract interpolated variables
+            interpolated = self._extract_interpolated_variables(rhs)
+            dependencies.update(interpolated)
+            
+            # Remove self-reference
+            if definitions:
+                dependencies.discard(list(definitions)[0])
+        
+        block = CodeBlock(
+            block_type=BlockType.TABLE_DEFINITION,
+            name=name,
+            content=content,
+            line_start=start_idx + 1,
+            line_end=i,
+            dependencies=dependencies,
+            definitions=definitions
+        )
+        
+        return block, i - start_idx
+    
+    def _parse_show(self, lines: List[str], start_idx: int) -> Tuple[CodeBlock, int]:
+        """Parse a show statement."""
+        content_lines, i = self._collect_statement(lines, start_idx)
+        content = '\n'.join(content_lines)
+        
+        dependencies = set()
+        name = None
+        
+        # Extract the title/name of the show widget
+        # Pattern: show table "Title" or show linechart "Title" or show summary "Title" etc.
+        title_match = re.search(r'show\s+\w+\s+"([^"]+)"', content)
+        if title_match:
+            name = title_match.group(1)
+        
+        # Show statements reference tables but don't define them
+        # Extract table references, being careful about what's in strings
+        refs = self._extract_table_references(content)
+        dependencies.update(refs)
+        
+        # Also extract interpolated variables from #(...) syntax
+        interpolated = self._extract_interpolated_variables(content)
+        dependencies.update(interpolated)
+        
+        block = CodeBlock(
+            block_type=BlockType.SHOW,
+            name=name,
+            content=content,
+            line_start=start_idx + 1,
+            line_end=i,
+            dependencies=dependencies
+        )
+        
+        return block, i - start_idx
+    
+    def _parse_keep_where(self, lines: List[str], start_idx: int) -> Tuple[CodeBlock, int]:
+        """Parse keep/where statements."""
+        content_lines, i = self._collect_statement(lines, start_idx)
+        content = '\n'.join(content_lines)
+        
+        dependencies = set()
+        
+        # Extract table references from the condition
+        refs = self._extract_table_references(content)
+        dependencies.update(refs)
+        
+        # Also extract interpolated variables
+        interpolated = self._extract_interpolated_variables(content)
+        dependencies.update(interpolated)
+        
+        block = CodeBlock(
+            block_type=BlockType.KEEP_WHERE,
+            content=content,
+            line_start=start_idx + 1,
+            line_end=i,
+            dependencies=dependencies
+        )
+        
+        return block, i - start_idx
+    
+    def _parse_form_read(self, lines: List[str], start_idx: int) -> Tuple[CodeBlock, int]:
+        """Parse a form read statement."""
+        content_lines, i = self._collect_statement(lines, start_idx)
+        content = '\n'.join(content_lines)
+        
+        definitions = set()
+        
+        # Extract field names from form read (these are variables defined)
+        # Pattern: fieldName : type
+        for line in content_lines:
+            stripped = line.strip()
+            if stripped and not stripped.startswith('//') and not stripped.startswith('read'):
+                field_match = re.match(r'^([a-zA-Z_]\w*)\s*:\s*\w+', stripped)
+                if field_match:
+                    definitions.add(field_match.group(1))
+        
+        block = CodeBlock(
+            block_type=BlockType.FORM_READ,
+            content=content,
+            line_start=start_idx + 1,
+            line_end=i,
+            definitions=definitions
+        )
+        
+        return block, i - start_idx
+    
+    def _parse_assignment(self, lines: List[str], start_idx: int) -> Tuple[CodeBlock, int]:
+        """Parse an assignment statement."""
+        content_lines, i = self._collect_statement(lines, start_idx)
+        content = '\n'.join(content_lines)
+        
+        definitions = set()
+        dependencies = set()
+        name = None
+        
+        # Extract LHS (what's being defined)
+        # Can be: varName = ... or Table.field = ...
+        first_line = content_lines[0] if content_lines else ""
+        assignment_match = self.ASSIGNMENT_PATTERN.match(first_line)
+        
+        if assignment_match:
+            var_name = assignment_match.group(1)
+            # Extract base name (before the dot if present)
+            base_name = var_name.split('.')[0]
+            name = base_name  # Use as block name
+            definitions.add(base_name)
+            
+            # Extract RHS dependencies (after =)
+            eq_pos = content.find('=')
+            if eq_pos != -1:
+                rhs = content[eq_pos + 1:]
+                refs = self._extract_table_references(rhs)
+                dependencies.update(refs)
+                
+                # Also extract interpolated variables
+                interpolated = self._extract_interpolated_variables(rhs)
+                dependencies.update(interpolated)
+                
+                # Only remove self-reference if it's a simple variable assignment
+                # For Table.field = ..., keep the table as both definition and dependency
+                # if it appears on the RHS (e.g., Items.x = Items.y + 1)
+                if '.' not in var_name:
+                    # Simple variable assignment (x = y), remove self-reference
+                    dependencies.discard(base_name)
+                # else: Table.field assignment - keep table in dependencies if it appears on RHS
+        
+        block_type = BlockType.ASSIGNMENT if assignment_match else BlockType.UNKNOWN
+        
+        block = CodeBlock(
+            block_type=block_type,
+            name=name,
+            content=content,
+            line_start=start_idx + 1,
+            line_end=i,
+            dependencies=dependencies,
+            definitions=definitions
+        )
+        
+        return block, i - start_idx
+    
+    def _collect_statement(self, lines: List[str], start_idx: int) -> Tuple[List[str], int]:
+        """
+        Collect all lines belonging to a single statement.
+        
+        Statements can span multiple lines and end when:
+        - A new statement starts (identified by keywords at column 0 or minimal indent)
+        - An empty line is encountered after the statement completes
+        - End of file
+        
+        Key improvement: Uses indentation to detect continuation lines.
+        Lines indented more than the starting line are considered continuations.
+        
+        Returns:
+            Tuple of (collected lines, ending index)
+        """
+        content_lines = []
+        i = start_idx
+        
+        # Keywords that start a new statement
+        statement_starters = ['import', 'read', 'write', 'const', 'export', 'table', 'show', 'keep', 'where']
+        
+        # Get base indentation level from first line
+        first_line = lines[start_idx]
+        base_indent = len(first_line) - len(first_line.lstrip())
+        
+        # Track if we're inside a multi-line structure
+        unclosed_brackets = 0
+        in_triple_quote = False
+        triple_quote_char = None
+        free_pass = False  # If true, ignore normal ending rules for one line
+        
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+
+            # Skip completely empty lines at the start
+            if i == start_idx and not stripped:
+                i += 1
+                continue
+            
+            # Get current line's indentation
+            current_indent = len(line) - len(line.lstrip()) if stripped else 0
+            
+            # If we're past the first line and not in a multi-line structure
+            if not free_pass and i > start_idx and unclosed_brackets == 0 and not in_triple_quote:
+                """# Empty line can end statement if brackets are balanced
+                if not stripped:
+                    break"""
+                
+                # New statement starts at same or lower indentation level
+                if current_indent <= base_indent:
+                    # Check if this is a new statement
+                    if any(stripped.startswith(kw + ' ') or stripped.startswith(kw + '\t') 
+                           for kw in statement_starters):
+                        break
                     
-                    block = CodeBlock(
-                        content=comment_content,
-                        block_type="comment_block",
-                        name=None,
-                        line_start=base_line + comment_start_line,
-                        line_end=base_line + i - 1,
-                        file_path=file_path,
-                        metadata={
-                            "section": section_name,
-                            "is_documentation": True,
-                            "comment_type": "block"
-                        }
-                    )
-                    blocks.append(block)
-                    current_comment = []
+                    # Section header or standalone comment starts
+                    if self.PATTERNS['section_header'].match(line):
+                        break
+                    
+                    # Assignment starts
+                    if self.ASSIGNMENT_PATTERN.match(line) or self.PATTERNS['comment'].match(line):
+                        break
+
+                    if not stripped:
+                        # Empty lines do not impact statements
+                        i += 1
+                        continue
+                    
+                    """# Standalone comment (not at higher indentation)
+                    if self.PATTERNS['comment'].match(line):
+                        # Check if previous line suggested continuation
+                        if content_lines and not self._suggests_continuation(content_lines[-1]):
+                            break"""
+            
+            # Check for triple-quoted strings
+            if '"""' in line and (triple_quote_char != "'" or not in_triple_quote):
+                in_triple_quote = not in_triple_quote
+                triple_quote_char = '"'
+            elif "'''" in line and (triple_quote_char != '"' or not in_triple_quote):
+                in_triple_quote = not in_triple_quote
+                triple_quote_char = "'"
+            
+            free_pass = False
+            
+            content_lines.append(line)
+            
+            # Track bracket balance (excluding strings)
+            line_no_strings = self._remove_all_strings(line)
+            unclosed_brackets += line_no_strings.count('(') - line_no_strings.count(')')
+            unclosed_brackets += line_no_strings.count('[') - line_no_strings.count(']')
+            unclosed_brackets += line_no_strings.count('{') - line_no_strings.count('}')
+            
+            i += 1
+            
+            # If next line starts with continuation keyword, continue
+            if stripped and any(stripped.startswith(kw + ' ') or stripped.startswith(kw + '\t')
+                                    for kw in ['with', 'by', 'at', 'when', 'scan', 'default', 'group', 'order', 'where', 'into']):
+                continue
+            
+            # Check if line explicitly continues
+            if line.rstrip().endswith('\\'):
+                free_pass = True
+                continue
         
-        # Handle comment at end of file
-        if current_comment:
-            comment_content = '\n'.join(current_comment)
-            block = CodeBlock(
-                content=comment_content,
-                block_type="comment_block",
-                name=None,
-                line_start=base_line + comment_start_line,
-                line_end=base_line + len(lines) - 1,
-                file_path=file_path,
-                metadata={
-                    "section": section_name,
-                    "is_documentation": True,
-                    "comment_type": "block"
-                }
-            )
-            blocks.append(block)
-        
-        return blocks
+        return content_lines, i
     
-    def _extract_read_table_name(self, read_content: str) -> Optional[str]:
-        """Extract table name from a read statement."""
-        # Look for pattern: read "path" as TableName
-        flags = 0 if self.config.get('case_sensitive', False) else re.IGNORECASE
-        match = re.search(r'as\s+(\w+)', read_content, flags)
-        if match:
-            return match.group(1)
-        return None
-    
-    def _extract_show_info(self, show_content: str) -> tuple:
-        """Extract show type and name from a show statement."""
-        # Look for patterns like: show table "Name", show label "Name"
-        flags = 0 if self.config.get('case_sensitive', False) else re.IGNORECASE
-        type_match = re.search(r'show\s+(\w+)', show_content, flags)
-        show_type = type_match.group(1) if type_match else "unknown"
-        
-        name_match = re.search(r'show\s+\w+\s+"([^"]+)"', show_content, flags)
-        show_name = name_match.group(1) if name_match else None
-        
-        return show_type, show_name
-    
-    def _classify_assignment(self, assignment_content: str) -> str:
-        """Classify the type of assignment based on its content."""
-        # Use config to determine if case-sensitive matching should be used
-        case_sensitive = self.config.get('case_sensitive', False)
-        content = assignment_content if case_sensitive else assignment_content.lower()
-        
-        # Define patterns based on case sensitivity
-        aggregation_funcs = ['same(', 'max(', 'min(', 'sum(', 'avg(', 'mode(']
-        conditional_keywords = ['if ', 'then ', 'else ', 'when(']
-        calculation_keywords = ['+', '-', '*', '/', 'random']
-        date_keywords = ['date(', 'today']
-        
-        if not case_sensitive:
-            aggregation_funcs = [func.lower() for func in aggregation_funcs]
-            conditional_keywords = [kw.lower() for kw in conditional_keywords]
-            date_keywords = [kw.lower() for kw in date_keywords]
-        
-        if any(func in content for func in aggregation_funcs):
-            return "aggregation"
-        elif any(keyword in content for keyword in conditional_keywords):
-            return "conditional"
-        elif any(keyword in content for keyword in calculation_keywords):
-            return "calculation"
-        elif ('concat(' if case_sensitive else 'concat(') in content:
-            return "string_operation"
-        elif any(keyword in content for keyword in date_keywords):
-            return "date_operation"
-        else:
-            return "simple_assignment"
-    
-    def extract_dependencies(self, code_block: CodeBlock) -> List[str]:
-        """Extract dependencies (table/variable references) from a code block."""
-        dependencies = []
-        content = code_block.content
-        
-        # Extract table references (e.g., Catalog.ItemCode)
-        table_refs = re.findall(r'(\w+)\.', content)
-        dependencies.extend(list(set(table_refs)))
-        
-        # Extract function calls
-        function_refs = re.findall(r'(\w+)\(', content)
-        dependencies.extend(list(set(function_refs)))
-        
-        return list(set(dependencies))
+    def _suggests_continuation(self, line: str) -> bool:
+        """Check if a line suggests continuation (ends with 'with', comma, operator, etc.)"""
+        stripped = line.rstrip()
+        continuation_endings = ['with', ',', 'as', '=', 'and', 'or', '+', '-', '*', '/', 'by', 'at', 'when']
+        return any(stripped.endswith(ending) for ending in continuation_endings)

@@ -6,11 +6,37 @@ to ensure consistent behavior across different views of Envision DSL.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Set
 from dataclasses import dataclass
+from enum import Enum
+from config_manager import get_config
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Try to import tiktoken, fall back to simple word count if not available
+try:
+    import tiktoken
+    TIKTOKEN_AVAILABLE = True
+except ImportError:
+    TIKTOKEN_AVAILABLE = False
+
+class BlockType(Enum):
+    """Enumeration of different block types in Envision scripts."""
+    COMMENT = "comment"
+    SECTION_HEADER = "section_header"
+    IMPORT = "import"
+    READ = "read"
+    WRITE = "write"
+    CONST = "const"
+    EXPORT = "export"
+    TABLE_DEFINITION = "table_definition"
+    ASSIGNMENT = "assignment"
+    SHOW = "show"
+    KEEP_WHERE = "keep_where"
+    FORM_READ = "form_read"
+    CONTROL_FLOW = "control_flow"
+    UNKNOWN = "unknown"
 
 @dataclass
 class CodeBlock:
@@ -20,7 +46,7 @@ class CodeBlock:
     Attributes:
         content: The raw code content
         block_type: Type of code block (function, table, expression, etc.)
-        name: Identifier/name of the block if available
+        name: Identifier/name of the block if available (ex: table name for a table definition)
         line_start: Starting line number in source file
         line_end: Ending line number in source file
         file_path: Path to the physical source file
@@ -28,19 +54,22 @@ class CodeBlock:
         metadata: Additional parser-specific metadata
     """
     content: str
-    block_type: str
+    block_type: BlockType
     name: Optional[str] = None
     line_start: int = 0
     line_end: int = 0
     file_path: str = ""
-    dependencies: List[str] = None
+    dependencies: Set[str] = None
+    definitions: Set[str] = None
     metadata: Dict[str, Any] = None
     
     def __post_init__(self):
         if self.dependencies is None:
-            self.dependencies = []
+            self.dependencies = set()
         if self.metadata is None:
             self.metadata = {}
+        if self.definitions is None:
+            self.definitions = set()
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the CodeBlock to a dictionary for JSON serialization."""
@@ -52,8 +81,25 @@ class CodeBlock:
             'line_end': self.line_end,
             'file_path': self.file_path,
             'dependencies': self.dependencies,
+            'definitions': self.definitions,
             'metadata': self.metadata
         }
+    
+    def __len__(self) -> int:
+        """Returns number of lines in the block."""
+        return self.content.count('\n') + 1
+    
+    def get_token_count(self, encoding_name: str = "cl100k_base") -> int:
+        """Returns approximate token count for this block."""
+        if TIKTOKEN_AVAILABLE:
+            try:
+                encoding = tiktoken.get_encoding(encoding_name)
+                return len(encoding.encode(self.content))
+            except Exception:
+                pass
+        
+        # Fallback: rough approximation (1 token ≈ 0.75 words)
+        return int(len(self.content.split()) * 1.3)
 
 class BaseParser(ABC):
     """
@@ -70,7 +116,7 @@ class BaseParser(ABC):
         Args:
             config: Parser-specific configuration options
         """
-        self.config = config or {}
+        self.config = config or get_config().get('parser', {})
         self.logger = logging.getLogger(self.__class__.__name__)
     
     @property

@@ -12,6 +12,7 @@ sentence-transformers>=2.2.0
 faiss-cpu>=1.7.4
 # faiss-gpu>=1.7.4  # Uncomment for GPU support
 transformers>=4.30.0
+tiktoken>=0.11.0
 
 # Graph-based workflow dependencies
 langgraph>=0.0.1

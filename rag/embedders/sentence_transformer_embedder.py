@@ -165,51 +165,20 @@ class SentenceTransformerEmbedder(BaseEmbedder):
     
     def prepare_chunk_for_embedding(self, chunk: CodeChunk) -> str:
         """Prepare a code chunk for embedding with code-specific formatting."""
+
+        # Use summary from metadata if available
+        if "summary" in chunk.metadata and chunk.metadata["summary"]:
+            return self.prepare_text_for_embedding(chunk.metadata["summary"])
+        
         text_parts = []
         
-        # Add chunk type and context for better semantic understanding
-        text_parts.append(f"[{chunk.chunk_type.replace('_', ' ').title()}]")
-        
-        # Add context if available
-        if chunk.context:
-            text_parts.append(f"Context: {chunk.context}")
-        
-        # Add semantic information from metadata
-        if chunk.metadata:
-            # Add chunk name if available
-            if 'chunk_name' in chunk.metadata and chunk.metadata['chunk_name']:
-                text_parts.append(f"Name: {chunk.metadata['chunk_name']}")
-            
-            # Add section information
-            if 'section' in chunk.metadata:
-                text_parts.append(f"Section: {chunk.metadata['section']}")
-            
-            # Add specific information based on chunk type
-            if chunk.chunk_type == 'data_ingestion' and 'table_names' in chunk.metadata:
-                table_names = chunk.metadata['table_names']
-                text_parts.append(f"Data tables: {', '.join(table_names)}")
-            
-            elif chunk.chunk_type == 'calculation' and 'variable_names' in chunk.metadata:
-                from config_manager import get_config
-                config = get_config()
-                max_vars = config.get('embedder.text_preparation.max_variable_names', 3)
-                var_names = chunk.metadata['variable_names']
-                text_parts.append(f"Variables: {', '.join(var_names[:max_vars])}")
+        # Add section information
+        if 'section' in chunk.metadata:
+            text_parts.append(f"Section: {chunk.metadata['section']}")
         
         # Add the main content with code formatting hints
-        content = chunk.content
         
-        # Add hints for better code understanding
-        if 'read ' in content.lower():
-            content = f"[Data Loading Code]\n{content}"
-        elif 'show ' in content.lower():
-            content = f"[Visualization Code]\n{content}"
-        elif 'table ' in content.lower():
-            content = f"[Table Definition]\n{content}"
-        elif any(op in content for op in ['=', '+', '-', '*', '/']):
-            content = f"[Calculation Code]\n{content}"
-        
-        text_parts.append(content)
+        text_parts.append(chunk.content)
         
         # Join with newlines and prepare
         full_text = '\n'.join(text_parts)

@@ -16,7 +16,7 @@ from rag.core.base_chunker import BaseChunker
 from rag.core.base_embedder import BaseEmbedder
 from rag.core.base_retriever import BaseRetriever
 
-from rag.parsers.envision_parser import EnvisionParser
+from rag.parsers.old_envision_parser import EnvisionParser
 from rag.chunkers.semantic_chunker import SemanticChunker
 from rag.summarizers.chunk_summarizer import ChunkSummarizer
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder

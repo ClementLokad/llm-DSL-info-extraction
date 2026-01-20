@@ -53,46 +53,17 @@ paths:
 parser:
   type: "envision"
   supported_extensions: [".nvn"]
-  
-  # Regex compilation settings
-  multiline_patterns: true
-  case_sensitive: false
-  
-  # Section delimiter settings
-  section_delimiter:
-    min_chars: 20
-    valid_chars: ["~", "=", "-"]
-    pattern_prefix: "///"
 
 # =============================================================================
 # CHUNKER CONFIGURATION
 # =============================================================================
 chunker:
-  type: "semantic"
+  type: "envision"
   
   # Core chunking parameters (all numeric values externalized)
   max_chunk_tokens: 512
   overlap_lines: 2    # Line-based overlap for split chunks (default: 2 lines)
-  preserve_boundaries: true
-  
-  # Semantic chunking strategies
-  strategies:
-    group_by_section: true
-    group_related_assignments: true
-    keep_read_statements_separate: true
-    include_context_comments: true
-  
-  # Block type priorities (lower number = higher priority)
-  block_priorities:
-    comment_block: 1
-    read_statement: 2
-    table_definition: 3
-    assignment: 4
-    show_statement: 5
-  
-  # Token estimation settings
-  chars_per_token: 4
-  # min_chunk_size: 10
+  min_overlap_lines: 3 # Minimum overlap between 2 chunks not separated by a section delimiter (default: 3 lines)
 
 # =============================================================================
 # SUMMARIZER CONFIGURATION
@@ -305,6 +276,7 @@ logging:
 # MAIN PIPELINE CONFIGURATION
 # =============================================================================
 main_pipeline:
+  agentic: false
   agent_logic:
     max_retries: 2
     distillation_llm: "qwen"

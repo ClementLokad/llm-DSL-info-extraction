@@ -8,7 +8,7 @@ sys.path.append(str(Path(__file__).parent))
 
 from config_manager import ConfigManager
 from rag.parsers.envision_parser import EnvisionParser
-from rag.chunkers.semantic_chunker import SemanticChunker
+from rag.chunkers.envision_chunker import EnvisionChunker
 from rag.summarizers.chunk_summarizer import ChunkSummarizer
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from rag.retrievers.faiss_retriever import FAISSRetriever
@@ -40,9 +40,9 @@ def build_index():
 
     print("🔨 Building summary index...")
     cfg = ConfigManager()
-    parser = EnvisionParser(cfg.get_parser_config())
-    chunker = SemanticChunker(cfg.get_chunker_config())
     summarizer = ChunkSummarizer(cfg.get_summarizer_config())
+    parser = EnvisionParser(cfg.get_parser_config())
+    chunker = EnvisionChunker(cfg.get_chunker_config())
     embedder = SentenceTransformerEmbedder(cfg.get_embedder_config())
     embedder.initialize()
     retriever = FAISSRetriever(cfg.get_retriever_config())
@@ -50,18 +50,19 @@ def build_index():
     
     dirs = cfg.get('paths.input_dirs', ["env_scripts"])
     blocks = []
+    chunks = []
     
     for d in dirs:
         p = Path(d)
         if not p.exists():
             continue
         for f in p.glob("*.nvn"):
-            blocks.extend(parser.parse_file(str(f)))
+            current_blocks = parser.parse_file(str(f))
+            blocks.extend(current_blocks)
+            current_chunks = chunker.chunk_blocks(current_blocks, start_id=len(chunks))
+            chunks.extend(current_chunks)
     
-    print(f"Parsed {len(blocks)} blocks")
-    
-    chunks = chunker.chunk_blocks(blocks)
-    print(f"Created {len(chunks)} chunks")
+    print(f"Parsed {len(blocks)} blocks and created {len(chunks)} chunks")
 
     # Mode: Check status only
     if args.check_status: 

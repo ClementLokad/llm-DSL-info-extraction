@@ -43,7 +43,7 @@ def test_rag():
     """Test RAG components"""
     print("\n🧪 Testing RAG")
     from config_manager import ConfigManager
-    from rag.parsers.envision_parser import EnvisionParser
+    from rag.parsers.old_envision_parser import EnvisionParser
     from rag.chunkers.semantic_chunker import SemanticChunker
     
     cfg = ConfigManager()

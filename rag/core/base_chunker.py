@@ -6,7 +6,7 @@ semantically meaningful pieces optimized for embedding and retrieval.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set, Tuple
 from dataclasses import dataclass
 import logging
 
@@ -21,40 +21,79 @@ class CodeChunk:
     
     Attributes:
         content: The chunked code content
-        chunk_type: Type of chunk (semantic_block, function_group, etc.)
+        chunk_id: Unique identifier for the chunk
         original_blocks: List of original code blocks that form this chunk
         context: Surrounding context for better understanding
         size_tokens: Estimated token count (for embedding limits)
+        dependencies: Set of dependencies/imports used in this chunk
+        definitions: Set of definitions provided in this chunk
         metadata: Additional chunker-specific metadata
     """
     content: str
-    chunk_type: str
+    chunk_id: int = None
+    chunk_type: str = "RAG_chunk"
     original_blocks: List[CodeBlock] = None
     context: str = ""
     size_tokens: int = 0
+    dependencies: Set[str] = None
+    definitions: Set[str] = None
     metadata: Dict[str, Any] = None
     
     def __post_init__(self):
+        if self.dependencies is None:
+            self.dependencies = set()
         if self.metadata is None:
             self.metadata = {}
+        if self.definitions is None:
+            self.definitions = set()
+        if self.chunk_id is None:
+            self.chunk_id = hash(self.content)
+        if self.original_blocks is None:
+            self.original_blocks = []
         
         # Estimate token count if not provided
         if self.size_tokens == 0:
-            # Use configurable approximation ratio
-            from config_manager import get_config
-            chars_per_token = get_config().get('chunker.chars_per_token', 4)
-            self.size_tokens = len(self.content) // chars_per_token
+            self.size_tokens = sum(block.get_token_count() for block in self.original_blocks)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the CodeChunk to a dictionary for JSON serialization."""
         return {
             'content': self.content,
-            'chunk_type': self.chunk_type,
+            'chunk_id': self.chunk_id,
             'original_blocks': [block.to_dict() for block in self.original_blocks],
             'context': self.context,
             'size_tokens': self.size_tokens,
+            'dependencies': self.dependencies,
+            'definitions': self.definitions,
             'metadata': self.metadata
         }
+
+    def add_block(self, block: CodeBlock, max_tokens: int) -> bool:
+            """
+            Attempts to add a block to this chunk.
+            
+            Returns:
+                True if block was added successfully, False if it would exceed max_tokens
+            """
+            if self.get_token_count() + block.get_token_count() > max_tokens:
+                return False
+
+            self.content += ("\n" if self.content else "") + block.content
+            self.size_tokens += block.get_token_count()
+            self.original_blocks.append(block)
+            self.dependencies.update(block.dependencies)
+            self.definitions.update(block.definitions)
+            return True
+    
+    def get_token_count(self) -> int:
+        """Returns total token count for all blocks in this chunk."""
+        return self.size_tokens
+    
+    def get_line_range(self) -> Tuple[int, int]:
+        """Returns (start_line, end_line) for this chunk."""
+        if not self.original_blocks:
+            return (0, 0)
+        return (self.original_blocks[0].line_start, self.original_blocks[-1].line_end)
 
 class BaseChunker(ABC):
     """
@@ -105,7 +144,7 @@ class BaseChunker(ABC):
     @property
     def overlap_lines(self) -> int:
         """Number of lines to overlap when splitting large blocks (synchronized with config)."""
-        return max(0, self.config.get('overlap_lines', 2))
+        return max(0, self.config.get('overlap_lines', 3))
     
     @abstractmethod
     def chunk_blocks(self, code_blocks: List[CodeBlock]) -> List[CodeChunk]:
@@ -140,7 +179,7 @@ class BaseChunker(ABC):
             # Block is small enough, return as single chunk
             return [CodeChunk(
                 content=code_block.content,
-                chunk_type="single_block",
+                context="single_block",
                 original_blocks=[code_block],
                 size_tokens=estimated_tokens,
                 metadata={
@@ -176,7 +215,6 @@ class BaseChunker(ABC):
                 chunk_content = '\n'.join(current_chunk_lines)
                 chunks.append(CodeChunk(
                     content=chunk_content,
-                    chunk_type="split_block",
                     original_blocks=[code_block],
                     size_tokens=current_tokens,
                     metadata={
@@ -203,7 +241,6 @@ class BaseChunker(ABC):
             chunk_content = '\n'.join(current_chunk_lines)
             chunks.append(CodeChunk(
                 content=chunk_content,
-                chunk_type="split_block",
                 original_blocks=[code_block],
                 size_tokens=current_tokens,
                 metadata={

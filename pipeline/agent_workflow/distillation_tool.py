@@ -55,7 +55,7 @@ class LLMDistillationTool(BaseDistillationTool):
             f"You are the assistant of a complex RAG Agent. The agent has to answer the query that follows.\n\n"
             f"### CONTEXT\nQuery: {query}\nCurrent Thought of the agent: {thought}\n\n"
             f"### DOCUMENTS TO ANALYZE\n"
-            f"Here are the {len(items)} items to analyse which are from {len(total_sources)} distinct scripts:\n"
+            f"Here are the {len(items)} items to analyse which are from {len(total_sources)} distinct scripts:\n\n"
         )
         
         # We verify sources to map them back later

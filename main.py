@@ -18,7 +18,7 @@ sys.path.append(str(Path(__file__).parent))
 
 import config_manager
 import agents.prepare_agent as prepare_agent
-from rag.parsers.envision_parser import EnvisionParser
+from rag.parsers.old_envision_parser import EnvisionParser
 from rag.chunkers.semantic_chunker import SemanticChunker
 from rag.core.base_embedder import BaseEmbedder
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
@@ -565,6 +565,9 @@ EXAMPLES:
         if args.fusion:
            config_manager.get_config().config['rag']['fusion'] = True
 
+        if args.agentic != None:
+            config_manager.get_config().config['main_pipeline']['agentic'] = args.agentic
+
         #Override benchmark type if specified
         if args.benchmarktype:
             config_manager.get_config().config['benchmark']['benchmark_type'] = args.benchmarktype
@@ -583,7 +586,7 @@ EXAMPLES:
             verbose = bool(args.query)
         
         # Create and initialize system
-        if args.agentic:
+        if config_manager.get_config().get('main_pipeline.agentic', False):
             pipeline = MainAgenticPipeline(verbose=verbose, console=console)
         else:
             pipeline = MainLinearPipeline(verbose=verbose, console=console)

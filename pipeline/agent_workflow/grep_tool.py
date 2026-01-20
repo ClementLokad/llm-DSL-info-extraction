@@ -10,7 +10,7 @@ from rag.parsers.envision_parser import EnvisionParser
 from pipeline.agent_workflow.workflow_base import BaseGrepTool
 from get_mapping import get_file_mapping
 from config_manager import get_config
-from rag.utils.script_scanner import collect_constants, scan_string_for_references
+from rag.utils.script_scanner import collect_constants, scan_string_for_references, replace_constants_in_script
 
 
 class GrepTool(BaseGrepTool):
@@ -125,15 +125,16 @@ class GrepTool(BaseGrepTool):
                         continue
                     file_consts[block.file_path] = collect_constants(script_content)
                 
-                hits, cleaned_content = scan_string_for_references(block.content, clean_target,
-                                                  file_consts[block.file_path], need_cleaned_string=True)
+                hits = scan_string_for_references(block.content, clean_target,
+                                                  file_consts[block.file_path])
+                cleaned_content = replace_constants_in_script(block.content, constants=file_consts[block.file_path])
+
                 if not hits:
                     continue
                 else:
                     matches.append(RetrievalResult(
                         chunk=CodeChunk(
                             content=cleaned_content,
-                            chunk_type=block.block_type,
                             original_blocks=[block],
                             context="Grep match",
                             size_tokens=len(block.content) // self.config.get('chunker.chars_per_token', 4),
@@ -156,9 +157,9 @@ class GrepTool(BaseGrepTool):
                         RetrievalResult(
                             chunk=CodeChunk(
                                 content=block.content,
-                                chunk_type=block.block_type,
+                                chunk_type="grep_match",
                                 original_blocks=[block],
-                                context="Grep match",
+                                context="Grep match inside of GrepTool",
                                 size_tokens=len(block.content) // self.config.get('chunker.chars_per_token', 4),
                                 metadata={
                                     "file_path": getattr(block, "file_path", None),

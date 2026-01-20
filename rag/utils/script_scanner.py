@@ -30,8 +30,7 @@ def scan_string_for_references(
     script_content: str,
     target_path_fragment: str,
     consts: Dict[str, str],
-    verbs: List[str] = None,
-    need_cleaned_string: bool = False
+    verbs: List[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Scan a script content string for references to target_path, resolving constants.
@@ -50,12 +49,8 @@ def scan_string_for_references(
     normalized_target = (target_path_fragment or "").strip()
     stripped_target = normalized_target.lstrip("/")
     pattern_regex = re.compile(stripped_target, re.IGNORECASE)
-    
-    final_content = []
-
 
     for line_no, raw_line in enumerate(lines):
-        final_line = raw_line
         # 1. Check for explicit verb statements (read: "...", write "...")
         match = statement_re.search(raw_line)
         if match:
@@ -64,9 +59,7 @@ def scan_string_for_references(
             
             # Resolve constants in the path string
             resolved_path = _resolve_placeholders(literal_value, consts).replace("\\", "")
-            
-            if need_cleaned_string and literal_value != resolved_path:
-                final_line = _resolve_placeholders(raw_line, consts)
+
             
             if pattern_regex.search(resolved_path):
                 hits.append({
@@ -75,7 +68,6 @@ def scan_string_for_references(
                     "raw": raw_line.strip(),
                     "resolved_path": resolved_path
                 })
-                final_content.append(final_line)
                 continue # If found as a verb statement, we can skip pure literal check for this line? 
                          # Actually user code checks both but maintains uniqueness. Let's keep it simple.
 
@@ -101,14 +93,7 @@ def scan_string_for_references(
                     "raw": raw_line.strip(),
                     "resolved_path": resolved_literal
                 })
-
-            if need_cleaned_string and literal != resolved_literal:
-                final_line = _resolve_placeholders(raw_line, consts)
         
-        final_content.append(final_line)
-            
-    if need_cleaned_string:
-        return hits, "\n".join(final_content)
     return hits
 
 def scan_script_for_references(
@@ -132,3 +117,18 @@ def scan_script_for_references(
         consts,
         verbs
     )
+
+def replace_constants_in_script(content: str, script_path: Path = None,
+                                constants: Dict[str, str] = None) -> str:
+    """
+    Replace constants in the script content.
+    """
+    if not constants and script_path:
+        try:
+            script_content = script_path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return script_content
+        constants = collect_constants(script_content)
+    lines = content.splitlines()
+    result = [_resolve_placeholders(line, constants) for line in lines]
+    return "\n".join(result)

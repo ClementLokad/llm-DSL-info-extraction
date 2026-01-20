@@ -14,6 +14,12 @@ from rag.core.base_chunker import CodeChunk
 
 logger = logging.getLogger(__name__)
 
+try:
+    import tiktoken
+    TIKTOKEN_AVAILABLE = True
+except ImportError:
+    TIKTOKEN_AVAILABLE = False
+
 class BaseEmbedder(ABC):
     """
     Abstract base class for all code embedders.
@@ -168,7 +174,10 @@ class BaseEmbedder(ABC):
         text = '\n'.join(lines)
         
         # 2. Better token estimation for code (more tokens per char than prose)
-        estimated_tokens = max(len(text) // chars_per_token, len(text.split()))
+        if TIKTOKEN_AVAILABLE:
+            estimated_tokens = len(tiktoken.get_encoding("cl100k_base").encode(text))
+        else: 
+            estimated_tokens = max(len(text) // chars_per_token, len(text.split()))
         
         # 3. Smart truncation at logical boundaries if needed
         if estimated_tokens > self.max_length:
@@ -193,15 +202,12 @@ class BaseEmbedder(ABC):
         Returns:
             Prepared text representation of the chunk
         """
+        # Use summary from metadata if available
+        if "summary" in chunk.metadata and chunk.metadata["summary"]:
+            return self.prepare_text_for_embedding(chunk.metadata["summary"])
+
         # Default implementation - can be overridden by specific embedders
         text_parts = []
-        
-        # Add chunk type as context
-        text_parts.append(f"[{chunk.chunk_type}]")
-        
-        # Add context if available
-        if chunk.context:
-            text_parts.append(f"Context: {chunk.context}")
         
         # Add the main content
         text_parts.append(chunk.content)
