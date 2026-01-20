@@ -100,9 +100,7 @@
                 "Analyses & diagnostics",
                 "Préparation des forecasts"
             ]
-        }
-    ],
-    "unanswered": [
+        },
         {
             "question": "Le client veut ajouter une nouvelle localisation pour le dispatch. Où paramétrer le champ ReDispatchCycle propre à cette localisation ?",
             "deterministic": true,
@@ -250,7 +248,9 @@
             "answers": [
                 "Dans la documentation du script /4. Optimization workflow/FR/05. Suggestions d'achat, on distingue : 1) Demande Moyenne approvisionnement : demande moyenne prévue sur leprochain délai d’approvisionnement. 2)Demande Moyenne couverture : demande moyenne prévue sur la fenêtre deresponsabilité (FR) (cycle de réapprovisionnement). 3) Demande Moyenne totale : demande moyenne prévue sur le délai  d’approvisionnement + fenêtre de responsabilité (FR)."
             ]
-        },
+        }
+    ],
+    "unanswered": [
         {
             "question": "Où est définie la logique d'actualisation du stock ?",
             "deterministic": true

@@ -70,8 +70,8 @@ chunker:
 # =============================================================================
 summarizer:
   summary_model: "qwen" # Options: "gemini", "gpt", "mistral", "groq"
-  summary_prompt: "Summarize what the following code chunk does as briefly as possible using english words, no need to create full sentences. Write ONLY the summary without formatting like titles."
-  summary_list_path: "./data/chunk_summaries.csv"  # Path to store chunk summaries
+  summary_prompt: "### System Prompt\nYou are an expert software architect. Your task is to generate a dense, semantic summary of the provided code chunk to improve vector search retrieval.\n\n### Instructions\nAnalyze the code and provide a concise summary that includes:\n1. **Purpose:** What is the primary goal of this code? (e.g., 'Forecast next month's sales')\n2. **Key Definitions:** Mention what is computed or shown.\n3. **Key Dependencies:** Mention which resources are read or modified.\n4. **Logic Flow:** Summarize the core algorithm or transformation occurring.\n\n### Constraint\n- Do not use conversational filler (e.g., 'This code is about...').\n- Use technical keywords that a developer might use when searching.\n- Keep the summary between 50-150 words to maintain embedding density.\n\n### Code Chunk:\n"
+  summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
 
 # =============================================================================
 # EMBEDDER CONFIGURATION

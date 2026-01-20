@@ -1,111 +1,93 @@
 from typing import List, Dict, Any, Optional
+import json
+import os
 from rag.core.base_chunker import CodeChunk
 import agents.prepare_agent as prepare_agent
-import csv
-import os
-from collections import deque
 
 class ChunkSummarizer():
     def __init__(self, config: Optional[Dict[str, Any]] = None):
+        config = config or {}
         self.summary_agent = prepare_agent.prepare_summary_agent()
-        self.summary_prompt = config.get('summary_prompt', "Summarize what the following code chunk does very briefly using keywords:")
-        self.summary_list_path = config.get('summary_list_path', "")
+        self.summary_prompt = config.get('summary_prompt', "Summarize what the following code chunk does briefly:")
+        # Default to a .json extension
+        self.summary_list_path = config.get('summary_list_path', "summaries.json")
 
     def generate_chunk_summary(self, chunk: CodeChunk) -> str:
-        """generates a summary made by a LLM agent as a chunk metadata"""
-        chunk_summary = self.summary_agent.generate_response(self.summary_prompt + "Chunk to summarize :" + chunk.content)
+        """Generates a summary using an LLM agent."""
+        prompt = f"{self.summary_prompt}\n\nCODE:\n{chunk.content}\n\n### Summary:\n"
+        chunk_summary = self.summary_agent.generate_response(prompt)
+        return chunk_summary.strip()
 
-        #remove all line skips from the summary
-        chunk_summary = chunk_summary.replace('\n', ' ').strip()
-
-        return chunk_summary
-
-    def get_last_index(self) -> int:
-        """Reads only the last line of the file to get the last processed index (better alternative could be coded with seek)"""
+    def _load_json_data(self) -> Dict[str, str]:
+        """Helper to load existing summaries from the JSON file."""
+        if not os.path.exists(self.summary_list_path) or os.path.getsize(self.summary_list_path) == 0:
+            return {}
         try:
             with open(self.summary_list_path, 'r', encoding='utf-8') as f:
-                last_line_generator = deque(f, maxlen=1)
-                
-                # if file is empty
-                if not last_line_generator:
-                    return 0
-                    
-                last_line = last_line_generator[0]
-                
-                # keep index from last line
-                last_index = last_line.split(',')[0]
-                
-                # add 1 to the last index to get the next index to process
-                return int(last_index) + 1
-                
-        except FileNotFoundError:
-            return 0   
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+
+    def _save_json_data(self, data: Dict[str, str]):
+        """Helper to save the entire dictionary to JSON."""
+        with open(self.summary_list_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
 
     def generate_summary_file(self, chunks: List[CodeChunk], rebuild: bool = False) -> None:
-        """Main function to generate a list of summaries using a list of chunks."""
+        """
+        Processes chunks and saves summaries to a JSON file.
+        Updates the file after every chunk to prevent data loss.
+        """
         total_iterations = len(chunks)
-
-        if rebuild:
-            # start from scratch
-            open(self.summary_list_path, 'w+').close()
+        
+        # Load existing data or start fresh
+        existing_data = {} if rebuild else self._load_json_data()
+        
+        # Determine where to start based on the highest integer key in the JSON
+        if not existing_data:
             start_index = 0
-
         else:
-            # recover the last processed index
-            start_index = self.get_last_index()
+            # Keys in JSON are strings, convert to int to find the max
+            processed_indices = [int(k) for k in existing_data.keys()]
+            start_index = max(processed_indices) + 1
 
-        # print the current state
-        print(f"--- Summary Task State ---")
-        print(f"List length: {total_iterations}")
-        print(f"Already done: {start_index}")
-        print(f"To do: {total_iterations - start_index}")
+        print(f"--- Summary Task State (JSON) ---")
+        print(f"Total chunks: {total_iterations}")
+        print(f"Already processed: {start_index}")
+        print(f"To do: {max(0, total_iterations - start_index)}")
         print("-" * 20)
 
-        if not rebuild and start_index >= total_iterations:
-            print("File is already complete. No more calculations needed.")
+        if start_index >= total_iterations:
+            print("Processing already complete.")
+            return
 
+        try:
+            for i in range(start_index, total_iterations):
+                print(f"Treating chunk N°{i}/{total_iterations-1}...", end='\r')
+                
+                summary = self.generate_chunk_summary(chunks[i])
+                
+                # Update chunk metadata in memory
+                chunks[i].metadata['summary'] = summary
+
+                # Update local dictionary and save to file
+                existing_data[str(i)] = summary
+                self._save_json_data(existing_data)
+
+        except KeyboardInterrupt:
+            print("\n\n🛑 Manual stop detected (CTRL+C). Progress saved to JSON.")
         else:
-            with open(self.summary_list_path, mode='a', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
+            print(f"\n✅ All summaries saved to '{self.summary_list_path}'.")
 
-                try:
-                    for i in range(start_index, total_iterations):
-                        print(f"Treating chunk N°{i}...", end='\r')
-                        
-                        # generate summary
-                        resultat = self.generate_chunk_summary(chunks[i])
+    def get_summary_list(self) -> List[str]:
+        """Returns a list of summary strings ordered by index."""
+        data = self._load_json_data()
+        # Sort by key to ensure order [0, 1, 2...]
+        sorted_keys = sorted(data.keys(), key=int)
+        return [data[k] for k in sorted_keys]
 
-                        # write summary to file
-                        writer.writerow([i, resultat])
-
-                        # write to file immediately to avoid data loss
-                        f.flush() 
-                        
-                except KeyboardInterrupt:
-                    print("\n\n🛑 Manual stop detected (CTRL+C) 🛑.")
-                    print("Data calculated so far has been saved.")
-                else:
-                    print(f"\n Summaries generated successfully and saved '{self.summary_list_path}'.")
-                return
-
-    def get_summary_list(self) -> list:
-        """Reads the summary file and returns a list of summaries"""
-        results = []
-        
-        #if the file does not exist, return empty list
-        if not os.path.exists(self.summary_list_path):
-            return results, 0
-
-        with open(self.summary_list_path, 'r', encoding='utf-8') as f:
-            reader = csv.reader(f)
-
-            for row in reader:
-                if row:
-                    summary = row[1]  # get the summary from the second column
-                    results.append(summary)
-                    
-        return results
-    
-    def get_summary_state(self, chunks: List[CodeChunk]) -> int:
-        """Returns the number of summaries already generated"""
-        return (f"{max(0,self.get_last_index()-1)}/{len(chunks)} summaries generated., ")
+    def get_summary_state(self, chunks: List[CodeChunk]) -> str:
+        """Returns a progress string."""
+        data = self._load_json_data()
+        count = len(data)
+        return f"{count}/{len(chunks)} summaries generated."

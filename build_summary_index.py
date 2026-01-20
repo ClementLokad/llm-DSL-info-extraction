@@ -70,12 +70,12 @@ def build_index():
 
     # Mode: Build index (with optional resume)
     else:
+        print(summarizer.get_summary_list())
         summarizer.generate_summary_file(chunks, rebuild=args.rebuild)
-        summaries = summarizer.get_summary_list()
 
-        embeddings = embedder.embed_batch(summaries)
-        print(f"Generated {embeddings.shape[0]} embeddings")
-        
+        embeddings = embedder.embed_chunks(chunks)
+        print(f"Generated {embeddings.shape[0]} embeddings from summaries if possible or raw chunks otherwise")
+
         retriever.add_chunks(chunks, embeddings)
         
         index_path = Path("data/faiss_summary_index")
