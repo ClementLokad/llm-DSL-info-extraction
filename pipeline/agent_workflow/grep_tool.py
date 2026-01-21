@@ -122,6 +122,7 @@ class GrepTool(BaseGrepTool):
                         with open(block.file_path, "r", encoding="utf-8") as f:
                             script_content = f.read()
                     except FileNotFoundError:
+                        print(f"File not found: {block.file_path}")
                         continue
                     file_consts[block.file_path] = collect_constants(script_content)
                 

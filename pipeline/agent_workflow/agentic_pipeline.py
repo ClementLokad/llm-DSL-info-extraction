@@ -57,8 +57,7 @@ class AgenticPipeline(BasePipeline):
                 "tool": None,
                 "tool_parameter": None,
                 "rewritten_prompt": None,
-                "current_thought": None,
-                "local_history": None
+                "current_thought": None
             }
             
             # 2. Run Sub-Graph
@@ -75,8 +74,8 @@ class AgenticPipeline(BasePipeline):
                 new_prompt = f"Question: {state['question']}"
 
             return {
-                "knowledge_bank": updated_pipeline_state.get("knowledge_bank"),
-                "execution_history": updated_pipeline_state.get("execution_history"),
+                "knowledge_bank": updated_pipeline_state.get("knowledge_bank", []),
+                "execution_history": updated_pipeline_state.get("execution_history", []),
                 "prompt": new_prompt,
                 "regenerate_needed": final_sub_state["regenerate"],
                 "retry_count": state["retry_count"]

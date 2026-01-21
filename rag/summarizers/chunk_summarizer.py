@@ -66,9 +66,6 @@ class ChunkSummarizer():
                 print(f"Treating chunk N°{i}/{total_iterations-1}...", end='\r')
                 
                 summary = self.generate_chunk_summary(chunks[i])
-                
-                # Update chunk metadata in memory
-                chunks[i].metadata['summary'] = summary
 
                 # Update local dictionary and save to file
                 existing_data[str(i)] = summary

@@ -125,9 +125,11 @@ def replace_constants_in_script(content: str, script_path: Path = None,
     """
     if not constants and script_path:
         try:
-            script_content = script_path.read_text(encoding="utf-8", errors="ignore")
+            with open(script_path, "r", encoding="utf-8") as f:
+                script_content = f.read()
         except Exception:
-            return script_content
+            print(f"Could not read script at {script_path} to collect constants.")
+            return content
         constants = collect_constants(script_content)
     lines = content.splitlines()
     result = [_resolve_placeholders(line, constants) for line in lines]

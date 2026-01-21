@@ -70,8 +70,10 @@ def build_index():
 
     # Mode: Build index (with optional resume)
     else:
-        print(summarizer.get_summary_list())
         summarizer.generate_summary_file(chunks, rebuild=args.rebuild)
+        
+        for i, summary in enumerate(summarizer.get_summary_list()):
+            chunks[i].metadata['summary'] = summary
 
         embeddings = embedder.embed_chunks(chunks)
         print(f"Generated {embeddings.shape[0]} embeddings from summaries if possible or raw chunks otherwise")

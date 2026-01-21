@@ -8,11 +8,13 @@ and tracking dependencies.
 """
 
 import re
+import os
 from typing import List, Dict, Any
 from rag.core.base_parser import BlockType, CodeBlock
 from rag.core.base_chunker import CodeChunk, BaseChunker
 from rag.parsers.envision_parser import EnvisionParser
 from config_manager import get_config
+from get_mapping import get_file_mapping
 
 
 class EnvisionChunker(BaseChunker):
@@ -31,6 +33,7 @@ class EnvisionChunker(BaseChunker):
         """
         super().__init__(config)
         self.min_overlap_lines = self.config.get('overlap_lines', 3)
+        self.mapping = get_file_mapping()
     
     def _split_large_block(self, block: CodeBlock, max_tokens: int) -> List[CodeBlock]:
         """
@@ -317,9 +320,14 @@ class EnvisionChunker(BaseChunker):
                     providers[dep] = other_chunk.chunk_id
                     break
         
+        file_path = chunk.original_blocks[0].file_path
+        original_file_path = self.mapping.get(os.path.splitext(os.path.basename(file_path))[0], None)
+        
         chunk.metadata.update({
             'external_dependencies': external_deps,
             'dependency_providers': providers,
+            'file_path': file_path,
+            'original_file_path': original_file_path,
             'token_count': chunk.get_token_count(),
             'block_types': [block.block_type.value for block in chunk.original_blocks],
             'line_range': chunk.get_line_range()

@@ -31,7 +31,7 @@ class BaseDistillationTool():
         # Placeholder for actual LLM call
         return f"Distilled Fact: Content relevant to '{query}' found."
 
-    def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str, verbose=False) -> List[Tuple[str, str]]:
+    def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str, llm_response: str = "", verbose=False) -> List[Tuple[str, str]]:
         """
         Summarize multiple content items in one go.
         
@@ -39,6 +39,7 @@ class BaseDistillationTool():
             items: List of (content, source_path_str) tuples.
             query: The user question.
             thought: The planner's current reasoning.
+            llm_response: The main LLM's response when given the raw tool results.
             
         Returns:
             List of (fact_summary, source_path) tuples.
@@ -133,8 +134,6 @@ class WorkflowState(TypedDict):
     tool: Optional[str] 
     tool_parameter: Optional[Any] 
     rewritten_prompt: Optional[str]
-    # Temporary field to track local history before syncing to pipeline_state
-    local_history: Optional[List[ActionLog]]
 
 
 class BaseAgentWorkflow(StateGraph):
@@ -158,7 +157,8 @@ class BaseAgentWorkflow(StateGraph):
         # Assuming 'execution_history' is added to GraphState, or we inject it dynamically
         return state['pipeline_state'].get("execution_history", [])
 
-    def _append_history(self, state: WorkflowState, tool: str, param: str, summary: str, thought: str):
+    def _append_history(self, state: WorkflowState, tool: str, param: str, summary: str, thought: str,
+                        results_to_analyse: Optional[List[RetrievalResult]] = None) -> None:
         """Append a new action to the history."""
         # Get existing history from the global pipeline state
         history = self._get_history(state)
@@ -170,7 +170,8 @@ class BaseAgentWorkflow(StateGraph):
             "thought": thought,
             "tool": tool,
             "parameter": str(param),
-            "outcome_summary": summary
+            "outcome_summary": summary,
+            "results_to_analyse": results_to_analyse
         }
         
         # Ensure the list exists and append

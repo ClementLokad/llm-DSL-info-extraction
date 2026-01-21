@@ -47,6 +47,7 @@ class ActionLog(TypedDict):
     tool: str
     parameter: str
     outcome_summary: str # Brief summary of success/failure (not full content)
+    results_to_analyse: Optional[List[RetrievalResult]] = None
 
 
 class AgentGraphState(GraphState):

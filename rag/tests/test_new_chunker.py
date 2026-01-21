@@ -326,7 +326,7 @@ def demonstrate_rag_usage():
 
 
 if __name__ == "__main__":
-    test_file = "env_scripts/67984.nvn"
+    test_file = "env_scripts/76705.nvn"
     print(f"Parsing: {Path(test_file).name}\n")
     
     blocks, chunks = parse_and_chunk_file(test_file)
