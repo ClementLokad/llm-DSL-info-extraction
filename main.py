@@ -84,8 +84,10 @@ def main_grade_answer(state: GraphState, embedder: BaseEmbedder, console: Consol
         if rate_limit_delay > 0:
             time.sleep(rate_limit_delay)
         
-        score = benchmark.judge(state["question"], final_answer, reference_answer)
-        
+        try:
+            score = benchmark.judge(state["question"], final_answer, reference_answer)
+        except Exception:
+            score = 0
         if state["verbose"]:
             console.print(f"[dim]→ LLM Judge score with reference: {score}[/dim]")
         
