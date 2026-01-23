@@ -87,6 +87,7 @@ def main_grade_answer(state: GraphState, embedder: BaseEmbedder, console: Consol
         try:
             score = benchmark.judge(state["question"], final_answer, reference_answer)
         except Exception:
+            console.print("[bold red]Error during LLM judging, defaulting score to[/bold red] 0")
             score = 0
         if state["verbose"]:
             console.print(f"[dim]→ LLM Judge score with reference: {score}[/dim]")
@@ -396,11 +397,11 @@ class DSLQuerySystem():
         
         for r in final_state["grades"]:
             table.add_row(r['question'], f"{r['score']:.4f}")
-            if final_state["verbose"]:
-                self.console.print(f"[bold green]Question: {r['question']} [/bold green]\n")
-                self.console.print(f"[bold purple]  Référence: {r['reference']}[/bold purple]")
-                self.console.print("\n[bold blue]  LLM: [/bold blue]\n")
-                self.console.print(Markdown(f"{r['llm_response']}"))
+            self.console.print(f"\n[bold green]Question: {r['question']} [/bold green]\n")
+            self.console.print(f"[bold purple]  Référence: {r['reference']}[/bold purple]")
+            self.console.print("\n[bold blue]  LLM: [/bold blue]", end = "")
+            self.console.print(Markdown(f"{r['llm_response']}"))
+            self.console.print(f"\n[bold red] Score : [/bold red]{r['score']}")
         
         self.console.print("\n")
         self.console.print(Align.center(table))
@@ -559,7 +560,12 @@ EXAMPLES:
         # Override agent if specified
         if args.agent:
             config_manager.get_config().config['agent']['default_model'] = args.agent
-        
+            pipeline_logic = config_manager.get_config().config['main_pipeline']['agent_logic']
+            pipeline_logic['distillation_llm'] = args.agent
+            pipeline_logic['main_llm'] = args.agent
+            pipeline_logic['planner_llm'] = args.agent
+            pipeline_logic['cleaning_llm'] = args.agent
+
         if config_manager.get_config().get_default_agent() == 'llama3':
             # Disable rate limiting for local Llama 3
             config_manager.get_config().config['agent']['rate_limit_delay'] = 0

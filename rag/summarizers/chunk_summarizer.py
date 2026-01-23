@@ -16,7 +16,8 @@ class ChunkSummarizer():
         """Generates a summary using an LLM agent."""
         prompt = f"{self.summary_prompt}\n\nCODE:\n{chunk.content}\n\n### Summary:\n"
         chunk_summary = self.summary_agent.generate_response(prompt)
-        return chunk_summary.strip()
+        chunk_summary = f"From script: {chunk.metadata.get('original_file_path', 'Unknown Source')}\n" + chunk_summary.strip()
+        return chunk_summary
 
     def _load_json_data(self) -> Dict[str, str]:
         """Helper to load existing summaries from the JSON file."""

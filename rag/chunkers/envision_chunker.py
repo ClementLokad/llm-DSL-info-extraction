@@ -35,6 +35,9 @@ class EnvisionChunker(BaseChunker):
         self.min_overlap_lines = self.config.get('overlap_lines', 3)
         self.mapping = get_file_mapping()
     
+    def _count_tokens(self, content: str):
+        return CodeBlock(content, BlockType.UNKNOWN).get_token_count()
+    
     def _split_large_block(self, block: CodeBlock, max_tokens: int) -> List[CodeBlock]:
         """
         Split a large block into multiple smaller blocks that fit within max_tokens.
@@ -50,6 +53,125 @@ class EnvisionChunker(BaseChunker):
         # If block fits, return as-is
         if block.get_token_count() <= max_tokens:
             return [block]
+        
+        # 1. Setup: Get lines and calculate tokens per line
+        # using keepends=True preserves formatting for accurate reconstruction
+        lines = block.content.splitlines(keepends=True) 
+        total_lines = len(lines)
+
+        line_token_counts = [self._count_tokens(line) for line in lines]
+        
+        blocks = [] # Will store tuples of (start_line_index, list_of_lines)
+        
+        current_lines = []
+        current_tokens = 0
+        current_block_start_idx = 0
+
+        # 2. Iterative Split
+        for i, line in enumerate(lines):
+            line_tokens = line_token_counts[i]
+
+            # Check if adding this line breaks the limit
+            if current_tokens + line_tokens > max_tokens*0.7:
+                # A. Save the current block (if it has content)
+                if current_lines:
+                    blocks.append((current_block_start_idx, current_lines))
+
+                # B. Prepare the next block with Overlap
+                # We want the last N lines of the current block to be the start of the next
+                overlap_count = min(len(current_lines), self.overlap_lines)
+                
+                if overlap_count > 0:
+                    # The new block effectively starts 'overlap_count' lines back from current i
+                    current_block_start_idx = i - overlap_count
+                    current_lines = lines[current_block_start_idx : i]
+                    # Recalculate tokens for the overlapped section
+                    current_tokens = sum(line_token_counts[current_block_start_idx : i])
+                else:
+                    current_lines = []
+                    current_tokens = 0
+                    current_block_start_idx = i
+            
+            # C. Add the current line
+            current_lines.append(line)
+            current_tokens += line_tokens
+
+        # 3. Handle the Last Block (with Backtracking)
+        if current_lines:
+            target_min_tokens = max_tokens * 0.4
+            
+            # If last block is small, backtrack into previous lines to fill it up
+            # We check current_block_start_idx > 0 so we don't go out of bounds
+            while current_tokens < target_min_tokens and current_block_start_idx > 0:
+                prev_idx = current_block_start_idx - 1
+                prev_line_tokens = line_token_counts[prev_idx]
+
+                # Stop if adding the previous line breaks the max_tokens limit
+                if current_tokens + prev_line_tokens > max_tokens:
+                    break
+                
+                # Prepend the line
+                current_lines.insert(0, lines[prev_idx])
+                current_tokens += prev_line_tokens
+                current_block_start_idx -= 1
+
+            blocks.append((current_block_start_idx, current_lines))
+
+        # 4. Construct CodeBlock Objects
+        sub_blocks = []
+        num_subblocks = len(blocks)
+
+        for i, (start_idx, block_lines) in enumerate(blocks):
+            # Rejoin lines into string
+            sub_content = "".join(block_lines)
+            
+            # Calculate line numbers relative to the original file
+            # block.line_start is the 1-based index of the parent block
+            actual_start = block.line_start + start_idx
+            actual_end = actual_start + len(block_lines) - 1
+
+            # Calculate overlap for metadata
+            # If it's the first block, 0 overlap. Otherwise, calculate how far back we went.
+            # Note: simplistic calculation based on your previous logic
+            overlapping_lines_count = 0
+            if i > 0:
+                # previous end index vs current start index
+                prev_start, prev_lines = blocks[i-1]
+                prev_end_idx = prev_start + len(prev_lines)
+                overlapping_lines_count = max(0, prev_end_idx - start_idx)
+
+            # Regex checks for dependencies (preserved from your original code)
+            sub_dependencies = set()
+            sub_definitions = set()
+            
+            for dep in block.dependencies:
+                if re.search(r'\b' + re.escape(dep) + r'\b', sub_content):
+                    sub_dependencies.add(dep)
+
+            for defi in block.definitions:
+                if re.search(r'\b' + re.escape(defi) + r'\b', sub_content):
+                    sub_definitions.add(defi)
+
+            sub_block = CodeBlock(
+                block_type=block.block_type,
+                content=sub_content,
+                line_start=actual_start,
+                line_end=actual_end,
+                dependencies=sub_dependencies,
+                definitions=sub_definitions,
+                metadata={
+                    **block.metadata,
+                    'is_split_part': True,
+                    'original_block_start': block.line_start,
+                    'part_number': i + 1,
+                    'total_parts': num_subblocks,
+                    'has_split_overlap': i > 0,
+                    'split_overlap_lines': overlapping_lines_count
+                }
+            )
+            sub_blocks.append(sub_block)
+
+        return sub_blocks
         
         # Split the block evenly with overlap
         lines = block.content.split('\n')
@@ -163,7 +285,7 @@ class EnvisionChunker(BaseChunker):
         idx = chunk_end_idx
         while idx >= 0 and total_lines < self.min_overlap_lines:
             block = blocks[idx]
-            if block.get_token_count() > self.max_chunk_tokens//4:
+            if block.get_token_count() > self.max_chunk_tokens//5:
                 break
             overlap_blocks.insert(0, block)
             total_lines += len(block)
@@ -269,6 +391,15 @@ class EnvisionChunker(BaseChunker):
                             i
                         )
                         
+                        # If necessary, we shorten overlap blocks to fit the next block
+                        acc = block.get_token_count()
+                        j = len(overlap_blocks)-1
+                        while j >= 0 and acc + overlap_blocks[j].get_token_count() < self.max_chunk_tokens:
+                            acc += overlap_blocks[j].get_token_count()
+                            j -= 1
+                        
+                        overlap_blocks = overlap_blocks[j+1:]
+                        
                         # Add overlap blocks to new chunk
                         for overlap_block in overlap_blocks:
                             current_chunk.add_block(overlap_block , self.max_chunk_tokens)
@@ -283,9 +414,7 @@ class EnvisionChunker(BaseChunker):
                 
                 # Try adding the block again to the new chunk
                 if not current_chunk.add_block(block, self.max_chunk_tokens):
-                    # Block is too large even for empty chunk
-                    # This shouldn't happen after pre-splitting, but add it anyway
-                    current_chunk.add_block(block, self.max_chunk_tokens)
+                    raise Exception("Block should fit in an empty chunk")
                 i += 1
         
         # Add final chunk

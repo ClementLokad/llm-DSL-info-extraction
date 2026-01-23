@@ -156,12 +156,14 @@ class AgenticPipeline(BasePipeline):
             "### INSTRUCTION\n"
             "Clean and format the following LLM-generated answer into a concise final answer.\n"
             "Remove any extraneous information, tool usage notes, or internal thoughts.\n"
+            "Translate the answer is necessary so that the final answer is in the **same language** as the question\n"
             "Do NOT add ANY conversational filler.\n\n"
             f"### QUESTION\n{state['question']}\n\n"
             "### OUTPUT FORMAT\n"
             "Respond strictly in this XML format:\n"
             "<final_answer>[The final answer]</final_answer>\n\n"
-            f"### RAW GENERATION\n{raw_generation}\n"
+            f"### RAW GENERATION\n{raw_generation}\n\n"
+            f"### CLEANED FINAL ANSWER\n"
         )
         
         content = ""

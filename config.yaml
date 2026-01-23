@@ -63,7 +63,7 @@ chunker:
   # Core chunking parameters (all numeric values externalized)
   max_chunk_tokens: 512
   overlap_lines: 2    # Line-based overlap for split chunks (default: 2 lines)
-  min_overlap_lines: 3 # Minimum overlap between 2 chunks not separated by a section delimiter (default: 3 lines)
+  min_overlap_lines: 2 # Minimum overlap between 2 chunks not separated by a section delimiter (default: 3 lines)
 
 # =============================================================================
 # SUMMARIZER CONFIGURATION
@@ -285,8 +285,11 @@ main_pipeline:
     cleaning_llm: "mistral"
   grep_tool:
     max_results: 50
+    max_results_to_refine: 100
     index_path: "./data/grep_index"
     case_sensitive: false
+    max_lines: 150
+    max_grep_retries: 3
 
     
 # =============================================================================

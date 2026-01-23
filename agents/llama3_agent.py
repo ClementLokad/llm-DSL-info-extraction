@@ -32,16 +32,17 @@ class Llama3Agent(LLMAgent):
         """
         
         prompt = question
-        if context:
-            prompt = f"Context: {context}\nQuestion: {question}"
-        
 
         response = ollama.generate(
-            model=self.model,
+            model=self._model,
             prompt=prompt,
-            stream=False # Request the full response at once
+            context=context,
+            stream=False, # Request the full response at once
+            options={"num_ctx": 8192}
         )
         
+        self.context = response["context"]
+
         return response['response']
     
     @property

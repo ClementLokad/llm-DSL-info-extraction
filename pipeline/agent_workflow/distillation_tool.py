@@ -38,7 +38,7 @@ class LLMDistillationTool(BaseDistillationTool):
         
         return response
 
-    def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str, previous_generation: Optional[str] = None, verbose=False) -> List[Tuple[str, str]]:
+    def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str, previous_generation: Optional[str] = None, verbose=False) -> List[str]:
         """
         Summarize multiple content items in one go and map facts back to their source using XML parsing.
         Now considers the Main LLM's previous attempt to answer.
@@ -54,7 +54,7 @@ class LLMDistillationTool(BaseDistillationTool):
         prompt_text = (
             f"### SYSTEM ROLE\n"
             f"You are the Memory Manager of a complex RAG Agent. The agent has just attempted to answer a query using the documents below.\n\n"
-            f"### CONTEXT\nQuery: {query}\nCurrent Thought of the agent: {thought}\n"
+            f"### CONTEXT\nQuery: {query}\n\nCurrent Thought of the agent: {thought}\n"
         )
         
         if previous_generation:
@@ -88,24 +88,14 @@ class LLMDistillationTool(BaseDistillationTool):
             "\n"
             "### CRITICAL OUTPUT FORMAT\n"
             "You MUST output the results in strict XML format.\n"
-            "Wrap each distinct fact in an <entry> tag.\n"
-            "Inside <entry>, use <fact> for the content and <source> for the Item ID number (or comma-separated list of IDs).\n"
+            "Wrap each distinct fact in a <fact> tag.\n"
             "\n"
             "Example 1:\n"
-            "<entry>\n"
-            "  <fact>Overall, 9 files read \"Data.ion\"</fact>\n"
-            "  <source>1,2,3,4,5,7,8,9,10</source>\n"
-            "</entry>\n"
-            "<entry>\n"
-            "  <fact>4 files read \"Data.ion\" as \"Data[Id unsafe]\"</fact>\n"
-            "  <source>1,2,5,7</source>\n"
-            "</entry>\n"
+            "<fact>Overall, 9 files read \"Data.ion\"</fact>\n"
+            "<fact>4 files read \"Data.ion\" as \"Data[Id unsafe]\"</fact>\n"
             "\n"
             "Example 2:\n"
-            "<entry>\n"
-            "  <fact>The script /4. Optimization workflow/03.b. Forecasting tries to predict future demand.</fact>\n"
-            "  <source>3</source>\n"
-            "</entry>\n"
+            "<fact>The script /4. Optimization workflow/03.b. Forecasting tries to predict future demand.</fact>\n"
             "\n"
             "Begin XML output:"
         )
@@ -114,45 +104,8 @@ class LLMDistillationTool(BaseDistillationTool):
         response = self.llm.generate_response(prompt_text)
         
         # 3. Parse the response using Regex
-        distilled_results = []
-        
-        # Step A: Find all entry blocks
-        entry_pattern = r"<entry>(.*?)</entry>"
-        entries = re.findall(entry_pattern, response, re.IGNORECASE | re.DOTALL)
-        
-        # Step B: Parse inside each entry
-        for entry_block in entries:
-            try:
-                # Extract the fact text
-                fact_match = re.search(r"<fact>(.*?)</fact>", entry_block, re.IGNORECASE | re.DOTALL)
-                
-                # Extract the source tag content (everything between tags)
-                source_tag_match = re.search(r"<source>(.*?)</source>", entry_block, re.IGNORECASE | re.DOTALL)
-                
-                if fact_match and source_tag_match:
-                    fact_text = fact_match.group(1).strip()
-                    source_content = source_tag_match.group(1).strip().split(",")
-                    
-                    # ROBUST PARSING: Find the first integer sequence inside the source tag
-                    id_matches = [re.search(r"(\d+)", source) for source in source_content]
-                    sources = set()
-                    
-                    for id_match in id_matches:
-                        if id_match:
-                            item_id = int(id_match.group(1))
-                            
-                            # Map back to the original file path
-                            if item_id in indexed_sources and fact_text:
-                                original_source = indexed_sources[item_id]
-                                sources.add(original_source)
-                            elif fact_text:
-                                sources.add("Unknown Source")
-                        elif fact_text:
-                            sources.add("Unknown Source")
-                    distilled_results.append((fact_text, ", ".join(list(sources))))
-                        
-            except (ValueError, AttributeError):
-                continue
+        fact_pattern = r"<fact>(.*?)</fact>"
+        distilled_results = re.findall(fact_pattern, response, re.IGNORECASE | re.DOTALL)
         
         if verbose:
             prompt_content = Panel(prompt_text, title="Distillation LLM Prompt", border_style="purple")
@@ -160,10 +113,9 @@ class LLMDistillationTool(BaseDistillationTool):
                 response = f"```xml\n{response.strip()}\n```"
             response_content = Panel(Markdown(response), title="Distillation LLM Response", border_style="blue")
             results_content = Table(title="Parsed Distilled Results", border_style="bold bright_yellow", show_lines=True)
-            results_content.add_column("Fact", style="cyan", no_wrap=False)
-            results_content.add_column("Sources", style="magenta", no_wrap=False)
-            for fact, sources in distilled_results:
-                results_content.add_row(fact, sources.replace(", ", ",\n"))
+            results_content.add_column("Facts", style="cyan", no_wrap=False)
+            for fact in distilled_results:
+                results_content.add_row(fact)
             self.console.print(Panel(Group(prompt_content, response_content, results_content), title="Distillation Tool", border_style="yellow"))
 
         return distilled_results
