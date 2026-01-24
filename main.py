@@ -111,20 +111,18 @@ class MainLinearPipeline(BasePipeline):
         
         dirs = self.config_manager.get('paths.input_dirs', ["env_scripts"])
         self.grep = GrepRetriever(dirs)
-        
-        parser = EnvisionParser(self.config_manager.get_parser_config())
-        chunker = SemanticChunker(self.config_manager.get_chunker_config())
+
         embedder = SentenceTransformerEmbedder(self.config_manager.get_embedder_config())
         embedder.initialize()
         retriever = FAISSRetriever(self.config_manager.get_retriever_config())
         retriever.initialize(embedder.embedding_dimension)
         
         # Determine index type from flags and config
-        index_type = self.config_manager.get('embedders.index_type', 'full_chunks')
-        if index_type == "full_chunks":
+        index_type = self.config_manager.get("embedder.index_type", "full_chunk")
+        if index_type == "full_chunk":
             index_path = Path("data/faiss_index")
-        if index_type == "summaries": 
-            index_path = Path("data/faiss_summary/index")
+        if index_type == "summary":
+            index_path = Path("data/faiss_summary_index")
         
         retriever.load_index(str(index_path))
             
@@ -265,21 +263,17 @@ class MainAgenticPipeline(AgenticPipeline):
         self.agent = None
         self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
         
-        dirs = self.config_manager.get('paths.input_dirs', ["env_scripts"])
-        
-        parser = EnvisionParser(self.config_manager.get_parser_config())
-        chunker = SemanticChunker(self.config_manager.get_chunker_config())
         embedder = SentenceTransformerEmbedder(self.config_manager.get_embedder_config())
         embedder.initialize()
         retriever = FAISSRetriever(self.config_manager.get_retriever_config())
         retriever.initialize(embedder.embedding_dimension)
         
         # Determine index type from flags and config
-        index_type = self.config_manager.get('embedders.index_type', 'full_chunks')
-        if index_type == "full_chunks":
+        index_type = self.config_manager.get("embedder.index_type", "full_chunk")
+        if index_type == "full_chunk":
             index_path = Path("data/faiss_index")
-        if index_type == "summaries": 
-            index_path = Path("data/faiss_summary/index")
+        if index_type == "summary":
+            index_path = Path("data/faiss_summary_index")
         
         retriever.load_index(str(index_path))
             
@@ -388,6 +382,7 @@ class DSLQuerySystem():
 
 def main():
     """Main entry point."""
+
     
     console = Console()
     
@@ -432,7 +427,7 @@ EXAMPLES:
 
     mode_group.add_argument(
         "--indextype", "-in",
-        choices=["fullchunks", "summaries"],
+        choices=["full_chunk", "summary"],
         help="Override the type of index built from config"
         )
     
@@ -495,7 +490,7 @@ EXAMPLES:
     
     try:
         #Override benchmark agent if specified
-        if args.benchmarkagent:
+        if args.indextype:
             config_manager.get_config().config['embedder']['index_type'] = args.indextype
 
         # Status mode - lightweight check without full initialization
@@ -535,11 +530,11 @@ EXAMPLES:
                 import os
                 
             # Determine index type from flags and config
-                index_type = config_manager.get_config().config['embedder']['index_type']
-                if index_type == "full_chunks":
+                index_type = config_manager.get_config().get("embedder.index_type")
+                if index_type == "full_chunk":
                     index_path = Path("data/faiss_index")
                 if index_type == "summaries": 
-                    index_path = Path("data/faiss_summary/index")
+                    index_path = Path("data/faiss_summary_index")
 
                 if os.path.exists(index_path):
                     files = os.listdir(index_path)

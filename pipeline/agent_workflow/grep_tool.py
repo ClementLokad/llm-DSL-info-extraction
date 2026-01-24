@@ -110,7 +110,7 @@ class GrepTool(BaseGrepTool):
         try:
             regex = re.compile(pattern, 0 if self.case_sensitive else re.IGNORECASE)
         except re.error:
-            return []
+            regex = re.compile(re.escape(pattern), 0 if self.case_sensitive else re.IGNORECASE)
 
         matches = []
 
@@ -196,7 +196,7 @@ class GrepTool(BaseGrepTool):
         try:
             regex = re.compile(pattern, flags)
         except re.error:
-            return []
+            regex = re.compile(re.escape(pattern), flags)
 
         # 1. Pre-process: Identify all matching line numbers for every file
         # We store this to avoid re-running regex during the optimization loop.

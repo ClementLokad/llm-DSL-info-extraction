@@ -48,7 +48,10 @@ def scan_string_for_references(
     # Pre-calculate variants of the target to match against
     normalized_target = (target_path_fragment or "").strip()
     stripped_target = normalized_target.lstrip("/")
-    pattern_regex = re.compile(stripped_target, re.IGNORECASE)
+    try:
+        pattern_regex = re.compile(stripped_target, re.IGNORECASE)
+    except re.error:
+        pattern_regex = re.compile(re.escape(stripped_target), re.IGNORECASE)
 
     for line_no, raw_line in enumerate(lines):
         # 1. Check for explicit verb statements (read: "...", write "...")
