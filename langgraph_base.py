@@ -47,6 +47,7 @@ class ActionLog(TypedDict):
     tool: str
     parameter: str
     outcome_summary: str # Brief summary of success/failure (not full content)
+    results_to_analyse: Optional[List[RetrievalResult]] = None
 
 
 class AgentGraphState(GraphState):
@@ -56,7 +57,7 @@ class AgentGraphState(GraphState):
     Attributes:
         question: The user's input question.
         reference_answer: The reference answer for benchmarking.
-        knowledge_bank: List of (content summary, source file) tuples.
+        knowledge_bank: List of facts.
         execution_history: List of agent iterations.
         prompt: The final prompt sent to the LLM.
         generation: The raw output from the 'Main LLM'.
@@ -69,7 +70,7 @@ class AgentGraphState(GraphState):
     """
     question: str
     reference_answer: str
-    knowledge_bank: List[Tuple[str, str]]
+    knowledge_bank: List[str]
     execution_history: List[ActionLog]
     prompt: str
     generation: str

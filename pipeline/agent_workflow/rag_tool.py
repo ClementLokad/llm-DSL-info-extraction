@@ -3,6 +3,7 @@ from pipeline.agent_workflow.workflow_base import BaseRAGTool
 from rag.core.base_retriever import BaseRetriever, RetrievalResult
 from rag.core.base_embedder import BaseEmbedder
 from config_manager import get_config
+from rag.utils.script_scanner import replace_constants_in_script
 import time
 
 class SimpleRAGTool(BaseRAGTool):
@@ -50,5 +51,10 @@ class SimpleRAGTool(BaseRAGTool):
         else:
             emb = self.embedder.embed_text(query)
             results = self.retriever.search(emb, top_k=top_k)
+        
+        # Replace constants in result
+        for result in results:
+           cleaned_content = replace_constants_in_script(result.chunk.content, script_path=result.chunk.metadata["file_path"])
+           result.chunk.content = cleaned_content
 
         return results

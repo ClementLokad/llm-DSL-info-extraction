@@ -122,6 +122,7 @@ class GrepTool(BaseGrepTool):
                         with open(block.file_path, "r", encoding="utf-8") as f:
                             script_content = f.read()
                     except FileNotFoundError:
+                        print(f"File not found: {block.file_path}")
                         continue
                     file_consts[block.file_path] = collect_constants(script_content)
                 
@@ -173,6 +174,127 @@ class GrepTool(BaseGrepTool):
                     )
         
         return matches
+
+    def shorten_results(self, pattern: str, results: List[str], limit: int) -> List[str]:
+        """
+        Shortens results by dynamically adjusting the context window (k) 
+        so that the total number of lines fits within the 'limit'.
+
+        Args:
+            pattern (str): The regex pattern to highlight.
+            results (List[str]): The list of full code strings.
+            limit (int): The maximum allowed total number of lines across all results.
+
+        Returns:
+            List[str]: The list of shortened code strings.
+        """
+        flags = 0 if self.case_sensitive else re.IGNORECASE
+        regex = re.compile(pattern, flags)
+
+
+        # 1. Pre-process: Identify all matching line numbers for every file
+        # We store this to avoid re-running regex during the optimization loop.
+        file_data = []
+        for content in results:
+            lines = content.splitlines()
+            matches = [i for i, line in enumerate(lines) if regex.search(line)]
+            
+            # If pattern not found (e.g. filename match only), treat line 0 as the 'match'
+            # so we at least show the file header context.
+            if not matches and lines:
+                matches = [0]
+            
+            if lines:
+                file_data.append({"lines": lines, "matches": matches})
+
+        # 2. Helper: Calculate total lines used for a specific context size k
+        def calculate_total_lines(k):
+            total_lines = 0
+            for item in file_data:
+                lines_count = len(item["lines"])
+                matches = item["matches"]
+                
+                # Determine the set of line indices to keep
+                indices_to_keep = set()
+                for m in matches:
+                    start = max(0, m - k)
+                    end = min(lines_count, m + k + 1)
+                    indices_to_keep.update(range(start, end))
+                
+                if not indices_to_keep:
+                    continue
+
+                sorted_idx = sorted(indices_to_keep)
+                
+                # Count the lines we keep
+                total_lines += len(sorted_idx)
+                
+                # Count the separator lines "..." (if gaps exist)
+                prev = sorted_idx[0]
+                for idx in sorted_idx[1:]:
+                    if idx > prev + 1:
+                        total_lines += 1 
+                    prev = idx
+                    
+            return total_lines
+
+        # 3. Optimize k: Find the largest k where total lines <= limit
+        optimal_k = 0
+        
+        # First check if even 0 context fits
+        if calculate_total_lines(0) <= limit:
+            # Try increasing k until we hit the limit
+            # We cap at 200 to prevent infinite loops (unlikely to need >200 lines context)
+            prev_total = -1
+            for k in range(1, 201):
+                total = calculate_total_lines(k)
+                
+                if total > limit:
+                    break # Previous k was the best
+                
+                if total == prev_total:
+                    # Optimization: Increasing k didn't add lines (files are fully fully visible)
+                    optimal_k = k
+                    break
+                
+                optimal_k = k
+                prev_total = total
+        else:
+            # Even k=0 is too big. We must stick to k=0 (pure matches).
+            # (Optional: You could strictly truncate matches here if necessary)
+            optimal_k = 0
+
+        # 4. Render the final output using optimal_k
+        final_results = []
+        for item in file_data:
+            lines = item["lines"]
+            matches = item["matches"]
+            
+            indices = set()
+            for m in matches:
+                start = max(0, m - optimal_k)
+                end = min(len(lines), m + optimal_k + 1)
+                indices.update(range(start, end))
+            
+            sorted_idx = sorted(indices)
+            if not sorted_idx:
+                continue
+
+            # Build the string with separators
+            chunk_lines = []
+            prev = sorted_idx[0]
+            
+            chunk_lines.append(lines[prev])
+            
+            for idx in sorted_idx[1:]:
+                if idx > prev + 1:
+                    chunk_lines.append("... [skipped] ...")
+                chunk_lines.append(lines[idx])
+                prev = idx
+            
+            final_results.append("\n".join(chunk_lines))
+
+        return final_results
     
     def _get_all_files(self, root_dirs: List[str]) -> List[str]:
         """

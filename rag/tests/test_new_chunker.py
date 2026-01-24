@@ -326,15 +326,20 @@ def demonstrate_rag_usage():
 
 
 if __name__ == "__main__":
-    test_file = "env_scripts/67984.nvn"
+    test_file = "env_scripts/76705.nvn"
     print(f"Parsing: {Path(test_file).name}\n")
     
     blocks, chunks = parse_and_chunk_file(test_file)
     
-    for block in blocks:
+    for chunk in chunks:
+        print(f"Chunk ID: {chunk.chunk_id}, Lines: {chunk.get_line_range()}, Tokens: {chunk.get_token_count()}")
+        print(f"Metadata: {chunk.metadata}")
+        print(f"Content:\n{chunk.content}\n{'-'*40}\n")
+    
+    """for block in blocks:
         if block.block_type != BlockType.SECTION_HEADER:
             continue  # Skip section headers for this display
         print(f"Block Type: {block.block_type.value}, Name :{block.name}, Tokens: {block.get_token_count()}")
         print(f"Line_start: {block.line_start}, Line_end: {block.line_end}")
         print(f"Definitions: {block.definitions}, Dependencies: {block.dependencies}")
-        print(f"Content:\n{block.content}\n{'-'*40}\n")
+        print(f"Content:\n{block.content}\n{'-'*40}\n")"""

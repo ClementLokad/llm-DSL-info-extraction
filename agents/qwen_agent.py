@@ -1,6 +1,6 @@
 import ollama
 from .base import LLMAgent
-from typing import Optional
+from typing import Optional, Any
 
 class QwenAgent(LLMAgent):
     """Implementation of an agent using Qwen AI"""
@@ -19,7 +19,7 @@ class QwenAgent(LLMAgent):
         """No itialization needed for Qwen via ollama"""
         return super().initialize()
      
-    def generate_response(self, question: str, context: Optional[str] = None) -> str:
+    def generate_response(self, question: str, context: Optional[Any] = None) -> str:
         """
         Generate a response using Qwen.
         
@@ -32,15 +32,16 @@ class QwenAgent(LLMAgent):
         """
         
         prompt = question
-        if context:
-            prompt = f"Context: {context}\nQuestion: {question}"
-        
 
         response = ollama.generate(
             model=self._model,
             prompt=prompt,
-            stream=False # Request the full response at once
+            context=context,
+            stream=False, # Request the full response at once
+            options={"num_ctx": 8192}
         )
+        
+        self.context = response["context"]
         
         return response['response']
     

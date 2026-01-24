@@ -839,16 +839,11 @@ class EnvisionParser(BaseParser):
                         break
 
                     if not stripped:
+                        content_lines.append(line)
                         # Empty lines do not impact statements
                         i += 1
                         continue
-                    
-                    """# Standalone comment (not at higher indentation)
-                    if self.PATTERNS['comment'].match(line):
-                        # Check if previous line suggested continuation
-                        if content_lines and not self._suggests_continuation(content_lines[-1]):
-                            break"""
-            
+
             # Check for triple-quoted strings
             if '"""' in line and (triple_quote_char != "'" or not in_triple_quote):
                 in_triple_quote = not in_triple_quote

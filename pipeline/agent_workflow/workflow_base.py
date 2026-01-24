@@ -31,7 +31,7 @@ class BaseDistillationTool():
         # Placeholder for actual LLM call
         return f"Distilled Fact: Content relevant to '{query}' found."
 
-    def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str, verbose=False) -> List[Tuple[str, str]]:
+    def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str, llm_response: str = "", verbose=False) -> List[str]:
         """
         Summarize multiple content items in one go.
         
@@ -39,6 +39,7 @@ class BaseDistillationTool():
             items: List of (content, source_path_str) tuples.
             query: The user question.
             thought: The planner's current reasoning.
+            llm_response: The main LLM's response when given the raw tool results.
             
         Returns:
             List of (fact_summary, source_path) tuples.
@@ -78,7 +79,7 @@ class BaseDistillationTool():
             # This logic mimics the LLM extracting a fact from Item i
             # and maintaining the correct source path
             fact = f"Distilled info regarding '{query}' extracted from {source.split('/')[-1]}..."
-            distilled_results.append((fact, source))
+            distilled_results.append(fact)
             
         return distilled_results
 
@@ -94,6 +95,11 @@ class BaseGrepTool():
         matches = [] 
         # Implementation of grep logic would go here
         return matches
+    
+    def shorten_results(self, pattern: str, results: List[str], limit: int) -> List[str]:
+        """Shortens the elements in results to fit inside at most limit number of lines"""
+        # Implementations of shortening
+        return results
 
 class BaseScriptFinderTool():
     """A base tool for finding scripts in a codebase."""
@@ -133,8 +139,7 @@ class WorkflowState(TypedDict):
     tool: Optional[str] 
     tool_parameter: Optional[Any] 
     rewritten_prompt: Optional[str]
-    # Temporary field to track local history before syncing to pipeline_state
-    local_history: Optional[List[ActionLog]]
+    local_grep_retries: Optional[Tuple[int, int]] # Contains (number of retries, last number of grep results)
 
 
 class BaseAgentWorkflow(StateGraph):
@@ -158,7 +163,8 @@ class BaseAgentWorkflow(StateGraph):
         # Assuming 'execution_history' is added to GraphState, or we inject it dynamically
         return state['pipeline_state'].get("execution_history", [])
 
-    def _append_history(self, state: WorkflowState, tool: str, param: str, summary: str, thought: str):
+    def _append_history(self, state: WorkflowState, tool: str, param: str, summary: str, thought: str,
+                        results_to_analyse: Optional[List[RetrievalResult]] = None) -> None:
         """Append a new action to the history."""
         # Get existing history from the global pipeline state
         history = self._get_history(state)
@@ -170,7 +176,8 @@ class BaseAgentWorkflow(StateGraph):
             "thought": thought,
             "tool": tool,
             "parameter": str(param),
-            "outcome_summary": summary
+            "outcome_summary": summary,
+            "results_to_analyse": results_to_analyse
         }
         
         # Ensure the list exists and append
@@ -207,8 +214,8 @@ class BaseAgentWorkflow(StateGraph):
         # This tells the Solver (and Planner) what we learned from those actions.
         if knowledge_bank:
             prompt += "### VERIFIED FACTS (Accumulated Knowledge)\n"
-            for i, (fact, source) in enumerate(knowledge_bank, 1):
-                prompt += f"{i}. {fact} [Source: {source}]\n"
+            for i, fact in enumerate(knowledge_bank):
+                prompt += f"{i}. {fact}\n"
             prompt += "\n"
         else:
             prompt += "### VERIFIED FACTS\n(No relevant facts have been gathered yet.)\n\n"
@@ -364,8 +371,8 @@ class BaseAgentWorkflow(StateGraph):
         # 4. Verified Facts
         if knowledge_bank:
             prompt += "### VERIFIED FACTS (Assets)\n"
-            for i, (fact, source) in enumerate(knowledge_bank, 1):
-                prompt += f"{i}. {fact} [Source: {source}]\n"
+            for i, fact in enumerate(knowledge_bank):
+                prompt += f"{i}. {fact}\n"
         else:
             prompt += "### VERIFIED FACTS\n(Knowledge bank is empty.)\n"
         prompt += "\n"
@@ -382,12 +389,7 @@ class BaseAgentWorkflow(StateGraph):
             
             ) + first_3_tools_desc + (
             
-            "4. simple_regeneration_tool\n"
-            "   - Usage: Use ONLY if the previous step failed due to a logical error and you want to re-think without using new tools.\n"
-            "   - Parameter: A brief instruction on what to correct.\n"
-            "   - Example: <parameter>The previous calculation was wrong; re-evaluate using the new facts.</parameter>\n\n"
-            
-            "5. grade_answer\n"
+            "4. grade_answer\n"
             "   - Usage: If the current answer is satisfying, use this tool to finalize the process.\n"
             "   - Parameter: Type 'None'.\n\n"
         )
@@ -625,16 +627,14 @@ class BaseAgentWorkflow(StateGraph):
         
         if "knowledge_bank" not in state['pipeline_state']:
             state['pipeline_state']["knowledge_bank"] = []
-            
-        # Also add the raw location fact, as it's useful
-        state['pipeline_state']["knowledge_bank"].append(
-            (f"File system confirmed existence of: {found_paths}", "FileSystem")
-        )
+
         # Add the distilled content facts
         state['pipeline_state']["knowledge_bank"].extend(new_facts)
         
         # 3. Update History
         outcome_str = f"Found {len(found_paths)} scripts. Content read and distilled."
+        if len(found_paths) < len(script_names):
+            outcome_str += f" {len(script_names)-len(found_paths)} could not be found. Only the following scripts were found : {found_paths}"
         self._append_history(state, "script_finder_tool", script_names, outcome_str, thought)
         
         # 4. Design Prompt

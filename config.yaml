@@ -10,11 +10,7 @@
 # =============================================================================
 agent:
   # Default agent to use for queries
-<<<<<<< Updated upstream
-  default_model: "qwen"  # Options: "gemini", "gpt", "mistral", "groq"
-=======
   default_model: "mistral"  # Options: "gemini", "gpt", "mistral", "groq"
->>>>>>> Stashed changes
   # Delay in seconds between LLM calls to avoid rate limits (0 = disabled)
   rate_limit_delay: 2
 
@@ -67,7 +63,7 @@ chunker:
   # Core chunking parameters (all numeric values externalized)
   max_chunk_tokens: 512
   overlap_lines: 2    # Line-based overlap for split chunks (default: 2 lines)
-  min_overlap_lines: 3 # Minimum overlap between 2 chunks not separated by a section delimiter (default: 3 lines)
+  min_overlap_lines: 2 # Minimum overlap between 2 chunks not separated by a section delimiter (default: 3 lines)
 
 # =============================================================================
 # SUMMARIZER CONFIGURATION
@@ -292,8 +288,11 @@ main_pipeline:
     cleaning_llm: "mistral"
   grep_tool:
     max_results: 50
+    max_results_to_refine: 100
     index_path: "./data/grep_index"
     case_sensitive: false
+    max_lines: 150
+    max_grep_retries: 3
 
     
 # =============================================================================
@@ -301,11 +300,7 @@ main_pipeline:
 # =============================================================================
 benchmark:
   benchmark_type: "llm_as_a_judge" # Choose the benchmark type: "cosine_similarity", "llm_as_a_judge"
-<<<<<<< Updated upstream
-  benchmark_model: "qwen"  # LLM model to use as a judge: "gemini", "gpt", "mistral", "groq", "qwen"
-=======
   benchmark_model: "mistral"  # LLM model to use as a judge: "gemini", "gpt", "mistral", "groq"
->>>>>>> Stashed changes
   benchmark_prompt: "You are a strict evaluator. When I give you a question and an LLM’s answer, you must output ONLY a single character: 1 if the answer is fully correct, or 0 if the answer is incorrect. Do NOT output explanations, chain-of-thought, tags, spaces, punctuation, or any extra text. If you output anything other than exactly 1 or 0, you have failed the task. Your entire reply must be exactly one character: 1 or 0."
 
 # =============================================================================
