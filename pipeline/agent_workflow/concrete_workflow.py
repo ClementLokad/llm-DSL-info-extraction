@@ -1,6 +1,7 @@
 import config_manager
 from pipeline.agent_workflow.workflow_base import *
 from agents.prepare_agent import prepare_agent
+import time
 
 class ConcreteAgentWorkflow(BaseAgentWorkflow):
     """
@@ -27,7 +28,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         
         planning_prompt = self.design_planner_prompt(state)
         
-        if "local_grep_retries" in state:
+        if self.rate_limit_delay > 0:
+            time.sleep(self.rate_limit_delay)
+        
+        if "local_grep_retries" in state and state["pipeline_state"]["execution_history"][-1]["tool"] == "grep_tool":
             base_prompt=" Please answer using the same output format."
             
             len_res = state["local_grep_retries"][1]
@@ -37,11 +41,11 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             if len_res > get_config().get("main_pipeline.grep_tool.max_results_to_refine"):
                 planning_prompt = f"The grep search yielded {len_res} results which is superior to "\
                     f"the limit of {get_config().get('main_pipeline.grep_tool.max_results_to_refine')}, "\
-                    "try to slightly narrow down the search." + base_prompt
+                    "try to slightly narrow down the search or consider using another tool." + base_prompt
                 response = self.planner_llm.follow_up_question(planning_prompt)
             elif len_res == 0:
                 planning_prompt = f"The grep search yielded no results, "\
-                    "try to slightly broaden the search." + base_prompt
+                    "try to slightly broaden the search or consider using another tool." + base_prompt
                 response = self.planner_llm.follow_up_question(planning_prompt)
             else:
                 response = self.planner_llm.generate_response(planning_prompt)

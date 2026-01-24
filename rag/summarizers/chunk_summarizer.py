@@ -8,13 +8,28 @@ class ChunkSummarizer():
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         config = config or {}
         self.summary_agent = prepare_agent.prepare_summary_agent()
-        self.summary_prompt = config.get('summary_prompt', "Summarize what the following code chunk does briefly:")
+        self.summary_prompt = (
+            "### System Prompt\n"
+            "You are an expert software architect. Your task is to generate a dense,"
+            "semantic summary of the provided code chunk to improve vector search retrieval.\n\n"
+            "### Instructions\n"
+            "Analyze the code and provide a concise summary that includes:\n"
+            "1. **Purpose:** What is the primary goal of this code? (e.g., 'Forecast next month's sales')\n"
+            "2. **Key Definitions:** Mention what is computed or shown.\n"
+            "3. **Key Dependencies:** Mention which resources are read or modified.\n"
+            "4. **Logic Flow:** Summarize the core algorithm or transformation occurring.\n\n"
+            "### Constraint\n"
+            "- Do not use conversational filler (e.g., 'This code is about...').\n"
+            "- Use technical keywords that a developer might use when searching.\n"
+            "- Keep the summary between 50-150 words to maintain embedding density.\n\n"
+            "### Code Chunk to summarize\n"
+        )
         # Default to a .json extension
         self.summary_list_path = config.get('summary_list_path', "summaries.json")
 
     def generate_chunk_summary(self, chunk: CodeChunk) -> str:
         """Generates a summary using an LLM agent."""
-        prompt = f"{self.summary_prompt}\n\nCODE:\n{chunk.content}\n\n### Summary:\n"
+        prompt = f"{self.summary_prompt}\n\nCODE:\n{chunk.content}\n\n### Summary\n"
         chunk_summary = self.summary_agent.generate_response(prompt)
         chunk_summary = f"From script: {chunk.metadata.get('original_file_path', 'Unknown Source')}\n" + chunk_summary.strip()
         return chunk_summary

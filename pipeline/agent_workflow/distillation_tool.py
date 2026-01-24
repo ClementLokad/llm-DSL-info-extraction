@@ -1,9 +1,9 @@
 from typing import List, Tuple, Optional
 import re
+import time
 from pipeline.agent_workflow.workflow_base import BaseDistillationTool
-from rich.console import Console, Group
+from rich.console import Group
 from rich.panel import Panel
-from rich.text import Text
 from rich.markdown import Markdown
 from rich.table import Table
 
@@ -28,6 +28,9 @@ class LLMDistillationTool(BaseDistillationTool):
             f"If the content is irrelevant, return 'IRRELEVANT'.\n"
             f"Do not add conversational filler."
         )
+        
+        if self.rate_limit_delay > 0:
+            time.sleep(self.rate_limit_delay)
         
         response = self.llm.generate_response(prompt)
         

@@ -157,6 +157,7 @@ class EnvisionChunker(BaseChunker):
                 content=sub_content,
                 line_start=actual_start,
                 line_end=actual_end,
+                file_path=block.file_path,
                 dependencies=sub_dependencies,
                 definitions=sub_definitions,
                 metadata={
@@ -451,6 +452,8 @@ class EnvisionChunker(BaseChunker):
         
         file_path = chunk.original_blocks[0].file_path
         original_file_path = self.mapping.get(os.path.splitext(os.path.basename(file_path))[0], None)
+        if not original_file_path:
+            print(file_path)
         
         chunk.metadata.update({
             'external_dependencies': external_deps,

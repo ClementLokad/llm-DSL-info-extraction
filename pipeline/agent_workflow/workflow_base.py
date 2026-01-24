@@ -25,6 +25,7 @@ class BaseDistillationTool():
         else:
             self.llm = prepare_agent(get_config().get("main_pipeline.agent_logic.distillation_llm"))
         self.console = console
+        self.rate_limit_delay = get_config().get('agent.rate_limit_delay', 0)
 
     def distill(self, content: str, query: str, thought: str, verbose=False) -> str:
         """Single item distillation (Legacy/Fallback)."""

@@ -3,6 +3,7 @@ from pipeline.agent_workflow.workflow_base import BaseRAGTool
 from rag.core.base_retriever import BaseRetriever, RetrievalResult
 from rag.core.base_embedder import BaseEmbedder
 from config_manager import get_config
+from agents.prepare_agent import prepare_default_agent
 from rag.utils.script_scanner import replace_constants_in_script
 import time
 
@@ -16,6 +17,8 @@ class SimpleRAGTool(BaseRAGTool):
     def __init__(self, retriever: BaseRetriever, embedder: BaseEmbedder):
         super().__init__(retriever)
         self.embedder = embedder
+        self.rate_limit_delay = get_config().get("agent.rate_limit_delay")
+        self.agent = prepare_default_agent()
     
     def merge_rag_results(self, results):
         k=10

@@ -107,7 +107,10 @@ class GrepTool(BaseGrepTool):
         
         clean_target = pattern.strip().strip("/")
 
-        regex = re.compile(pattern, 0 if self.case_sensitive else re.IGNORECASE)
+        try:
+            regex = re.compile(pattern, 0 if self.case_sensitive else re.IGNORECASE)
+        except re.error:
+            return []
 
         matches = []
 
@@ -189,8 +192,11 @@ class GrepTool(BaseGrepTool):
             List[str]: The list of shortened code strings.
         """
         flags = 0 if self.case_sensitive else re.IGNORECASE
-        regex = re.compile(pattern, flags)
-
+        
+        try:
+            regex = re.compile(pattern, flags)
+        except re.error:
+            return []
 
         # 1. Pre-process: Identify all matching line numbers for every file
         # We store this to avoid re-running regex during the optimization loop.

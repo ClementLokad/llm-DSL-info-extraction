@@ -1,6 +1,7 @@
 from typing import List, Dict, Any
 from .base_benchmark import Benchmark
 import numpy as np
+import time
 import agents.prepare_agent as prepare_agent
 import config_manager
 
@@ -21,6 +22,10 @@ class LLMAsAJudgeBenchmark(Benchmark):
 
     def judge(self, question: str, llm_response: str, reference: str) -> int:
         """Returns 1 if the llm_response is considered correct by the judge llm, else 0"""
+        
+        if self.rate_limit_delay > 0:
+            time.sleep(self.rate_limit_delay)
+        
         text_score = self.agent.generate_response(self.prompt + f"\n\nQuestion : {question}\nVraie réponse : {reference}\nRéponse du LLM : {llm_response}")
         if text_score not in ["1", "0"]:
             raise Exception("Score invalide")

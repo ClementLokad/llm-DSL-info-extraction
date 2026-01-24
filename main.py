@@ -125,25 +125,8 @@ class MainLinearPipeline(BasePipeline):
             index_path = Path("data/faiss_index")
         if index_type == "summaries": 
             index_path = Path("data/faiss_summary/index")
-
-        metadata_file = index_path / "metadata.pkl"
         
-        if not metadata_file.exists():
-            if verbose:
-                self.console.print("[dim]Building index...[/dim]")
-            blocks = []
-            for d in dirs:
-                p = Path(d)
-                if p.exists():
-                    for f in p.glob("*.nvn"):
-                        blocks.extend(parser.parse_file(str(f)))
-            chunks = chunker.chunk_blocks(blocks)
-            embs = embedder.embed_chunks(chunks)
-            retriever.add_chunks(chunks, embs)
-            index_path.mkdir(parents=True, exist_ok=True)
-            retriever.save_index(str(index_path))
-        else:
-            retriever.load_index(str(index_path))
+        retriever.load_index(str(index_path))
             
         self.rag = {'embedder': embedder, 'retriever': retriever}
 
@@ -298,24 +281,7 @@ class MainAgenticPipeline(AgenticPipeline):
         if index_type == "summaries": 
             index_path = Path("data/faiss_summary/index")
         
-        metadata_file = index_path / "metadata.pkl"
-        
-        if not metadata_file.exists():
-            if verbose:
-                console.print("[dim]Building index...[/dim]")
-            blocks = []
-            for d in dirs:
-                p = Path(d)
-                if p.exists():
-                    for f in p.glob("*.nvn"):
-                        blocks.extend(parser.parse_file(str(f)))
-            chunks = chunker.chunk_blocks(blocks)
-            embs = embedder.embed_chunks(chunks)
-            retriever.add_chunks(chunks, embs)
-            index_path.mkdir(parents=True, exist_ok=True)
-            retriever.save_index(str(index_path))
-        else:
-            retriever.load_index(str(index_path))
+        retriever.load_index(str(index_path))
             
         self.rag = {'embedder': embedder, 'retriever': retriever}
             
@@ -411,7 +377,7 @@ class DSLQuerySystem():
             table.add_row(r['question'], f"{r['score']:.4f}")
             self.console.print(f"\n[bold green]Question: {r['question']} [/bold green]\n")
             self.console.print(f"[bold purple]  Référence: {r['reference']}[/bold purple]")
-            self.console.print("\n[bold blue]  LLM: [/bold blue]", end = "")
+            self.console.print("\n[bold blue]  LLM: [/bold blue]")
             self.console.print(Markdown(f"{r['llm_response']}"))
             self.console.print(f"\n[bold red] Score : [/bold red]{r['score']}")
         
@@ -595,8 +561,8 @@ EXAMPLES:
             pipeline_logic['planner_llm'] = args.agent
             pipeline_logic['cleaning_llm'] = args.agent
 
-        if config_manager.get_config().get_default_agent() == 'llama3':
-            # Disable rate limiting for local Llama 3
+        if config_manager.get_config().get_default_agent() in ['llama3', "qwen"]:
+            # Disable rate limiting for local LLM
             config_manager.get_config().config['agent']['rate_limit_delay'] = 0
         
         if args.fusion:
