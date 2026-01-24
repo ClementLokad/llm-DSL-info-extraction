@@ -118,7 +118,13 @@ class MainLinearPipeline(BasePipeline):
         retriever = FAISSRetriever(self.config_manager.get_retriever_config())
         retriever.initialize(embedder.embedding_dimension)
         
-        index_path = Path("data/faiss_index")
+        # Determine index type from flags and config
+        index_type = self.config_manager.get('embedders.index_type', 'full_chunks')
+        if index_type == "full_chunks":
+            index_path = Path("data/faiss_index")
+        if index_type == "summaries": 
+            index_path = Path("data/faiss_summary/index")
+
         metadata_file = index_path / "metadata.pkl"
         
         if not metadata_file.exists():
@@ -284,7 +290,13 @@ class MainAgenticPipeline(AgenticPipeline):
         retriever = FAISSRetriever(self.config_manager.get_retriever_config())
         retriever.initialize(embedder.embedding_dimension)
         
-        index_path = Path("data/faiss_index")
+        # Determine index type from flags and config
+        index_type = self.config_manager.get('embedders.index_type', 'full_chunks')
+        if index_type == "full_chunks":
+            index_path = Path("data/faiss_index")
+        if index_type == "summaries": 
+            index_path = Path("data/faiss_summary/index")
+        
         metadata_file = index_path / "metadata.pkl"
         
         if not metadata_file.exists():
@@ -450,6 +462,12 @@ EXAMPLES:
         action="store_true",
         help="Show system status and configuration"
     )
+
+    mode_group.add_argument(
+        "--indextype", "-in",
+        choices=["fullchunks", "summaries"],
+        help="Override the type of index built from config"
+        )
     
     # Agentic Toggle
     parser.add_argument(
@@ -509,6 +527,10 @@ EXAMPLES:
         parser.error("--quiet and --verbose cannot be used together")
     
     try:
+        #Override benchmark agent if specified
+        if args.benchmarkagent:
+            config_manager.get_config().config['embedder']['index_type'] = args.indextype
+
         # Status mode - lightweight check without full initialization
         if args.status:
             console.print("[bold]🔍 SYSTEM STATUS CHECK[/bold]")
@@ -544,7 +566,14 @@ EXAMPLES:
             # Check index status
             try:
                 import os
-                index_path = "data/faiss_index"
+                
+            # Determine index type from flags and config
+                index_type = config_manager.get_config().config['embedder']['index_type']
+                if index_type == "full_chunks":
+                    index_path = Path("data/faiss_index")
+                if index_type == "summaries": 
+                    index_path = Path("data/faiss_summary/index")
+
                 if os.path.exists(index_path):
                     files = os.listdir(index_path)
                     console.print(f"✅ Index found: {len(files)} files")
@@ -569,7 +598,7 @@ EXAMPLES:
 
         if args.agentic != None:
             config_manager.get_config().config['main_pipeline']['agentic'] = args.agentic
-
+        
         #Override benchmark type if specified
         if args.benchmarktype:
             config_manager.get_config().config['benchmark']['benchmark_type'] = args.benchmarktype

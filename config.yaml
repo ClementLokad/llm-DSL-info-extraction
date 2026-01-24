@@ -83,6 +83,9 @@ summarizer:
 embedder:
   # Default embedder type
   default_type: "sentence_transformer"
+
+  # Index type
+  index_type: "summary"  # Options: summary, full_chunk
   
   # Text preparation settings
   text_preparation:
