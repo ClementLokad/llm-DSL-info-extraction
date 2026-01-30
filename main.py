@@ -179,6 +179,7 @@ class MainLinearPipeline(BasePipeline):
         if len(context) == 0:
             ctx = "No relevant context found."
             prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
+        
         else:
             # Check if likely a grep result to apply specific statistics behavior
             # Grep results usually have chunk_type='grep_match' or 'smart_reference'
@@ -395,14 +396,53 @@ MODES:
   Interactive Mode (default): Start an interactive session for multiple queries
   Query Mode: Process a single query and exit
   Status Mode: Check system status and configuration
+  Benchmark Mode: Evaluate system against test questions
 
 EXAMPLES:
-  python main.py                          # Start interactive mode
-  python main.py --interactive            # Explicit interactive mode
-  python main.py --query "business logic" # Process single query
-  python main.py --status                 # Check system status
-  python main.py --agent mistral --query "data flow" # Use specific agent
-  python main.py --help                   # Show this help
+  # Interactive mode
+  python main.py                                       # Start interactive mode
+  python main.py --interactive                        # Explicit interactive mode
+  python main.py --interactive --verbose              # Interactive with detailed output
+  
+  # Query mode
+  python main.py --query "[QUERY]"             # Process single query
+  python main.py --query "data flow" --verbose        # Query with detailed reasoning
+  python main.py --query "find instances" --quiet     # Query with only result output
+  
+  # Status mode
+  python main.py --status                             # Check system status and config
+  
+  # Agent selection
+  python main.py --agent mistral --query "code analysis"      # Use specific agent
+  python main.py --agent gpt --interactive            # Start interactive with GPT
+  python main.py --agent gemini --query "find pattern"        # Query with Gemini
+  python main.py --agent llama3 --query "summarize"          # Query with local Llama3
+  
+  # Index type
+  python main.py --indextype full_chunk --query "[QUERY]"  # Use full chunk index
+  python main.py --indextype summary --interactive             # Use summary index
+  
+  # RAG fusion
+  python main.py --fusion --query "[COMPLEX QUERY]"  # Enable RAG fusion for query
+  python main.py --fusion --interactive               # Enable RAG fusion mode
+  
+  # Benchmark mode
+  python main.py --benchmarkpath questions.json       # Run benchmark evaluation
+  python main.py --benchmarkpath test.json --verbose  # Benchmark with detailed output
+  python main.py --benchmarktype llm_as_a_judge --benchmarkagent gpt --benchmarkpath data.json   # Use LLM judge
+  python main.py --benchmarktype cosine_similarity --benchmarkpath data.json # Use cosine similarity
+  
+  # Agentic mode
+  python main.py --agentic             # Enable agentic pipeline
+
+  # Combined options
+  python main.py --agent mistral --fusion --query "find configs"            # Mistral + fusion
+  python main.py --agentic --agent gpt --query "analyze code"               # Agentic with GPT
+  python main.py --indextype summary --verbose --query "search knowledge"   # Summary index + verbose
+  python main.py --benchmarkpath questions.json --benchmarkagent gemini --verbose  # Benchmark with details
+  
+  # Help
+  python main.py --help                               # Show full help message
         """
     )
     

@@ -52,7 +52,7 @@ class ChunkSummarizer():
     def generate_summary_file(self, chunks: List[CodeChunk], rebuild: bool = False) -> None:
         """
         Processes chunks and saves summaries to a JSON file.
-        Updates the file after every chunk to prevent data loss.
+        Saves data only when exiting the loop or on KeyboardInterrupt for efficiency.
         """
         total_iterations = len(chunks)
         
@@ -67,30 +67,30 @@ class ChunkSummarizer():
             processed_indices = [int(k) for k in existing_data.keys()]
             start_index = max(processed_indices) + 1
 
-        print(f"--- Summary Task State (JSON) ---")
-        print(f"Total chunks: {total_iterations}")
-        print(f"Already processed: {start_index}")
-        print(f"To do: {max(0, total_iterations - start_index)}")
-        print("-" * 20)
-
         if start_index >= total_iterations:
-            print("Processing already complete.")
+            print(f"--- Summary Task State (JSON) ---")
+            print(f"Processing already complete. {total_iterations}/{total_iterations} Summaries already generated")
             return
 
         try:
+            print(f"--- Summary Task State (JSON) ---")
+            print(f"Total chunks: {total_iterations}")
+
             for i in range(start_index, total_iterations):
                 print(f"Treating chunk N°{i}/{total_iterations-1}...", end='\r')
-                
+
                 summary = self.generate_chunk_summary(chunks[i])
 
-                # Update local dictionary and save to file
+                # Update local dictionary (don't save yet)
                 existing_data[str(i)] = summary
-                self._save_json_data(existing_data)
 
         except KeyboardInterrupt:
-            print("\n\n🛑 Manual stop detected (CTRL+C). Progress saved to JSON.")
+            print("\n\n🛑 Manual stop detected (CTRL+C). Saving progress...")
+            self._save_json_data(existing_data)
+            print("Progress saved to JSON.")
         else:
-            print(f"\n✅ All summaries saved to '{self.summary_list_path}'.")
+            print(f"\n✅ Saving all summaries to '{self.summary_list_path}'...")
+            self._save_json_data(existing_data)
 
     def get_summary_list(self) -> List[str]:
         """Returns a list of summary strings ordered by index."""

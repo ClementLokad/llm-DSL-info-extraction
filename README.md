@@ -37,12 +37,12 @@ Le projet a évolué vers une architecture basée sur **LangGraph**, permettant 
 
 ## 🏗️ Architecture système
 
-Le système propose deux points d'entrée selon la complexité requise :
+Le système propose options selon la complexité requise :
 
 1. **`main.py`** : Pipeline linéaire simple (Router → Retrieval → Generation).
-2. **`main_langgraph.py`** : Workflow graphique avancé (RAG Fusion, Logic Checking, Grading).
+2. **`main.py --agentic`** : Workflow graphique avancé (RAG Fusion, Logic Checking, Grading).
 
-### 🕸️ Workflow LangGraph (`main_langgraph.py`)
+### 🕸️ Workflow LangGraph (`main.py`)
 
 ```mermaid
 graph TD
@@ -63,7 +63,8 @@ graph TD
 llm-DSL-info-extraction/
 ├── 🕸️ main.py                    # Interface avancée (Graph-based)
 ├── 🔧 langgraph_base.py          # Définition du graphe et des états
-├── 🔨 build_index.py             # Construction d'index FAISS
+├── 🔨 build_index.py             # Construction d'index FAISS à base de chunks complets
+├── 🔨 build_summary_index.py             # Construction d'index FAISS à base de summaries
 ├── ⚙️ config.yaml                # Configuration système
 ├── 📄 requirements.txt           # Dépendances Python
 │
@@ -74,10 +75,12 @@ llm-DSL-info-extraction/
 │   ├── 📄 parsers/               # EnvisionParser
 │   ├── 🧩 chunkers/              # SemanticChunker
 │   ├── 🎯 embedders/             # SentenceTransformerEmbedder
+│   ├── 📖 summarizers/           # ChunkSummarizer
 │   └── 🔍 retrievers/            # FAISSRetriever & GrepRetriever
 │
 ├── 📊 pipeline/benchmarks/       # Outils d'évaluation
-│   └── 📐 cosine_sim_benchmark.py
+│   ├── 📐 cosine_sim_benchmark.py
+│   └── 🔍 llm_as_a_judge/
 │
 └── 📁 env_scripts/               # Fichiers sources .nvn
 ```
@@ -105,7 +108,7 @@ pip install -r requirements.txt
 ### 2. ⚙️ Configuration
 
 1. **API Keys** : Copiez `.env.example` vers `.env` et ajoutez vos clés.
-2. **Rate Limiting** : Si vous utilisez des API gratuites (ex: Mistral), configurez le délai dans `config.yaml` :
+2. **config.yaml** : Configurez tous les paramètres souhaités avant lancement du modèle. Si vous utilisez des API gratuites (ex: Mistral), configurez le délai dans `config.yaml` :
 
 ```yaml
 agent:
@@ -116,37 +119,71 @@ agent:
 ### 3. 🔨 Construction de l'index
 
 ```bash
+# Construction de l'index normal avec embedding des chunks complets
 python build_index.py
+```
+
+```bash
+# Construction de l'index normal avec embedding des chunks résumés. Arrêt possible avec CTRL+C
+python build_summary_index.py
+
+# Reprendre le calcul de là où on en était
+python build_summary_index.py
+
+# Ne pas le calcul de là où on en était
+python build_summary_index.py --rebuild
+
 ```
 
 ### 4. 🎮 Utilisation
 
-#### Mode Interactif (Recommandé)
-
-Utilisez la version LangGraph pour bénéficier de toutes les fonctionnalités :
+**Flags** Les flags servant à choisir certains modes de fonctionnement écrasent les choix définis dans config.yaml. Ils ne sont pas nécessaires si la config est gérée par l'utilisateur avant exécution.
 
 ```bash
+# fonction de base exécutée sans option
 python main.py
-```
 
-#### Options Avancées
+# --verbose : Activer le mode verbeux (voir les étapes du graphe)
+python main.py --verbose
 
-```bash
-# Activer le mode verbeux (voir les étapes du graphe)
-python main_langgraph.py --verbose
+# --agentic : Activer le mode agentique
+python main.py --agentic
 
-# Activer la RAG Fusion (pour questions complexes)
-python main_langgraph.py --fusion --query "Explain the inventory logic and how it relates to sales"
+# --agent, -a : Choisir l'agent (gemini, gpt, mistral, llama3, groq, qwen)
+python main.py --agent qwen
 
-# Lancer un benchmark
-python main_langgraph.py --benchmark questions.json
+# --verbose, -v : Détailler les étapes bien un output verbeux
+python main.py --verbose
+
+# --quiet : Supprimer les messages d'initialisation
+python main.py --quiet
+
+# --query : Poser une seule question
+python main.py --query "Explain the inventory logic and how it relates to sales"
+
+# --status, -s : Donner l'état de de la configuration et de l'index
+
+# --indextype, -in : Choix de l'index utilisé pour les embeddings (full_chunk, summary)
+python main.py --indextype full_chunk
+
+# --fusion, -f --query : Activer la RAG Fusion (pour questions complexes)
+python main.py --fusion --query "Explain the inventory logic and how it relates to sales"
+
+# --benchmarkpath, -bp : Donner le nom du benchmark à effectuer
+python main.py --quiet
+
+# --benchmarktype, -bt : Donner le type de benchmark à effectuer
+python main.py --benchmarkpath questions.json --benchmarktype llm_as_a_judge
+
+# --benchmarkagent, -ba, -bt : Changer l'agent utilisé par le benchmark (si llm_as_a_judge)
+python main.py --benchmarkpath questions.json --benchmarktype llm_as_a_judge -benchmarkagent mistral
 ```
 
 ---
 
 ## 💻 Comparaison des Modes
 
-| Fonctionnalité          |    `main.py`    |   `main_langgraph.py`   |
+| Fonctionnalité          |    `main.py`    |   `main.py`   |
 | :----------------------- | :---------------: | :------------------------: |
 | **Architecture**   |     Linéaire     |     Graphe (LangGraph)     |
 | **Complexité**    |      Faible      |          Élevée          |
@@ -173,7 +210,7 @@ Le système inclut un outil de benchmark basé sur la similarité cosinus.
    ```
 2. Lancez le benchmark :
    ```bash
-   python main_langgraph.py --benchmark questions.json
+   python main.py --benchmarkpath questions.json --benchmarktype llm_as_a_judge
    ```
 
 ---

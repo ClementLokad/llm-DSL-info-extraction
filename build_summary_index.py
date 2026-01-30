@@ -29,7 +29,7 @@ def build_index():
     parser.add_argument(
         "--rebuild",
         action="store_true",
-        help="Resume from previous summary file (default: False)"
+        help="Don't resume from previous summary file (default: False)"
     )
     parser.add_argument(
         "--check-status",
