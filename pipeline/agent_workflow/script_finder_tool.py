@@ -46,7 +46,7 @@ class PathScriptFinder(BaseScriptFinderTool):
         return root
 
     def find_scripts(self, script_names: List[str]) -> List[str]:
-        """Searches a file based on its original path in the specified search directories and returns its content. """
+        """Searches files """
         
         results = []
         
@@ -55,13 +55,8 @@ class PathScriptFinder(BaseScriptFinderTool):
             for file_name in script_names:
                 stripped_target = self.strip_extension(file_name)
                 if self.mapping.get(stripped_name, "").endswith(stripped_target):
-                    try:
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            results.append(content)
-                    except Exception as e:
-                        print(f"Couldn't read the following file {file_path}: {e}")
-        
+                    results.append(file_path)
+
         return results
 
 # FOR TESTING
