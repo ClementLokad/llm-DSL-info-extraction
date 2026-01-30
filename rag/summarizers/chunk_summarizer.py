@@ -67,22 +67,22 @@ class ChunkSummarizer():
             processed_indices = [int(k) for k in existing_data.keys()]
             start_index = max(processed_indices) + 1
 
+        print(f"--- Summary Task State (JSON) ---")
+        print(f"Total chunks: {total_iterations}")
+
         if start_index >= total_iterations:
-            print(f"--- Summary Task State (JSON) ---")
-            print(f"Processing already complete. {total_iterations}/{total_iterations} Summaries already generated")
+            print(f"Processing already complete. {total_iterations}/{total_iterations} summaries were already present in the index.")
             return
 
         try:
-            print(f"--- Summary Task State (JSON) ---")
-            print(f"Total chunks: {total_iterations}")
-
             for i in range(start_index, total_iterations):
-                print(f"Treating chunk N°{i}/{total_iterations-1}...", end='\r')
-
+                print(f"Treating chunk N°{i}/{total_iterations}...", end='\r')
+                
                 summary = self.generate_chunk_summary(chunks[i])
 
-                # Update local dictionary (don't save yet)
+                # Update local dictionary and save to file
                 existing_data[str(i)] = summary
+                self._save_json_data(existing_data)
 
         except KeyboardInterrupt:
             print("\n\n🛑 Manual stop detected (CTRL+C). Saving progress...")
@@ -90,7 +90,6 @@ class ChunkSummarizer():
             print("Progress saved to JSON.")
         else:
             print(f"\n✅ Saving all summaries to '{self.summary_list_path}'...")
-            self._save_json_data(existing_data)
 
     def get_summary_list(self) -> List[str]:
         """Returns a list of summary strings ordered by index."""
