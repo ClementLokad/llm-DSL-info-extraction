@@ -178,6 +178,7 @@ class MainLinearPipeline(BasePipeline):
         ctx: str
         if len(context) == 0:
             ctx = "No relevant context found."
+            prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
         else:
             # Check if likely a grep result to apply specific statistics behavior
             # Grep results usually have chunk_type='grep_match' or 'smart_reference'

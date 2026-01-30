@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List, Dict
 import requests
 from .base import LLMAgent, rate_limited
 from config_manager import get_config
@@ -45,7 +45,7 @@ class MistralAgent(LLMAgent):
             raise RuntimeError(f"Failed to connect to Mistral API: {str(e)}")
     
     @rate_limited()        
-    def generate_response(self, question: str, context: Optional[str] = None) -> str:
+    def generate_response(self, question: str, context: Optional[List[Dict[str, str]]] = None) -> str:
         """
         Generate a response using Mistral.
         
@@ -61,25 +61,27 @@ class MistralAgent(LLMAgent):
             
         if not question or not question.strip():
             raise ValueError("Question cannot be empty")
-            
-        messages = []
-        
+
+        # 1. Handle Initial System/RAG Context
+        # If 'context' is provided and history is empty, set it as the System Prompt.
+        # This static prefix is crucial for caching efficiency.
         if context:
-            messages.append({
-                "role": "system", 
-                "content": f"Use the following context to answer the question:\n{context}"
-            })
-            
-        messages.append({"role": "user", "content": question})
+            self.context = context
+        else:
+            self.context = []
+
+        # 2. Append the new User Question to history
+        self.context.append({"role": "user", "content": question})
         
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
         
+        # 3. Send the FULL history (self.context) to the API
         payload = {
             "model": self._model,
-            "messages": messages,
+            "messages": self.context,  # <--- This is where the cache magic happens
             "temperature": 0.7,
             "max_tokens": 1000
         }
@@ -88,7 +90,14 @@ class MistralAgent(LLMAgent):
         response.raise_for_status()
         
         result = response.json()
-        return result["choices"][0]["message"]["content"]
+        assistant_content = result["choices"][0]["message"]["content"]
+
+        # 4. Append the Assistant Response to history
+        # This ensures the NEXT request starts with [System + User + Assistant],
+        # allowing Mistral to reuse the KV cache for this entire block.
+        self.context.append({"role": "assistant", "content": assistant_content})
+
+        return assistant_content
     
     @property
     def model_name(self) -> str:

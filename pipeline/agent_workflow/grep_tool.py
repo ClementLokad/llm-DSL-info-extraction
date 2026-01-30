@@ -105,7 +105,7 @@ class GrepTool(BaseGrepTool):
         
         file_consts = {}
         
-        clean_target = pattern.strip().strip("/")
+        clean_target = pattern.strip().strip("'\"").strip("/")
 
         try:
             regex = re.compile(pattern, 0 if self.case_sensitive else re.IGNORECASE)
