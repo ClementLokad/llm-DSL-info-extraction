@@ -117,8 +117,13 @@ class BaseScriptFinderTool():
 
     def read_file(self, file_path: str) -> str:
         """Helper to read file content."""
-        with open(file_path, 'r') as f:
-            return f.read()
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                return content
+        except Exception as e:
+            print(f"Couldn't read the following file {file_path}: {e}")
+            return f"Couldn't read the following file {file_path}."
 
 class BaseRAGTool():
     """A base tool for performing RAG operations."""
