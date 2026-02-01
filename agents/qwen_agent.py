@@ -18,7 +18,8 @@ class QwenAgent(LLMAgent):
     def initialize(self):
         """No itialization needed for Qwen via ollama"""
         return super().initialize()
-     
+    
+    @LLMAgent.count_tokens
     def generate_response(self, question: str, context: Optional[Any] = None) -> str:
         """
         Generate a response using Qwen.

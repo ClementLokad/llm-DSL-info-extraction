@@ -41,6 +41,7 @@ class GPTAgent(LLMAgent):
             raise RuntimeError(f"Failed to initialize OpenAI client: {str(e)}")
     
     @rate_limited()
+    @LLMAgent.count_tokens
     def generate_response(self, question: str, context: Optional[str] = None) -> str:
         """
         Generate a response using GPT.

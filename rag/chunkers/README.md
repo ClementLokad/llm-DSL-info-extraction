@@ -104,7 +104,7 @@ cp envision_parser.py /your/project/rag/parsers/
 cp envision_chunker.py /your/project/rag/core/
 
 # Install dependencies
-pip install tiktoken  # For accurate token counting (optional)
+pip install tiktoken  # For accurate token counting
 ```
 
 ### Requirements

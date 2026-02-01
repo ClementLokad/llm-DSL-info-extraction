@@ -10,16 +10,10 @@ from typing import Dict, List, Any, Optional, Set
 from dataclasses import dataclass
 from enum import Enum
 from config_manager import get_config
+from rag.utils.handle_tokens import get_token_count
 import logging
 
 logger = logging.getLogger(__name__)
-
-# Try to import tiktoken, fall back to simple word count if not available
-try:
-    import tiktoken
-    TIKTOKEN_AVAILABLE = True
-except ImportError:
-    TIKTOKEN_AVAILABLE = False
 
 class BlockType(Enum):
     """Enumeration of different block types in Envision scripts."""
@@ -91,15 +85,7 @@ class CodeBlock:
     
     def get_token_count(self, encoding_name: str = "cl100k_base") -> int:
         """Returns approximate token count for this block."""
-        if TIKTOKEN_AVAILABLE:
-            try:
-                encoding = tiktoken.get_encoding(encoding_name)
-                return len(encoding.encode(self.content))
-            except Exception:
-                pass
-        
-        # Fallback: rough approximation (1 token ≈ 0.75 words)
-        return int(len(self.content.split()) * 1.3)
+        return get_token_count(self.content, encoding_name)
 
 class BaseParser(ABC):
     """

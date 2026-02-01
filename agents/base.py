@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Any
+from config_manager import get_config
+from rag.utils.handle_tokens import get_token_count
 import time
 import functools
 
@@ -37,11 +39,24 @@ def rate_limited(max_retries: int = 3, initial_delay: float = 1.0):
 class LLMAgent(ABC):
     """Abstract interface for LLM agents"""
     
+    @staticmethod
+    def count_tokens(func):
+        @functools.wraps(func)
+        def wrapper(agent, question, *args, **kwargs):
+            if get_config().get("main_pipeline.token_count", False):
+                get_config().config["tokens_in"] += get_token_count(question)
+                res = func(agent, question, *args, **kwargs)
+                get_config().config["tokens_out"] += get_token_count(res)
+                return res
+            return func(*args, **kwargs)
+        return wrapper
+    
     @abstractmethod
     def initialize(self) -> None:
         """Initialize the agent with its required configurations"""
         self.context = None
     
+    @count_tokens
     @abstractmethod  
     def generate_response(self, question: str, context: Optional[Any] = None) -> str:
         """Generate a response to a question with optional context

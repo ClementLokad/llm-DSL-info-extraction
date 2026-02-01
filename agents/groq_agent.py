@@ -46,7 +46,8 @@ class GroqAgent(LLMAgent):
         except Exception as e:
             raise RuntimeError(f"Failed to connect to Groq API: {str(e)}")
     
-    @rate_limited()        
+    @rate_limited()
+    @LLMAgent.count_tokens
     def generate_response(self, question: str, context: Optional[str] = None) -> str:
         """
         Generate a response using Groq.
