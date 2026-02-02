@@ -11,32 +11,14 @@ The architecture supports:
 - Envision-specific code understanding
 """
 
-from rag.core.base_parser import BaseParser
-from rag.core.base_chunker import BaseChunker  
-from rag.core.base_embedder import BaseEmbedder
-from rag.core.base_retriever import BaseRetriever
-
 from rag.parsers.old_envision_parser import EnvisionParser
-from rag.chunkers.semantic_chunker import SemanticChunker
-from rag.summarizers.chunk_summarizer import ChunkSummarizer
+from rag.chunkers.envision_chunker import EnvisionChunker
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from rag.retrievers.faiss_retriever import FAISSRetriever
 
-# Dynamic imports for embedders with optional dependencies
-try:
-    from rag.embedders.openai_embedder import OpenAIEmbedder
-except ImportError:
-    OpenAIEmbedder = None
-
-try:
-    from rag.embedders.gemini_embedder import GeminiEmbedder
-except ImportError:
-    GeminiEmbedder = None
-
 __version__ = "0.1.0"
 __all__ = [
-    "BaseParser", "BaseChunker", "BaseEmbedder", "BaseRetriever",
-    "EnvisionParser", "SemanticChunker", "ChunkSummarizer",
+    "EnvisionParser", "EnvisionChunker",
     "SentenceTransformerEmbedder",
     "FAISSRetriever"
 ]

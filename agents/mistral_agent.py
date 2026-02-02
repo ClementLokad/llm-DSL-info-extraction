@@ -44,7 +44,8 @@ class MistralAgent(LLMAgent):
         except Exception as e:
             raise RuntimeError(f"Failed to connect to Mistral API: {str(e)}")
     
-    @rate_limited()        
+    @rate_limited()
+    @LLMAgent.count_tokens 
     def generate_response(self, question: str, context: Optional[List[Dict[str, str]]] = None) -> str:
         """
         Generate a response using Mistral.

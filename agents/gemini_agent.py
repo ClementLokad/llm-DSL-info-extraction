@@ -111,6 +111,7 @@ class GeminiAgent(LLMAgent):
             raise ConnectionError(f"Failed to connect to Gemini API: {str(e)}")
     
     @rate_limited()
+    @LLMAgent.count_tokens
     def generate_response(self, question: str, context: Optional[str] = None) -> str:
         """Generate a response using Gemini"""
         if not question.strip():

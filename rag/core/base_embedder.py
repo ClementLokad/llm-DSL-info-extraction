@@ -7,18 +7,13 @@ vector representations suitable for semantic search and retrieval.
 
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Union
+from rag.utils.handle_tokens import get_token_count
 import numpy as np
 import logging
 
 from rag.core.base_chunker import CodeChunk
 
 logger = logging.getLogger(__name__)
-
-try:
-    import tiktoken
-    TIKTOKEN_AVAILABLE = True
-except ImportError:
-    TIKTOKEN_AVAILABLE = False
 
 class BaseEmbedder(ABC):
     """
@@ -164,7 +159,6 @@ class BaseEmbedder(ABC):
         # Get configuration parameters
         from config_manager import get_config
         config = get_config()
-        chars_per_token = config.get('embedder.text_preparation.chars_per_token_code', 3)
         truncation_ratio = config.get('embedder.text_preparation.truncation_ratio', 0.8)
         min_lines = config.get('embedder.text_preparation.min_lines_preserve', 1)
         
@@ -174,10 +168,7 @@ class BaseEmbedder(ABC):
         text = '\n'.join(lines)
         
         # 2. Better token estimation for code (more tokens per char than prose)
-        if TIKTOKEN_AVAILABLE:
-            estimated_tokens = len(tiktoken.get_encoding("cl100k_base").encode(text))
-        else: 
-            estimated_tokens = max(len(text) // chars_per_token, len(text.split()))
+        estimated_tokens = get_token_count(text)
         
         # 3. Smart truncation at logical boundaries if needed
         if estimated_tokens > self.max_length:

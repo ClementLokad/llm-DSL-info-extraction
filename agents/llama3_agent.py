@@ -18,7 +18,8 @@ class Llama3Agent(LLMAgent):
     def initialize(self):
         """No itialization needed for Llama3 via ollama"""
         return super().initialize()
-     
+    
+    @LLMAgent.count_tokens
     def generate_response(self, question: str, context: Optional[str] = None) -> str:
         """
         Generate a response using Llama3.

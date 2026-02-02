@@ -322,6 +322,9 @@ class DSLQuerySystem():
         
         while True:
             try:
+                if self.config_manager.get("main_pipeline.token_count", False):
+                    self.config_manager.config["tokens_in"] = 0
+                    self.config_manager.config["tokens_out"] = 0
                 user_input = self.console.input("[bold purple]User:[/bold purple] ")
                 if not user_input.strip(): continue
                 if user_input.lower() in ['exit', 'quit', 'q']:
@@ -335,6 +338,9 @@ class DSLQuerySystem():
                 raw = final_state.get('final_answer', 'No answer generated')
                 
                 self.console.print(Panel(Markdown(raw), title="Copilot", border_style="blue"))
+                if self.config_manager.get("main_pipeline.token_count", False):
+                    self.console.print(f"\n[bold]Tokens used: [/bold]{self.config_manager.get('tokens_in')} [green]tokens in[/green]"
+                                       f", {self.config_manager.get('tokens_out')} [red]tokens out[/red]")
             except KeyboardInterrupt:
                 break
             except Exception as e:
@@ -380,6 +386,24 @@ class DSLQuerySystem():
         self.console.print("\n")
         self.console.print(Align.center(table))
         self.console.print(f"\n[bold]Moyenne globale : {final_state['benchmark_results']['average_score']:.4f}[/bold]")
+        if self.config_manager.get("main_pipeline.token_count", False):
+            self.console.print(f"\n[bold]Tokens used: [/bold]{self.config_manager.get('tokens_in')} [green]tokens in[/green]"
+                               f", {self.config_manager.get('tokens_out')} [red]tokens out[/red]")
+        
+        if self.config_manager.get("benchmark.save_data", False):
+            data_dir = self.config_manager.get("paths.data_dir", "data")
+            benchmark_name = Path(questions_json_path).stem
+            res_dir = data_dir + f"/benchmark_results/{benchmark_name}_{time.strftime('%Y-%m-%d_%H-%M-%S')}.json"
+            res_path = Path(res_dir)
+            # Create the parent directories if they don't exist
+            res_path.parent.mkdir(parents=True, exist_ok=True)
+            res = final_state['grades']
+            if self.config_manager.get("main_pipeline.token_count", False):
+                res = {"Tokens used": {"In": self.config_manager.get('tokens_in'), 
+                                       "Out": self.config_manager.get('tokens_out')},
+                       "Results": res}
+            with open(res_path, 'w', encoding='utf-8') as f:
+                json.dump(res, f, indent=4, ensure_ascii=False)
 
 
 def main():
@@ -434,6 +458,12 @@ EXAMPLES:
   
   # Agentic mode
   python main.py --agentic             # Enable agentic pipeline
+  
+  # Token count
+  python main.py --token_count         # Get number of tokens used in and out
+  
+  # Save benchmark results
+  python main.py -bp "a/path/to/benchmark" --save_data     # Saves the benchmark result in a json file in data folder
 
   # Combined options
   python main.py --agent mistral --fusion --query "find configs"            # Mistral + fusion
@@ -521,6 +551,18 @@ EXAMPLES:
         "--benchmarkagent", "-ba",
         choices=["gemini", "gpt", "mistral", "llama3", "groq", "qwen"],
         help="Override benchmark agent from config"
+    )
+    
+    parser.add_argument(
+        "--token_count",
+        action="store_true",
+        help="Get the total tokens used for LLM calls"
+    )
+    
+    parser.add_argument(
+        "--save_data",
+        action="store_true",
+        help="If benchmark is used, the results are saved in a json summary"
     )
 
     args = parser.parse_args()
@@ -614,6 +656,16 @@ EXAMPLES:
         #Override benchmark agent if specified
         if args.benchmarkagent:
             config_manager.get_config().config['benchmark']['benchmark_agent'] = args.benchmarkagent
+        
+        if args.save_data:
+            config_manager.get_config().config['benchmark']['save_data'] = args.save_data
+        
+        if args.token_count:
+            config_manager.get_config().config['main_pipeline']['token_count'] = args.token_count
+        
+        if config_manager.get_config().get("main_pipeline.token_count", False):
+            config_manager.get_config().config['tokens_in'] = 0
+            config_manager.get_config().config['tokens_out'] = 0
             
         # Determine verbosity level
         if args.verbose:
@@ -650,6 +702,10 @@ EXAMPLES:
                 response = system.query(args.query, verbose=args.verbose)
                 
                 console.print(Panel(Markdown(response), title="Copilot Result", border_style="blue"))
+                if config_manager.get_config().get("main_pipeline.token_count", False):
+                    console.print(f"\n[bold]Tokens used: [/bold]{config_manager.get_config().get('tokens_in')} "
+                                  f"[green]tokens in[/green], {config_manager.get_config().get('tokens_out')} "
+                                  "[red]tokens out[/red]")
         else:
             # Interactive mode (default) - always clean interface
             system.interactive(verbose=args.verbose)
