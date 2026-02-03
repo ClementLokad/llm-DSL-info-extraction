@@ -48,7 +48,7 @@ class LLMAgent(ABC):
                 res = func(agent, question, *args, **kwargs)
                 get_config().config["tokens_out"] += get_token_count(res)
                 return res
-            return func(*args, **kwargs)
+            return func(agent, question, *args, **kwargs)
         return wrapper
     
     @abstractmethod
