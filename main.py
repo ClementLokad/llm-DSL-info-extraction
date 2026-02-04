@@ -175,10 +175,13 @@ class MainLinearPipeline(BasePipeline):
         question = state["question"]
         context = state["retrieved_context"]
         
+        with open("base_instructions.txt", "r") as file:
+            base_instructions=file.read()
+        
         ctx: str
         if len(context) == 0:
             ctx = "No relevant context found."
-            prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
+            prompt = base_instructions + f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
         
         else:
             # Check if likely a grep result to apply specific statistics behavior
@@ -227,13 +230,13 @@ class MainLinearPipeline(BasePipeline):
                 )
                 
                 ctx = stats_header + context_str
-                prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question based mainly on the SEARCH REPORT statistics above:\n{question}"
+                prompt = base_instructions + f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question based mainly on the SEARCH REPORT statistics above:\n{question}"
             
             else:
                 # Standard RAG context formatting
                 context_str = "\n\n----------------------\n\n".join([r.to_str_for_generation() for r in context])
                 ctx = context_str
-                prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
+                prompt = base_instructions + f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
         
         self.console.print(f"[dim]→ Generated prompt size: {len(prompt)} chars[/dim]")
 
