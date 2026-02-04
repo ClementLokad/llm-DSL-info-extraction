@@ -5,7 +5,7 @@ import time
 import agents.prepare_agent as prepare_agent
 import config_manager
 
-default_prompt = "Tu es un évaluateur strict. Lorsque je te soumets une question, la vraie réponse et la réponse d'un LLM, tu dois générer UNIQUEMENT un seul caractère : 1 si la réponse du LLM est correcte, ou 0 si la réponse est incorrecte. Si la réponse du LLM est très incomplète et qu'il manque un élément important, mets la note de 0. Si la réponse du LLM a le même sens que la vraie réponse, mets la note de 1. Si la réponse du LLM contient des éléments en plus par rapport à la vraie réponse, mais qu'elle contient tous les éléments de la vraie réponse, mets la note de 1. Ne génère PAS d'explications, de raisonnement, de balises, d'espaces, de ponctuation ou tout autre texte supplémentaire. Si tu génères autre chose que strictement 1 ou 0, tu as échoué à la tâche. Ta réponse complète doit être exactement d'un caractère : 1 ou 0"
+default_prompt = "Tu es un évaluateur strict. Lorsque je te soumets une question, la vraie réponse et la réponse d'un LLM, tu dois générer UNIQUEMENT un seul caractère : 1 si la réponse du LLM est correcte, ou 0 si la réponse est incorrecte. Si la réponse du LLM est très incomplète et qu'il manque un élément important, mets la note de 0. Si la réponse du LLM contient des éléments en plus par rapport à la vraie réponse, mais qu'elle contient tous les éléments de la vraie réponse, mets la note de 1. Ne génère PAS d'explications, de raisonnement, de balises, d'espaces, de ponctuation ou tout autre texte supplémentaire. Si tu génères autre chose que strictement 1 ou 0, tu as échoué à la tâche. Ta réponse complète doit être exactement d'un caractère : 1 ou 0"
 
 class LLMAsAJudgeBenchmark(Benchmark):
     """
