@@ -459,8 +459,8 @@ EXAMPLES:
   python main.py --benchmarktype llm_as_a_judge --benchmarkagent gpt --benchmarkpath data.json   # Use LLM judge
   python main.py --benchmarktype cosine_similarity --benchmarkpath data.json # Use cosine similarity
   
-  # Agentic mode
-  python main.py --agentic             # Enable agentic pipeline
+  # Linear mode
+  python main.py --linear             # Untoggle agentic pipeline
   
   # Token count
   python main.py --token_count         # Get number of tokens used in and out
@@ -505,11 +505,11 @@ EXAMPLES:
         help="Override the type of index built from config"
         )
     
-    # Agentic Toggle
+    # Linear Toggle
     parser.add_argument(
-        "--agentic",
+        "--linear",
         action="store_true",
-        help="Toggle the agentic mode"
+        help="Toggle the linear mode (disable agentic pipeline)"
     )
     
     # Agent selection
@@ -649,8 +649,8 @@ EXAMPLES:
         if args.fusion:
            config_manager.get_config().config['rag']['fusion'] = True
 
-        if args.agentic != None:
-            config_manager.get_config().config['main_pipeline']['agentic'] = args.agentic
+        if args.linear != None:
+            config_manager.get_config().config['main_pipeline']['agentic'] = not args.linear
         
         #Override benchmark type if specified
         if args.benchmarktype:
