@@ -1,11 +1,6 @@
-import sys
 import time
 import re
 from pathlib import Path
-
-# Add the specific folder to sys.path
-# '..' means go up one level, then into 'my_modules'
-sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from langgraph.graph import END, StateGraph, START
 from config_manager import get_config
