@@ -10,7 +10,7 @@
 # =============================================================================
 agent:
   # Default agent to use for queries
-  default_model: "qwen"  # Options: "gemini", "gpt", "mistral", "groq"
+  default_model: "mistral"  # Options: "gemini", "gpt", "mistral", "groq"
   # Delay in seconds between LLM calls to avoid rate limits (0 = disabled)
   rate_limit_delay: 2
 
@@ -69,7 +69,7 @@ chunker:
 # SUMMARIZER CONFIGURATION
 # =============================================================================
 summarizer:
-  summary_model: "qwen" # Options: "gemini", "gpt", "mistral", "groq"
+  summary_model: "mistral" # Options: "gemini", "gpt", "mistral", "groq"
   summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
 
 # =============================================================================
@@ -283,10 +283,10 @@ main_pipeline:
 
   agent_logic:
     max_retries: 2
-    distillation_llm: "qwen"
-    main_llm: "qwen"
-    planner_llm: "qwen"
-    cleaning_llm: "qwen"
+    distillation_llm: "mistral"
+    main_llm: "mistral"
+    planner_llm: "mistral"
+    cleaning_llm: "mistral"
 
   grep_tool:
     max_results: 50
@@ -302,7 +302,7 @@ main_pipeline:
 # =============================================================================
 benchmark:
   benchmark_type: "llm_as_a_judge" # Choose the benchmark type: "cosine_similarity", "llm_as_a_judge"
-  benchmark_model: "qwen"  # LLM model to use as a judge: "gemini", "gpt", "mistral", "groq"
+  benchmark_model: "mistral"  # LLM model to use as a judge: "gemini", "gpt", "mistral", "groq"
   benchmark_prompt: "You are a strict evaluator. When I give you a question and an LLM’s answer, you must output ONLY a single character: 1 if the answer is fully correct, or 0 if the answer is incorrect. Do NOT output explanations, chain-of-thought, tags, spaces, punctuation, or any extra text. If you output anything other than exactly 1 or 0, you have failed the task. Your entire reply must be exactly one character: 1 or 0."
   save_data: false
 
