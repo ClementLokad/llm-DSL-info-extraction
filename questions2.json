@@ -1,0 +1,169 @@
+{
+    "answered": [
+        {
+            "question": "Combien de scripts lisent /Clean/Items.ion ?",
+            "deterministic": true,
+            "answers": [28]
+        },
+        {
+            "question": "Quels scripts lisent /Clean/Forecast/Periodic/FcItems.ion?",
+            "deterministic": true,
+            "answers": [
+                "/3. Inspectors/1 - Item Inspector",
+                "/4. Optimization workflow/03.b. Forecasting",
+                "/4. Optimization workflow/French/03 Forecasting"
+            ]
+        },
+        {
+            "question": "Quels scripts écrivent /Clean/Forecast/Periodic/FcItems.ion?",
+            "deterministic": true,
+            "answers": [
+                "/1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff"
+            ]
+        },
+        {
+            "question": "Combien de scripts font mention de /Clean/Forecast/Periodic/FcItems.ion ?",
+            "deterministic": true,
+            "answers": [4]
+        },
+        {
+            "question": "Quels sont les modules utilisés ?",
+            "deterministic": true,
+            "answers": [
+                "/1. utilities/Modules/Global Parameters",
+                "/1. utilities/Modules/Functions",
+                "/1. utilities/Modules/PathSchemas",
+                "/1. utilities/Modules/Colors"
+            ]
+        },
+        {
+            "question": "Où sont calculés les meilleurs vendeurs ?",
+            "deterministic": true,
+            "answers": [
+                "/3. Inspectors/4 - Stores Analysis"
+            ]
+        },
+        {
+            "question": "Le client veut ajouter une nouvelle localisation pour le dispatch. Où paramétrer le champ ReDispatchCycle propre à cette localisation ?",
+            "deterministic": true,
+            "answers": [
+                "Dans /1. utilities/2. preprocess/[2] - Business Preprocessing"
+            ]
+        },
+        {
+            "question": "Existe-t-il une fonction pour calculer l’évolution du stock dans le temps en tenant compte des arrivages et de la demande ?",
+            "deterministic": false,
+            "answers": [
+                "Oui, la fonction stockEvol, définie dans /1. utilities/Modules/Functions."
+            ]
+        },
+        {
+            "question": "Je vais recevoir une nouvelle colonne FuturSellPrice dans ma table catalogue. Dans quel script effectuer des checks de cohérence sur les valeurs observées ?",
+            "deterministic": true,
+            "answers": [
+                "/1. utilities/2. preprocess/[2] - Business Preprocessing"
+            ]
+        },
+        {
+            "question": "Combien de profils de saisonnalité sont appris pour créer le moteur de prévision ?",
+            "deterministic": true,
+            "answers": [
+                "10"
+            ]
+        },
+        {
+            "question": "Existe-t-il un endroit où retrouver des informations condensées pour analyser les différents fournisseurs ?",
+            "deterministic": false,
+            "answers": [
+                "Oui, dans le script /3. Inspectors/5 - Supplier Inspector."
+            ]
+        },
+
+        {
+            "question": "Où paramétrer des changements globaux sur les prix de vente afin d’observer leur impact sur la prévision des ventes ?",
+            "deterministic": true,
+            "answers": [
+                "/6. Rule Based Pricing/Pricing Rules"
+            ]
+        },
+        {
+            "question": "Quelle fenêtre temporelle est prise en compte pour l’apprentissage de la prévision des ventes ?",
+            "deterministic": false,
+            "answers": [
+                "Les 4 dernières années de ventes."
+            ]
+        },
+        {
+            "question": "Le produit CT-110-DC est-il traité de façon spécifique dans les scripts ?",
+            "deterministic": false,
+            "answers": [
+                "Oui, certaines de ses dates de ventes ne sont pas prises en compte dans l’apprentissage de son forecast."
+            ]
+        },
+        {
+            "question": "Comment sont définies les cibles de fill rate à respecter selon les produits du catalogue ?",
+            "deterministic": true,
+            "answers": [
+                "Elles sont calculées selon la formule suivante : Items.CategoryFRTarget = (86 + Items.AgressivenessFactor * 12) / 100, où AgressivenessFactor est le coefficient d’agressivité."
+            ]
+        },
+        {
+            "question": "Comment et où est définie la croissance annuelle pour chaque produit ?",
+            "deterministic": false,
+            "answers": [
+                "La croissance annuelle est définie dans le script /1. utilities/1. populating dataset/01 - Catalog and Orders History Creation via la formule : Catalog.AnnualGrowth = if Catalog.IsTopItem then 0.05 else 0.025"
+            ]
+        },
+        {
+            "question": "Est-ce que je peux prendre en compte des ventes retour (quantités négatives) dans mes calculs de KPIs ?",
+            "deterministic": false,
+            "answers": [
+                "Non : les ventes avec des quantités nulles ou négatives sont filtrées."
+            ]
+        },
+        {
+            "question": "Est-ce qu’on pondère l’apprentissage des ventes selon leurs dates pour déterminer une prévision future des ventes ?",
+            "deterministic": false,
+            "answers": [
+                "Oui : le lissage donne plus de poids aux semaines récentes et un poids décroissant aux semaines plus éloignées. Cela est défini dans le script /1. utilities/2. preprocess/[ 3 ] - Forecast Autodiff via la formule ItemsWeek.SmoothedDemandQty = ... (pondérations selon la position par rapport à lastDate)."
+            ]
+        },
+        {
+            "question": "Où le client peut paramétrer le taux de complétude cible ?",
+            "deterministic": false,
+            "answers": [
+                "/1. utilities/Manufacturing/Operations, via un form paramétrable"
+            ]
+        },
+        {
+            "question": "Comment modélise-t-on le coût de posséder une unité d’un produit en stock ?",
+            "deterministic": false,
+            "answers": [
+                "Avec un taux annuel de carrying cost (carryingCost = 0.3) appliqué au prix d’achat, proratisé sur 7 jours :Items.C = carryingCost * Items.BuyPrice * 7 / 365. Défini dans /1. utilities/website/01 Inventory Optimization Overview (web)."
+            ]
+        },
+        {
+            "question": "Est-ce que le client a l’autonomie de paramétrer lui-même la cible de taux de satisfaction de la demande (fill rate) ?",
+            "deterministic": false,
+            "answers": [
+                "Oui, directement via le dashboard /1. utilities/website/07 Standard Dispatch Suggestion New (clone)."
+            ]
+        },
+        {
+            "question": "Le client aimerait suivre l’évolution des ruptures de stock : est-ce qu’un dashboard existe déjà qui pourrait être utile ?",
+            "deterministic": false,
+            "answers": [
+                "Oui : /3. Inspectors/7 - Global Business Cockpit"
+            ]
+        },
+        {
+            "question": "Quel type de demande moyenne affiche-t-on au client sur le compte?",
+            "deterministic": false,
+            "answers": [
+                "Dans la documentation du script /4. Optimization workflow/FR/05. Suggestions d'achat, on distingue : 1) Demande Moyenne approvisionnement : demande moyenne prévue sur leprochain délai d’approvisionnement. 2)Demande Moyenne couverture : demande moyenne prévue sur la fenêtre deresponsabilité (FR) (cycle de réapprovisionnement). 3) Demande Moyenne totale : demande moyenne prévue sur le délai  d’approvisionnement + fenêtre de responsabilité (FR)."
+            ]
+        }
+    ],
+    "unanswered": [
+    ]
+}
