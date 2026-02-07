@@ -161,6 +161,9 @@ class BaseAgentWorkflow(StateGraph):
         self.grep_tool = grep_tool
         self.script_finder_tool = script_finder_tool
         self.distillation_tool = distillation_tool
+        
+        with open("base_instructions.txt", "r") as file:
+            self.base_instructions = file.read()
     
     # --- Helper: History Management ---
     
@@ -208,7 +211,7 @@ class BaseAgentWorkflow(StateGraph):
         thought = state.get('current_thought', None)
         
         # A. Identity
-        prompt = (
+        prompt = self.base_instructions + (
             "### SYSTEM ROLE\n"
             "You are an expert technical assistant working on a **Lokad Envision** codebase.\n"
             "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"
@@ -317,7 +320,7 @@ class BaseAgentWorkflow(StateGraph):
         # MODE 1: KICKOFF (First Pass - Simplified)
         # =================================================================
         if not history:
-            prompt = (
+            prompt = self.base_instructions + (
                 "### SYSTEM ROLE\n"
                 "You are the **Strategic Planner** for an advanced RAG agent working on a **Lokad Envision** codebase.\n"
                 "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"
@@ -354,7 +357,7 @@ class BaseAgentWorkflow(StateGraph):
         previous_generation = state['pipeline_state'].get('generation') or "(No generation available)"
         
         # 1. System Role: The Strategist
-        prompt = (
+        prompt = self.base_instructions + (
             "### SYSTEM ROLE\n"
             "You are the **Investigation Supervisor** for an advanced RAG agent working on a **Lokad Envision** codebase.\n"
             "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"

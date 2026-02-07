@@ -175,13 +175,10 @@ class MainLinearPipeline(BasePipeline):
         question = state["question"]
         context = state["retrieved_context"]
         
-        with open("base_instructions.txt", "r") as file:
-            base_instructions=file.read()
-        
         ctx: str
         if len(context) == 0:
             ctx = "No relevant context found."
-            prompt = base_instructions + f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
+            prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
         
         else:
             # Check if likely a grep result to apply specific statistics behavior
@@ -230,13 +227,13 @@ class MainLinearPipeline(BasePipeline):
                 )
                 
                 ctx = stats_header + context_str
-                prompt = base_instructions + f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question based mainly on the SEARCH REPORT statistics above:\n{question}"
+                prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question based mainly on the SEARCH REPORT statistics above:\n{question}"
             
             else:
                 # Standard RAG context formatting
                 context_str = "\n\n----------------------\n\n".join([r.to_str_for_generation() for r in context])
                 ctx = context_str
-                prompt = base_instructions + f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
+                prompt = f"Given this context:\n{ctx}\n________________________\n\nAnswer the following question:\n{question}"
         
         self.console.print(f"[dim]→ Generated prompt size: {len(prompt)} chars[/dim]")
 
@@ -459,8 +456,8 @@ EXAMPLES:
   python main.py --benchmarktype llm_as_a_judge --benchmarkagent gpt --benchmarkpath data.json   # Use LLM judge
   python main.py --benchmarktype cosine_similarity --benchmarkpath data.json # Use cosine similarity
   
-  # Agentic mode
-  python main.py --agentic             # Enable agentic pipeline
+  # Linear mode
+  python main.py --linear             # Untoggle agentic pipeline
   
   # Token count
   python main.py --token_count         # Get number of tokens used in and out
@@ -505,11 +502,11 @@ EXAMPLES:
         help="Override the type of index built from config"
         )
     
-    # Agentic Toggle
+    # Linear Toggle
     parser.add_argument(
-        "--agentic",
+        "--linear",
         action="store_true",
-        help="Toggle the agentic mode"
+        help="Toggle the linear mode (disable agentic pipeline)"
     )
     
     # Agent selection
@@ -649,8 +646,8 @@ EXAMPLES:
         if args.fusion:
            config_manager.get_config().config['rag']['fusion'] = True
 
-        if args.agentic != None:
-            config_manager.get_config().config['main_pipeline']['agentic'] = args.agentic
+        if args.linear != None:
+            config_manager.get_config().config['main_pipeline']['agentic'] = not args.linear
         
         #Override benchmark type if specified
         if args.benchmarktype:

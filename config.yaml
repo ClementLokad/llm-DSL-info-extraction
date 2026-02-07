@@ -278,7 +278,7 @@ logging:
 # MAIN PIPELINE CONFIGURATION
 # =============================================================================
 main_pipeline:
-  agentic: false
+  agentic: true
   token_count: false
 
   agent_logic:
