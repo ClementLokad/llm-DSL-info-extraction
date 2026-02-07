@@ -372,7 +372,9 @@ class BaseAgentWorkflow(StateGraph):
             "The Main Agent has reviewed the facts and generated this answer:\n"
             f"\"{previous_generation}\"\n\n"
             "**CRITICAL CHECK**: Does this proposed solution directly and fully answer the Mission Goal? "
-            "If YES, your job is done.\n\n"
+            "If YES, your job is done.\n"
+            "Note that an unclear answer (e.g., vague statements, lack of sources, or 'I don't know') should be treated as NOT ANSWERED."
+            "In this case, if recommendations are given, try to identify the specific missing piece of information and select the tool that can find it.\n\n"
         )
         
         # 4. Verified Facts
