@@ -1,24 +1,15 @@
 import time
 import re
-from pathlib import Path
 
 from langgraph.graph import END, StateGraph, START
 from config_manager import get_config
 from pipeline.agent_workflow.workflow_base import *
 from langgraph_base import AgentGraphState, BasePipeline, GraphState
-from pipeline.agent_workflow.concrete_workflow import ConcreteAgentWorkflow
-from pipeline.agent_workflow.distillation_tool import LLMDistillationTool
-from pipeline.agent_workflow.grep_tool import GrepTool
-from pipeline.agent_workflow.script_finder_tool import PathScriptFinder
-from pipeline.agent_workflow.rag_tool import SimpleRAGTool
-from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
-from rag.retrievers.faiss_retriever import FAISSRetriever
-from pathlib import Path
 
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.markdown import Markdown
-from rich.table import Table
+from rich.markup import escape
 
 class AgenticPipeline(BasePipeline):
     """
@@ -123,7 +114,7 @@ class AgenticPipeline(BasePipeline):
         self.console.print("[dim]--- NODE: Generate Answer (Main LLM) ---[/dim]")
         prompt = state["prompt"]
         if state["verbose"]:
-            prompt_content = Panel(prompt, title="Main LLM Prompt", border_style="purple")
+            prompt_content = Panel(escape(prompt), title="Main LLM Prompt", border_style="purple")
         
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)
@@ -176,7 +167,7 @@ class AgenticPipeline(BasePipeline):
         
         if state["verbose"]:
             content += f"🧹[bold bright_blue] → Cleaned Final Answer:[/bold bright_blue]\n{final_answer}\n"
-            self.console.print(Panel(content, title="Cleaning", border_style="green"))
+            self.console.print(Panel(escape(content), title="Cleaning", border_style="green"))
         
         return {"final_answer": final_answer}
     
@@ -228,64 +219,3 @@ class AgenticPipeline(BasePipeline):
         workflow.add_edge("grade_answer", END)
 
         return workflow
-
-if __name__ == "__main__":
-    
-    console = Console()
-    embedder = SentenceTransformerEmbedder(get_config().get_embedder_config())
-    embedder.initialize()
-    retriever = FAISSRetriever(get_config().get_retriever_config())
-    retriever.initialize(embedder.embedding_dimension)
-    
-    index_path = Path("data/faiss_index")
-    retriever.load_index(str(index_path))
-
-    rag_tool = SimpleRAGTool(retriever=retriever, embedder=embedder)
-    grep_tool = GrepTool()
-    script_finder_tool = PathScriptFinder()
-    distillation_tool = LLMDistillationTool(console=console)
-    
-    # Pre-compile the agent sub-graph to avoid recompiling on every node call
-    agent_workflow = ConcreteAgentWorkflow(
-        rag_tool, 
-        grep_tool, 
-        script_finder_tool, 
-        distillation_tool
-    )
-    pipeline = AgenticPipeline(console, agent_workflow)
-    
-    console.print("[dim]>>> Building AGENTIC Pipeline[/dim]")
-    sub_rag_system = pipeline.build_single_qa_graph()
-    
-    workflow = pipeline.build_full_benchmark_graph()
-    app = workflow.compile()
-    
-    inputs = {
-        "qa_pairs": [
-            ("Existe-t-il un endroit où retrouver des informations condensées pour analyser les différents fournisseurs ?", "27")
-        ],
-        "sub_rag_system": sub_rag_system,
-        "verbose": True
-    }
-
-    console.print("[dim]--- STARTING GRAPH EXECUTION ---[/dim]")
-    final_state = app.invoke(inputs, {"recursion_limit": 100})
-    console.print("[dim]--- END OF EXECUTION ---[/dim]")
-        
-    console.print(Markdown("# Benchmark Results"))
-        
-    table = Table(title="Benchmark Grades", show_lines=True)
-    table.add_column("Question", style="cyan", no_wrap=False)
-    table.add_column("Score", style="magenta")
-    
-    for r in final_state["grades"]:
-        console.print(f"[bold green]Question: {r['question']} [/bold green]\n")
-        table.add_row(r['question'], f"{r['score']:.4f}")
-        if final_state["verbose"]:
-            console.print(f"[bold purple]  Référence: {r['reference']}[/bold purple]")
-            console.print("\n[bold blue]  LLM: [/bold blue]")
-            console.print(Markdown(f"{r['llm_response']}"))
-
-    console.print("\n")
-    console.print(table)
-    console.print(f"\n[bold]Moyenne globale : {final_state['benchmark_results']['average_score']:.4f}[/bold]")

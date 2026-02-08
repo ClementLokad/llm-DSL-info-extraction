@@ -81,24 +81,28 @@ class GrepTool(BaseGrepTool):
     def search(
         self,
         pattern: str,
-        sources: Optional[List[str]] = None,
+        source_regex: Optional[str] = None,
     ) -> List[RetrievalResult]:
-        """
-        Here query_embedding is misused: it must contain the search pattern as a string.
-        This allows full compatibility with BaseRetriever.
+        """Returns a list of RetrievalResult objects where the pattern matches the content of the CodeChunk.
 
-        Convention:
-            - query_embedding is a numpy array of shape (1,) containing a string
+        Args:
+            pattern (str): A regex pattern to search for in the content of the CodeChunks.
+            source_regex (Optional[str], optional): A regex describing the source files to search in. Defaults to None.
+
+        Returns:
+            List[RetrievalResult]: A list of RetrievalResult objects containing the matching CodeChunks and their metadata.
         """
         
-        if sources is not None:
+        if source_regex is not None:
+            source_regex = source_regex.strip().strip("'\"")
             valid = False
-            for s in sources:
-                if self.check_suffix_match(s.strip(), list(self.mapping.values()), inverse=True):
+            for f in self.mapping.values():
+                if re.search(source_regex, f, 0 if self.case_sensitive else re.IGNORECASE):
                     valid = True
                     break
             if not valid:
-                sources = None  # Ignore invalid source filters
+                print(f"Warning: No files in the mapping match the source_regex '{source_regex}'. Ignoring source filter.")
+                source_regex = None
             
         path_regex = r"(\/|\\)|(\.[a-zA-Z0-9]+$)"
         is_path_search = bool(re.search(path_regex, pattern))
@@ -116,7 +120,8 @@ class GrepTool(BaseGrepTool):
 
         for block in self._blocks:
             # Filter by file_path if provided
-            if sources is not None and not self.check_suffix_match(block.metadata["original_file_path"], sources):
+            if source_regex is not None and not re.search(source_regex, block.metadata["original_file_path"],
+                                                          0 if self.case_sensitive else re.IGNORECASE):
                 continue
             
             if is_path_search:

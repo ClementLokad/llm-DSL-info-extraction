@@ -11,6 +11,7 @@ from rich.console import Console, Group
 from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.text import Text
+from rich.markup import escape
 
 # --- 1. New Base Class for Distillation ---
 
@@ -91,7 +92,7 @@ class BaseGrepTool():
     def __init__(self, search_dirs: List[str]):
         self.search_dirs = search_dirs
 
-    def search(self, pattern: str, sources: Optional[List[str]] = None) -> List[RetrievalResult]:
+    def search(self, pattern: str, source_regex: Optional[str] = None) -> List[RetrievalResult]:
         """Search for pattern in source files"""
         matches = [] 
         # Implementation of grep logic would go here
@@ -304,11 +305,11 @@ class BaseAgentWorkflow(StateGraph):
 
             "2. grep_tool\n"
             "   - Usage: Find specific Envision code implementations, variable definitions, or error strings.\n"
-            "   - Parameter: A precise regex or string pattern. Optionally restrict scope by adding <sources>...</sources>"
-            " but use ONLY when NECESSARY as you may miss relevant information.\n"
+            "   - Parameter: A precise string or regex pattern. Optionally restrict scope by adding <sources>PATH_REGEX</sources>. "
+            "The results are restricted to files whose path matches the source regex. This allows searching inside specific folders but use ONLY when NECESSARY as you may miss relevant information.\n"
             "   - Example:\n"
-            "     • Standard : <parameter>show linechart</parameter>\n"
-            "     • With source filter : <parameter>read \"/Manual/Dashboard.ion\" <sources>forecasting.nvn, income.nvn</sources></parameter>\n\n"
+            "     • Standard (Regex pattern): <parameter>show (linechart|label)</parameter>\n"
+            '     • With source filter (Folder scope): <parameter>read "/Manual/Dashboard.ion" <sources>^/modules/forecasting/</sources></parameter>\n\n'
 
             "3. script_finder_tool\n"
             "   - Usage: Read specific files. Use RARELY and only when necessary due to high token cost; use grep_tool with sources instead whenever possible.\n"
@@ -469,9 +470,9 @@ class BaseAgentWorkflow(StateGraph):
         state["regenerate"] = (tool != "grade_answer" and state["pipeline_state"]["retry_count"] <= get_config().get("main_pipeline.agent_logic.max_retries", 5))
         
         if state["pipeline_state"]["verbose"]:
-            prompt_content = Panel(f"Planner Prompt:\n{planning_prompt}\n\n", title="Planner Prompt", border_style="purple")
-            tool_content = Text.from_markup(f"\nPlanner selected tool: [bold green]{tool}[/bold green] with "
-                                            f"parameter: [bold orange]{parameter}[/bold orange]\n")
+            prompt_content = Panel(f"Planner Prompt:\n{escape(planning_prompt)}\n\n", title="Planner Prompt", border_style="purple")
+            tool_content = Text.from_markup(f"\nPlanner selected tool: [bold green]{escape(tool)}[/bold green] with "
+                                            f"parameter: [bold orange]{escape(parameter)}[/bold orange]\n")
             thought_content = Panel(Markdown(f"Thought: {thought}"), title="Thought", border_style="blue")
             self.console.print(Panel(Group(prompt_content, tool_content, thought_content), title="Planner", border_style="red"))
 
@@ -497,7 +498,7 @@ class BaseAgentWorkflow(StateGraph):
         results = self.rag_tool.retrieve(query=query, verbose=state['pipeline_state']['verbose'])
         
         if state['pipeline_state']['verbose']:
-            self.console.print(f"RAG retrieved {len(results)} results for query: '{query}'")
+            self.console.print(f"RAG retrieved {len(results)} results for query: '{escape(query)}'")
         
         # 2. Batch Distillation
         # Prepare inputs: list of (content, file_path)
@@ -536,13 +537,11 @@ class BaseAgentWorkflow(StateGraph):
         
         sources_match = re.search(f"<sources>(.*?)</sources>", pattern, re.DOTALL)
     
-        sources = None
+        source_regex = None
 
         if sources_match:
-            # Extract the CSV string inside <sources>
-            sources_str = sources_match.group(1)
-            # Convert to a clean list of filenames
-            sources = [s.strip() for s in sources_str.split(',') if s.strip()]
+            # Extract the source regex inside <sources>
+            source_regex = sources_match.group(1).strip()
             
             # Remove the entire <sources> block from raw_content to isolate the grep pattern
             # This handles cases like: "read <sources>file1</sources>" -> "read"
@@ -552,10 +551,10 @@ class BaseAgentWorkflow(StateGraph):
         thought = state.get("current_thought", "No reasoning provided.")
         
         # 1. Execute
-        results = self.grep_tool.search(pattern=pattern, sources=sources)
+        results = self.grep_tool.search(pattern=pattern, source_regex=source_regex)
         
         if state['pipeline_state']['verbose']:
-            self.console.print(f"Grep found {len(results)} matches for pattern: '{pattern}'")
+            self.console.print(f"Grep found {len(results)} matches for pattern: '{escape(pattern)}'")
         
         shortened_res = False
         if len(results) > get_config().get("main_pipeline.grep_tool.max_results"):
@@ -579,8 +578,7 @@ class BaseAgentWorkflow(StateGraph):
                                                          thought=thought, verbose=state['pipeline_state']['verbose'])
         
         if results == []:
-            new_facts.append((f"No matches found for pattern '{pattern}' in {', '.join(sources) if sources else 'All Sources'}.",
-                              ", ".join(sources) if sources else "All Sources"))
+            new_facts.append(f"No matches found for pattern '{pattern}' in {f'sources matching the pattern {source_regex}' if source_regex else 'database'}.")
         
         if "knowledge_bank" not in state['pipeline_state']:
             state['pipeline_state']["knowledge_bank"] = []
@@ -604,7 +602,7 @@ class BaseAgentWorkflow(StateGraph):
         if shortened_res:
             state['rewritten_prompt'] += f'\nWARNING: Results truncated, only first {get_config().get("main_pipeline.grep_tool.max_results")} were analyzed.\n'
         elif results == []:
-            state['rewritten_prompt'] += f"\nWARNING: No matches were found for pattern '{pattern}' in {', '.join(sources) if sources else 'All Sources'}.\n"
+            state['rewritten_prompt'] += f"\nWARNING: No matches were found for pattern '{pattern}' in {f'sources matching the pattern {source_regex}' if source_regex else 'database'}.\n"
         state['rewritten_prompt'] += (
             "See results in Verified Facts/History.\n"
             "If additional information is needed, specify what is missing. Otherwise, analyze the results to answer the question.\n"

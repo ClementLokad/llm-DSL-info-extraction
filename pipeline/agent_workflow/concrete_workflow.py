@@ -93,11 +93,11 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         
         if state["pipeline_state"]["verbose"]:
             if "local_grep_retries" in state:
-                prompt_content = Text.from_markup(f"Follow-up prompt: {planning_prompt}\n")
+                prompt_content = Text.from_markup(f"Follow-up prompt: {escape(planning_prompt)}\n")
             else:
-                prompt_content = Panel(planning_prompt, title="Planner Prompt", border_style="purple")
+                prompt_content = Panel(escape(planning_prompt), title="Planner Prompt", border_style="purple")
             tool_content = Text.from_markup(f"\nPlanner selected tool: [bold green]{state['tool']}[/bold green] with "
-                                            f"parameter: [bold orange3]{state['tool_parameter']}[/bold orange3]\n")
+                                            f"parameter: [bold orange3]{escape(state['tool_parameter'])}[/bold orange3]\n")
             thought_content = Panel(Markdown(thought), title="Planner Thought", border_style="blue")
             self.console.print(Panel(Group(prompt_content, tool_content, thought_content), title="Planner", border_style="bright_red"))
         
@@ -157,7 +157,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         results = self.rag_tool.retrieve(query=query, verbose=state['pipeline_state']['verbose'])
         
         if state['pipeline_state']['verbose']:
-            self.console.print(f"RAG retrieved {len(results)} results for query: '{query}'")
+            self.console.print(f"RAG retrieved {len(results)} results for query: '{escape(query)}'")
         
         # 3. Update History
         count = len(results)
@@ -190,13 +190,11 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         
         sources_match = re.search(f"<sources>(.*?)</sources>", pattern, re.DOTALL)
     
-        sources = None
+        source_regex = None
 
         if sources_match:
-            # Extract the CSV string inside <sources>
-            sources_str = sources_match.group(1)
-            # Convert to a clean list of filenames
-            sources = [s.strip() for s in sources_str.split(',') if s.strip()]
+            # Extract the source regex inside <sources>
+            source_regex = sources_match.group(1).strip()
             
             # Remove the entire <sources> block from raw_content to isolate the grep pattern
             # This handles cases like: "read <sources>file1</sources>" -> "read"
@@ -206,7 +204,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         thought = state.get("current_thought", "No reasoning provided.")
         
         # 1. Execute
-        results = self.grep_tool.search(pattern=pattern, sources=sources)
+        results = self.grep_tool.search(pattern=pattern, source_regex=source_regex)
         
         if not "local_grep_retries" in state:
             state["local_grep_retries"] = (0, len(results))
@@ -214,7 +212,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             state["local_grep_retries"] = (state["local_grep_retries"][0]+1, len(results))
         
         if state['pipeline_state']['verbose']:
-            self.console.print(f"Grep found {len(results)} matches for pattern: '{pattern}'")
+            self.console.print(f"Grep found {len(results)} matches for pattern: '{escape(pattern)}'")
         
         shortened_res = False
         original_result_count = len(results)
@@ -225,11 +223,11 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         if state['pipeline_state']['verbose'] and shortened_res:
                 self.console.print(f"Only the first {get_config().get('main_pipeline.grep_tool.max_results')} will be analysed")
 
-        """if results == []:
-            new_facts = [f"No matches found for pattern '{pattern}' in {', '.join(sources) if sources else 'database'}."]
+        if results == [] and state["local_grep_retries"][0] >= self.config_manager.get("main_pipeline.grep_tool.max_grep_retries", 3):
+            new_facts = [f"No matches found for pattern '{pattern}' in {f'sources matching the pattern {source_regex}' if source_regex else 'database'}."]
             if "knowledge_bank" not in state['pipeline_state']:
                 state['pipeline_state']["knowledge_bank"] = []
-            state['pipeline_state']["knowledge_bank"].extend(new_facts)"""
+            state['pipeline_state']["knowledge_bank"].extend(new_facts)
         
         # 3. Update History
         outcome_str = f"Grep found {original_result_count} matches."
@@ -263,7 +261,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         if shortened_res:
             state['rewritten_prompt'] += f'WARNING: Results truncated, only first {get_config().get("main_pipeline.grep_tool.max_results")} will be given out of {original_result_count}.\n'
         elif results == []:
-            state['rewritten_prompt'] += f"WARNING: No matches were found for pattern '{pattern}' in {', '.join(sources) if sources else 'All Sources'}.\n"
+            state['rewritten_prompt'] += f"WARNING: No matches were found for pattern '{pattern}' in {f'sources matching the pattern {source_regex}' if source_regex else 'database'}.\n"
         else:
             state['rewritten_prompt'] += f"The Grep tool found {len(results)} matches for the pattern '{pattern}' which are from **{len(total_sources)} distinct scripts**."
         state['rewritten_prompt'] += (
@@ -285,7 +283,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             self.console.print(f"[dim]  -> 0 grep results replanning[/dim]")
             return "replan"
 
-        if len_grep_results > get_config().get("main_pipeline.grep_tool.max_results_to_refine"):
+        if len_grep_results > self.config_manager.get("main_pipeline.grep_tool.max_results_to_refine"):
             self.console.print(f"[dim]  -> {len_grep_results} grep results which is > {get_config().get('main_pipeline.grep_tool.max_results_to_refine')}, replanning[/dim]")
             return "replan"
 

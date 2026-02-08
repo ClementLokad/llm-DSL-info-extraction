@@ -11,6 +11,7 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.table import Table
 from rich.align import Align
+from rich.markup import escape
 
 from transformers import pipeline
 
@@ -165,7 +166,7 @@ class MainLinearPipeline(BasePipeline):
         
         self.console.print(f"[dim]🔍 → Retrieved {len(retrieved_context)} documents :[/dim]")
         if state["verbose"]:
-            self.console.print(retrieved_context)
+            self.console.print(escape(retrieved_context))
 
         return {"retrieved_context": retrieved_context}
     
@@ -377,11 +378,11 @@ class DSLQuerySystem():
         
         for r in final_state["grades"]:
             table.add_row(r['question'], f"{r['score']:.4f}")
-            self.console.print(f"\n[bold green]Question: {r['question']} [/bold green]\n")
-            self.console.print(f"[bold purple]  Référence: {r['reference']}[/bold purple]")
+            self.console.print(f"\n[bold green]Question: {escape(r['question'])} [/bold green]\n")
+            self.console.print(f"[bold purple]  Référence: {escape(r['reference'])}[/bold purple]")
             self.console.print("\n[bold blue]  LLM: [/bold blue]")
-            self.console.print(Markdown(f"{r['llm_response']}"))
-            self.console.print(f"\n[bold red] Score : [/bold red]{r['score']}")
+            self.console.print(Markdown(f"{escape(r['llm_response'])}"))
+            self.console.print(f"\n[bold red] Score : [/bold red]{escape(r['score'])}")
         
         self.console.print("\n")
         self.console.print(Align.center(table))

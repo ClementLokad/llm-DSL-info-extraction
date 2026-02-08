@@ -6,6 +6,7 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.table import Table
+from rich.markup import escape
 
 
 class LLMDistillationTool(BaseDistillationTool):
@@ -35,7 +36,7 @@ class LLMDistillationTool(BaseDistillationTool):
         response = self.llm.generate_response(prompt)
         
         if verbose:
-            prompt_content = Panel(prompt, title="Distillation LLM Prompt", border_style="purple")
+            prompt_content = Panel(escape(prompt), title="Distillation LLM Prompt", border_style="purple")
             response_content = Panel(Markdown(response), title="Distillation LLM Response", border_style="blue")
             self.console.print(Panel(Group(prompt_content, response_content), title="Distillation Tool", border_style="yellow"))
         
@@ -111,14 +112,14 @@ class LLMDistillationTool(BaseDistillationTool):
         distilled_results = re.findall(fact_pattern, response, re.IGNORECASE | re.DOTALL)
         
         if verbose:
-            prompt_content = Panel(prompt_text, title="Distillation LLM Prompt", border_style="purple")
+            prompt_content = Panel(escape(prompt_text), title="Distillation LLM Prompt", border_style="purple")
             if not response.strip().startswith("```"):
                 response = f"```xml\n{response.strip()}\n```"
-            response_content = Panel(Markdown(response), title="Distillation LLM Response", border_style="blue")
+            response_content = Panel(Markdown(escape(response)), title="Distillation LLM Response", border_style="blue")
             results_content = Table(title="Parsed Distilled Results", border_style="bold bright_yellow", show_lines=True)
             results_content.add_column("Facts", style="cyan", no_wrap=False)
             for fact in distilled_results:
-                results_content.add_row(fact)
+                results_content.add_row(escape(fact))
             self.console.print(Panel(Group(prompt_content, response_content, results_content), title="Distillation Tool", border_style="yellow"))
 
         return distilled_results
