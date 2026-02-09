@@ -166,8 +166,8 @@ class AgenticPipeline(BasePipeline):
         final_answer = answer_match.group(1).strip() if answer_match else answer.strip()
         
         if state["verbose"]:
-            content += f"🧹[bold bright_blue] → Cleaned Final Answer:[/bold bright_blue]\n{final_answer}\n"
-            self.console.print(Panel(escape(content), title="Cleaning", border_style="green"))
+            content += f"🧹[bold bright_blue] → Cleaned Final Answer:[/bold bright_blue]\n{escape(final_answer)}\n"
+            self.console.print(Panel(content, title="Cleaning", border_style="green"))
         
         return {"final_answer": final_answer}
     

@@ -295,6 +295,9 @@ class GrepTool(BaseGrepTool):
             chunk_lines = []
             prev = sorted_idx[0]
             
+            if prev > 0:
+                chunk_lines.append("[truncated] ...")
+            
             chunk_lines.append(lines[prev])
             
             for idx in sorted_idx[1:]:
@@ -302,6 +305,9 @@ class GrepTool(BaseGrepTool):
                     chunk_lines.append("... [skipped] ...")
                 chunk_lines.append(lines[idx])
                 prev = idx
+            
+            if sorted_idx[-1] < len(lines)-1:
+                chunk_lines.append("... [truncated]")
             
             final_results.append("\n".join(chunk_lines))
 
