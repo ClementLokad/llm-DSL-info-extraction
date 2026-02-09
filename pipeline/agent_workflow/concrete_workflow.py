@@ -19,6 +19,153 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                                                                  self.config_manager.get_default_agent()))
         self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
     
+    def design_planner_prompt(self, state: WorkflowState) -> str:
+        """
+        Creates a specialized prompt for the 'Planner' role.
+        Handles two modes:
+        1. Kickoff Mode: First pass, simplified, focus on initial discovery.
+        2. Review Mode: Subsequent passes, full context analysis, focus on gap filling.
+        """
+        question = state['pipeline_state']['question']
+        history = self._get_history(state)
+        
+        first_3_tools_desc = (
+            "1. rag_tool\n"
+            "   - Usage: Retrieve Envision concepts or Lokad business logic.\n"
+            "   - Parameter: A natural language query describing the concept to find.\n"
+            "   - Example: <parameter>how does the refund policy work?</parameter>\n\n"
+
+            "2. grep_tool\n"
+            "   - Usage: Find specific Envision code implementations, variable definitions, or error strings.\n"
+            "   - Parameter: A precise regex pattern (most of the time a simple string suffice). Optionally restrict scope by adding <sources>PATH_REGEX</sources>. "
+            "The results are restricted to files whose path matches the source regex. This allows searching inside specific folders but use ONLY when NECESSARY as you may miss relevant information.\n"
+            "   - Example:\n"
+            "     • Standard (Simple pattern): <parameter>LotMultiplier</parameter>\n"
+            "     • Standard (Complex regex pattern): <parameter>show (linechart|label)</parameter>\n"
+            '     • With source filter (Folder scope): <parameter>read "/Manual/Dashboard.ion" <sources>/modules/</sources></parameter>\n\n'
+
+            "3. script_finder_tool\n"
+            "   - Usage: Read specific files. Use RARELY and only when necessary due to high token cost; use grep_tool with sources instead whenever possible.\n"
+            "   - Parameter: Comma-separated filenames or path fragments.\n"
+            "   - Example: <parameter>config.nvn, utils/db.nvn</parameter>\n\n"
+        )
+
+        # =================================================================
+        # MODE 1: KICKOFF (First Pass - Simplified)
+        # =================================================================
+        if not history:
+            prompt = self.base_instructions + (
+                "### SYSTEM ROLE\n"
+                "You are the **Strategic Planner** for an advanced RAG agent working on a **Lokad Envision** codebase.\n"
+                "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"
+                "You are initiating a new investigation. Your job is to determine the best FIRST step to gather information.\n\n"
+                
+                f"### MISSION GOAL\n{question}\n\n"
+                
+                "### AVAILABLE TOOLS & SPECIFICATIONS\n"
+                "Select the tool best suited to start the investigation.\n\n"
+                
+                ) + first_3_tools_desc + (
+
+                "### PLANNING INSTRUCTIONS\n"
+                "1. Analyze the 'Mission Goal'. Identify the most critical keyword or concept.\n"
+                "2. Determine if this requires high-level documentation (RAG) or low-level code search (Grep/Script).\n"
+                "3. Select the tool and define a precise parameter.\n\n"
+                
+                "### OUTPUT FORMAT\n"
+                "Respond strictly in this XML format:\n"
+                "<thought>\n"
+                "[Explain your reasoning. What is the first piece of info needed?]\n"
+                "</thought>\n"
+                "<tool>[rag_tool | grep_tool | script_finder_tool]</tool>\n"
+                "<parameter>[Your precise input parameter]</parameter>"
+            )
+            return prompt
+
+        # =================================================================
+        # MODE 2: CONTINUATION (Subsequent Passes - Full Context)
+        # =================================================================
+        
+        knowledge_bank = state['pipeline_state'].get("knowledge_bank", [])
+        # We safely get generation, defaulting to "No output yet" if None
+        previous_generation = state['pipeline_state'].get('generation') or "(No generation available)"
+        
+        # 1. System Role: The Strategist
+        prompt = self.base_instructions + (
+            "### SYSTEM ROLE\n"
+            "You are the **Investigation Supervisor** for an advanced RAG agent working on a **Lokad Envision** codebase.\n"
+            "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"
+            "Your primary goal is EFFICIENCY. You must decide if the current information is sufficient to answer the question.\n"
+            "If the answer is found, you MUST stop the investigation immediately.\n\n"
+        )
+
+        # 2. The Mission (Question)
+        prompt += f"### MISSION GOAL\n{question}\n\n"
+        
+
+        # 3. PROPOSED SOLUTION (Critical Context)
+        prompt += (
+            "### PROPOSED SOLUTION (From Main Agent)\n"
+            "The Main Agent has reviewed the facts and generated this answer:\n"
+            f"\"{previous_generation}\"\n\n"
+            "**CRITICAL CHECK**: Does this proposed solution directly and fully answer the Mission Goal? "
+            "If YES, your job is done.\n"
+            "Note that an unclear answer (e.g., vague statements, lack of sources, or 'I don't know') should be treated as NOT ANSWERED."
+            "In this case, if recommendations are given, try to identify the specific missing piece of information and select the tool that can find it.\n\n"
+        )
+        
+        # 4. Verified Facts
+        if knowledge_bank:
+            prompt += "### VERIFIED FACTS (Assets)\n"
+            for i, fact in enumerate(knowledge_bank):
+                prompt += f"{i}. {fact}\n"
+        else:
+            prompt += "### VERIFIED FACTS\n(Knowledge bank is empty.)\n"
+        prompt += "\n"
+
+        # 5. Investigation History
+        prompt += "### HISTORY (Previous Steps)\n"
+        prompt += self._get_optimized_history_str(history)
+        prompt += "\n"
+
+        # 6. Tool Specifications (Full Menu)
+        prompt += (
+            "### AVAILABLE TOOLS & SPECIFICATIONS\n"
+            "Select the most precise tool for the current need.\n\n"
+            
+            ) + first_3_tools_desc + (
+            
+            "4. grade_answer\n"
+            "   - Usage: If the current answer is satisfying, use this tool to finalize the process.\n"
+            "   - Parameter: Type 'None'.\n\n"
+        )
+
+        # 7. Decision Algorithm (Logic Flow)
+        # CHANGED: Priority #1 is checking for completion.
+        prompt += (
+            "### DECISION LOGIC (Follow Strictly)\n"
+            "1. **COMPLETION CHECK**: Read the 'PROPOSED SOLUTION'. Does it answer the 'Mission Goal'?\n"
+            "   - YES -> STOP. Select <tool>grade_answer</tool>.\n"
+            "   - NO -> Proceed to Step 2.\n\n"
+            
+#            "2. **REDUNDANCY CHECK**: Do NOT search for 'confirmation' or 'corroboration' if the facts are already clear.\n"
+#            "   - If you are just double-checking -> STOP. Select <tool>grade_answer</tool>.\n\n"
+            
+            "2. **GAP ANALYSIS**: If the answer is genuinely missing or unsatisfactory (e.g., 'I don't know' or 'File not found'), select the tool to find that specific missing piece.\n"
+            "   - Look at the 'History'. Have we already tried the obvious step? If yes, try a different angle (e.g., if grep failed, try RAG).\n"
+            "   - Be specific in your parameter choice. Vague parameters yield vague results.\n\n"
+            
+            "### OUTPUT FORMAT\n"
+            "Respond strictly in this XML format:\n"
+            "<thought>\n"
+            "[ANSWER FOUND | Your strategic reasoning in which you define the missing information and why this tool will find it.]\n"
+            "</thought>\n"
+            "<tool>[rag_tool | grep_tool | script_finder_tool | simple_regeneration_tool | grade_answer]</tool>\n"
+            "<parameter>[Your precise input parameter]</parameter>"
+        )
+
+        return prompt
+    
     def agentic_router(self, state: WorkflowState) -> WorkflowState:
         """
         The Planner Node.
