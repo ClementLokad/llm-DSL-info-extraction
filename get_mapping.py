@@ -1,6 +1,7 @@
 import os
 from typing import Dict
 from config_manager import get_config
+from pathlib import PurePath
 
 def get_file_mapping(mapping_file_path: str = None) -> Dict[str, str]:
     """
@@ -45,3 +46,19 @@ def get_inverse_mapping(mapping_file_path: str = None) -> Dict[str, str]:
     # Invert the mapping
     inverse_mapping = {v: k for k, v in original_mapping.items()}
     return inverse_mapping
+
+def build_file_tree(mapping_file_path: str = None) -> Dict[str, str]:
+    tree = {}
+    file_paths = [path for  path in get_inverse_mapping(mapping_file_path)]
+    for path in file_paths:
+        # Normalize path and split into components
+        path_obj = PurePath(path)
+        parts = [p for p in path_obj.parts if p and p != path_obj.anchor]
+        current_level = tree
+        
+        for part in parts:
+            if part not in current_level:
+                current_level[part] = {}
+            current_level = current_level[part]
+            
+    return tree

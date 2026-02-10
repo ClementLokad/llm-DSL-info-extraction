@@ -64,6 +64,7 @@ chunker:
   max_chunk_tokens: 512
   overlap_lines: 2    # Line-based overlap for split chunks (default: 2 lines)
   min_overlap_lines: 2 # Minimum overlap between 2 chunks not separated by a section delimiter (default: 3 lines)
+  chars_per_token: 4
 
 # =============================================================================
 # SUMMARIZER CONFIGURATION
@@ -295,6 +296,18 @@ main_pipeline:
     case_sensitive: false
     max_lines: 150
     max_grep_retries: 3
+
+  # Define "Detail Levels" from most detailed to least detailed.
+  # Format: (max_depth, max_children)
+  # We try these sequentially in tree_tool until one fits.
+  tree_backoff_levels: [
+    [10, 50],   # Level 1: Practically everything
+    [5, 20],    # Level 2: Standard view
+    [3, 10],    # Level 3: Condensed
+    [2, 5],     # Level 4: Highly Condensed
+    [2, 3],     # Level 5: Mostly architecture
+    [1, 5],     # Level 6: Root folders only
+  ]
 
     
 # =============================================================================
