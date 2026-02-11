@@ -5,7 +5,7 @@ import os
 from typing import List, Optional
 
 from rag.core.base_retriever import RetrievalResult, CodeChunk
-from rag.core.base_parser import CodeBlock, Blocktype 
+from rag.core.base_parser import CodeBlock, BlockType 
 from rag.parsers.envision_parser import EnvisionParser
 from pipeline.agent_workflow.workflow_base import BaseGrepTool
 from get_mapping import get_file_mapping
@@ -82,14 +82,14 @@ class GrepTool(BaseGrepTool):
         self,
         pattern: str,
         source_regex: Optional[str] = None,
-        bloc_type: List[Blocktype] = None,
+        bloc_type: List[BlockType] = None,
     ) -> List[RetrievalResult]:
         """Returns a list of RetrievalResult objects where the pattern matches the content of the CodeChunk.
 
         Args:
             pattern (str): A regex pattern to search for in the content of the CodeChunks.
             source_regex (Optional[str], optional): A regex describing the source files to search in. Defaults to None.
-            bloc_type (List[Blocktype], optional): A list of block types to filter by. Defaults to None.
+            bloc_type (List[BlockType], optional): A list of block types to filter by. Defaults to None.
         Returns:
             List[RetrievalResult]: A list of RetrievalResult objects containing the matching CodeChunks and their metadata.
         """
@@ -121,7 +121,7 @@ class GrepTool(BaseGrepTool):
 
         for block in self._blocks:
             # If block type is specified, filter by it
-            if bloc_type is not None and block.block_type in bloc_type:
+            if bloc_type is not None and block.block_type not in bloc_type:
                 continue
             # Filter by file_path if provided
             if source_regex is not None and not re.search(source_regex, block.metadata["original_file_path"],

@@ -382,7 +382,7 @@ class DSLQuerySystem():
             self.console.print(f"[bold purple]  Référence: {escape(r['reference'])}[/bold purple]")
             self.console.print("\n[bold blue]  LLM: [/bold blue]")
             self.console.print(Markdown(f"{escape(r['llm_response'])}"))
-            self.console.print(f"\n[bold red] Score : [/bold red]{escape(r['score'])}")
+            self.console.print(f"\n[bold red] Score : [/bold red]{escape(str(r['score']))}")
         
         self.console.print("\n")
         self.console.print(Align.center(table))
