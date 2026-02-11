@@ -156,7 +156,7 @@ class AgenticPipeline(BasePipeline):
         content = ""
         
         if state["verbose"]:
-            content += f"🧹[bold purple] → Cleaning LLM Prompt:[/bold purple]\n{prompt}\n"
+            content += f"🧹[bold purple] → Cleaning LLM Prompt:[/bold purple]\n{escape(prompt)}\n"
         
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)
