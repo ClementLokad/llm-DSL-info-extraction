@@ -13,8 +13,6 @@ from rich.table import Table
 from rich.align import Align
 from rich.markup import escape
 
-from transformers import pipeline
-
 sys.path.append(str(Path(__file__).parent))
 
 import config_manager
@@ -32,6 +30,7 @@ from pipeline.agent_workflow.distillation_tool import LLMDistillationTool
 from pipeline.agent_workflow.grep_tool import GrepTool
 from pipeline.agent_workflow.script_finder_tool import PathScriptFinder
 from pipeline.agent_workflow.rag_tool import SimpleRAGTool
+from pipeline.agent_workflow.file_tree_tool import FileTreeTool
 from pipeline.agent_workflow.agentic_pipeline import AgenticPipeline
 from langgraph_base import BasePipeline, GraphState, BenchmarkState
 
@@ -285,6 +284,7 @@ class MainAgenticPipeline(AgenticPipeline):
         rag_tool = SimpleRAGTool(retriever=retriever, embedder=embedder)
         grep_tool = GrepTool()
         script_finder_tool = PathScriptFinder()
+        tree_tool = FileTreeTool()
         distillation_tool = LLMDistillationTool(console=console)
         
         # Pre-compile the agent sub-graph to avoid recompiling on every node call
@@ -292,7 +292,8 @@ class MainAgenticPipeline(AgenticPipeline):
             rag_tool, 
             grep_tool, 
             script_finder_tool, 
-            distillation_tool
+            distillation_tool,
+            tree_tool
         )
         
         super().__init__(console, agent_workflow)

@@ -213,7 +213,7 @@ class BaseAgentWorkflow(StateGraph):
         
         # A. Identity
         prompt = self.base_instructions + (
-            "### SYSTEM ROLE\n"
+            "\n### SYSTEM ROLE\n"
             "You are an expert technical assistant working on a **Lokad Envision** codebase.\n"
             "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"
             "Your goal is to answer the user's question by exploiting data from previous retrieval steps.\n"

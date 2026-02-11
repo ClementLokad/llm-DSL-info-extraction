@@ -111,11 +111,12 @@ class GrepTool(BaseGrepTool):
         file_consts = {}
         
         clean_target = pattern.strip().strip("'\"").strip("/")
+        flags = 0 if self.case_sensitive else re.IGNORECASE
 
         try:
-            regex = re.compile(pattern, 0 if self.case_sensitive else re.IGNORECASE)
+            regex = re.compile(clean_target, flags)
         except re.error:
-            regex = re.compile(re.escape(pattern), 0 if self.case_sensitive else re.IGNORECASE)
+            regex = re.compile(re.escape(clean_target), flags)
 
         matches = []
 
@@ -128,6 +129,7 @@ class GrepTool(BaseGrepTool):
                                                           0 if self.case_sensitive else re.IGNORECASE):
                 continue
             
+            content = block.content
             if is_path_search:
                 if block.file_path not in file_consts:
                     try:
@@ -137,53 +139,27 @@ class GrepTool(BaseGrepTool):
                         print(f"File not found: {block.file_path}")
                         continue
                     file_consts[block.file_path] = collect_constants(script_content)
+                content = replace_constants_in_script(block.content, constants=file_consts[block.file_path])
                 
-                hits = scan_string_for_references(block.content, clean_target,
-                                                  file_consts[block.file_path])
-                cleaned_content = replace_constants_in_script(block.content, constants=file_consts[block.file_path])
-
-                if not hits:
-                    continue
-                else:
-                    matches.append(RetrievalResult(
+            if regex.search(content):
+                matches.append(
+                    RetrievalResult(
                         chunk=CodeChunk(
-                            content=cleaned_content,
+                            content=content,
+                            chunk_type="grep_match",
                             original_blocks=[block],
-                            context="Grep match",
-                            size_tokens=len(block.content) // self.config.get('chunker.chars_per_token', 4),
+                            context="Grep match inside of GrepTool",
+                            size_tokens=len(content) // self.config.get('chunker.chars_per_token', 4),
                             metadata={
                                 "file_path": getattr(block, "file_path", None),
-                                "original_file_path": block.metadata["original_file_path"],
-                                "verb": hits[0]['verb'],
-                                "resolved_path": hits[0]['resolved_path']
+                                "original_file_path": block.metadata["original_file_path"]
                             }
                         ),
-                        score=1.0, # High confidence for exact resolved matches
+                        score=1.0,            # constant score (grep has no similarity metric)
                         rank=1,
                         metadata={"pattern": pattern, "original_file_path": block.metadata["original_file_path"]}
-                    ))
-                
-            else:
-                # Match on the full chunk content
-                if regex.search(block.content):
-                    matches.append(
-                        RetrievalResult(
-                            chunk=CodeChunk(
-                                content=block.content,
-                                chunk_type="grep_match",
-                                original_blocks=[block],
-                                context="Grep match inside of GrepTool",
-                                size_tokens=len(block.content) // self.config.get('chunker.chars_per_token', 4),
-                                metadata={
-                                    "file_path": getattr(block, "file_path", None),
-                                    "original_file_path": block.metadata["original_file_path"]
-                                }
-                            ),
-                            score=1.0,            # constant score (grep has no similarity metric)
-                            rank=1,
-                            metadata={"pattern": pattern, "original_file_path": block.metadata["original_file_path"]}
-                        )
                     )
+                )
         
         return matches
 
@@ -199,13 +175,17 @@ class GrepTool(BaseGrepTool):
 
         Returns:
             List[str]: The list of shortened code strings.
+            
         """
+        
+        clean_target = pattern.strip().strip("'\"").strip("/")
+        
         flags = 0 if self.case_sensitive else re.IGNORECASE
         
         try:
-            regex = re.compile(pattern, flags)
+            regex = re.compile(clean_target, flags)
         except re.error:
-            regex = re.compile(re.escape(pattern), flags)
+            regex = re.compile(re.escape(clean_target), flags)
 
         # 1. Pre-process: Identify all matching line numbers for every file
         # We store this to avoid re-running regex during the optimization loop.
@@ -374,6 +354,6 @@ class GrepTool(BaseGrepTool):
 
 if __name__ == "__main__":
     grep_tool = GrepTool()
-    results = grep_tool.search(pattern="Clean/Items.ion")
+    results = grep_tool.search(pattern='read "/Clean/Items.ion"')
     for res in results:
         print(f"File: {res.metadata['original_file_path']}\nContent:\n{res.chunk.content}\n{'-'*40}\n")

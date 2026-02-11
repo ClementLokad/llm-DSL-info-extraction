@@ -308,6 +308,7 @@ main_pipeline:
     [2, 3],     # Level 5: Mostly architecture
     [1, 5],     # Level 6: Root folders only
   ]
+  file_tree_max_tok : 500
 
     
 # =============================================================================

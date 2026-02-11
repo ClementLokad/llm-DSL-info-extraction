@@ -5,6 +5,11 @@ from rag.core.base_parser import BlockType
 import time
 import re
 
+class BaseTreeTool:
+    def tree_tool(root_path: str, max_tokens: int = 1000) -> str:
+        res = "" # Placeholder for actual tree calulation
+        return res
+
 class ConcreteAgentWorkflow(BaseAgentWorkflow):
     """
     A concrete implementation of BaseAgentWorkflow for a specific agentic workflow.
@@ -14,8 +19,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     
     def __init__(self, rag_tool: BaseRAGTool, grep_tool: BaseGrepTool,
                  script_finder_tool: BaseScriptFinderTool,
-                 distillation_tool: BaseDistillationTool):
+                 distillation_tool: BaseDistillationTool,
+                 tree_tool: BaseTreeTool):
         super().__init__(rag_tool, grep_tool, script_finder_tool, distillation_tool)
+        self.tree_tool = tree_tool
         self.config_manager = config_manager.get_config()
         self.planner_llm = prepare_agent(self.config_manager.get('main_pipeline.agent_logic.planner_llm',
                                                                  self.config_manager.get_default_agent()))
@@ -31,7 +38,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         question = state['pipeline_state']['question']
         history = self._get_history(state)
         
-        first_3_tools_desc = (
+        first_tools_desc = (
             "1. rag_tool\n"
             "   - Usage: Retrieve Envision concepts or Lokad business logic.\n"
             "   - Parameter: A natural language query describing the concept to find.\n"
@@ -42,16 +49,22 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "   - Parameter: A precise regex pattern (most of the time a simple string suffice). \n"
             "     Optionally restrict scope by adding <sources>PATH_REGEX</sources>. "
             "The results are restricted to files whose path matches the source regex. This allows searching inside specific folders but use ONLY when NECESSARY as you may miss relevant information.\n" 
-            "   Optionally restrict scope by adding <block_type>BLOCK_TYPE</block_type> (BLOCK_TYPE must be comma-separated BLOCK_TYPE1,BLOCK_TYPE2...). " 
-            "The results are restricted to blocks of the specified type(s). This allows searching for specific code structures but use ONLY when NECESSARY as you may miss relevant information."
-            "    BLOCK_TYPE : COMMENT, SECTION_HEADER, IMPORT, READ, WRITE, CONST, EXPORT, TABLE_DEFINITION, ASSIGNMENT, SHOW, KEEP_WHERE, FORM_READ, CONTROL_FLOW, UNKNOWN\n" \
+            "     Optionally restrict scope by adding <block_type>BLOCK_TYPE</block_type> (BLOCK_TYPE must be comma-separated BLOCK_TYPE1,BLOCK_TYPE2...). " 
+            "The results are restricted to blocks of the specified type(s). This allows searching for specific code structures but use ONLY when NECESSARY as you may miss relevant information. "
+            "Enum of block types : COMMENT, SECTION_HEADER, IMPORT, READ, WRITE, CONST, EXPORT, TABLE_DEFINITION, ASSIGNMENT, SHOW, KEEP_WHERE, FORM_READ, CONTROL_FLOW, UNKNOWN\n" \
             "   - Example:\n"
             "     • Standard (Simple pattern): <parameter>LotMultiplier</parameter>\n"
             "     • Standard (Complex regex pattern): <parameter>show (linechart|label)</parameter>\n"
             '     • With source filter (Folder scope): <parameter>read "/Manual/Dashboard.ion" <sources>/modules/</sources></parameter>\n'
-            '     • With block type filter: <parameter> LotMultiplier <block_type>read</block_type></parameter>\n\n'
+            '     • With block type filter: <parameter> LotMultiplier <block_type>READ, FORM_READ</block_type></parameter>\n'
+            "     • With both filters: <parameter> FcItems.ion <block_type>WRITE</block_type><sources>/1. utilities</sources></parameter>\n\n"
 
-            "3. script_finder_tool\n"
+            "3. tree_tool\n"
+            "   - Usage: Get a condensed summary of the file tree starting from a specific path. The structure of the codebase is semantically crucial so do not hesitate to use this tool.\n"
+            "   - Parameter: The root_path string from which to start the file tree traversal.\n"
+            "   - Example: <parameter>/</parameter> or <parameter>/1. utilities/Modules</parameter>\n\n"
+
+            "4. script_finder_tool\n"
             "   - Usage: Read specific files. Use RARELY and only when necessary due to high token cost; use grep_tool with sources instead whenever possible.\n"
             "   - Parameter: Comma-separated filenames or path fragments.\n"
             "   - Example: <parameter>config.nvn, utils/db.nvn</parameter>\n\n"
@@ -62,7 +75,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # =================================================================
         if not history:
             prompt = self.base_instructions + (
-                "### SYSTEM ROLE\n"
+                "\n### SYSTEM ROLE\n"
                 "You are the **Strategic Planner** for an advanced RAG agent working on a **Lokad Envision** codebase.\n"
                 "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"
                 "You are initiating a new investigation. Your job is to determine the best FIRST step to gather information.\n\n"
@@ -72,7 +85,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 "### AVAILABLE TOOLS & SPECIFICATIONS\n"
                 "Select the tool best suited to start the investigation.\n\n"
                 
-                ) + first_3_tools_desc + (
+                ) + first_tools_desc + (
 
                 "### PLANNING INSTRUCTIONS\n"
                 "1. Analyze the 'Mission Goal'. Identify the most critical keyword or concept.\n"
@@ -84,7 +97,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 "<thought>\n"
                 "[Explain your reasoning. What is the first piece of info needed?]\n"
                 "</thought>\n"
-                "<tool>[rag_tool | grep_tool | script_finder_tool]</tool>\n"
+                "<tool>[rag_tool | grep_tool | tree_tool | script_finder_tool]</tool>\n"
                 "<parameter>[Your precise input parameter]</parameter>"
             )
             return prompt
@@ -99,7 +112,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         
         # 1. System Role: The Strategist
         prompt = self.base_instructions + (
-            "### SYSTEM ROLE\n"
+            "\n### SYSTEM ROLE\n"
             "You are the **Investigation Supervisor** for an advanced RAG agent working on a **Lokad Envision** codebase.\n"
             "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"
             "Your primary goal is EFFICIENCY. You must decide if the current information is sufficient to answer the question.\n"
@@ -140,9 +153,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "### AVAILABLE TOOLS & SPECIFICATIONS\n"
             "Select the most precise tool for the current need.\n\n"
             
-            ) + first_3_tools_desc + (
+            ) + first_tools_desc + (
             
-            "4. grade_answer\n"
+            f"{len(first_tools_desc) + 1}. grade_answer\n"
             "   - Usage: If the current answer is satisfying, use this tool to finalize the process.\n"
             "   - Parameter: Type 'None'.\n\n"
         )
@@ -167,7 +180,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "<thought>\n"
             "[ANSWER FOUND | Your strategic reasoning in which you define the missing information and why this tool will find it.]\n"
             "</thought>\n"
-            "<tool>[rag_tool | grep_tool | script_finder_tool | simple_regeneration_tool | grade_answer]</tool>\n"
+            "<tool>[rag_tool | grep_tool | tree_tool | script_finder_tool | grade_answer]</tool>\n"
             "<parameter>[Your precise input parameter]</parameter>"
         )
 
@@ -203,6 +216,17 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 response = self.planner_llm.follow_up_question(planning_prompt)
             else:
                 response = self.planner_llm.generate_response(planning_prompt)
+        elif "execution_history" in state["pipeline_state"] and len(state["pipeline_state"]["execution_history"]) > 0 and\
+        state["pipeline_state"]["execution_history"][-1]["tool"] == "tree_tool":
+            tree_str = state["rewritten_prompt"]
+            
+            state["pipeline_state"]["execution_history"] = state["pipeline_state"]["execution_history"][:-1]
+            
+            planning_prompt = "Here is the tree. It is rooted at the longest valid prefix of the root_path you provided.\n\n"
+            planning_prompt += tree_str
+            planning_prompt += "\n\nPlease answer using the same output format."
+
+            response = self.planner_llm.follow_up_question(planning_prompt)
         else:
             response = self.planner_llm.generate_response(planning_prompt)
 
@@ -214,7 +238,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         VALID_TOOLS = {
             "rag_tool", 
             "grep_tool", 
-            "script_finder_tool", 
+            "script_finder_tool",
+            "tree_tool",
             "simple_regeneration_tool", 
             "grade_answer"
         }
@@ -359,7 +384,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             pattern = pattern.replace(sources_match.group(0), "").strip()
 
         if blocktype_match:
-            print(f"Block type filter detected: {blocktype_match.group(1)}")
+            if state["pipeline_state"]["verbose"]:
+                print(f"Block type filter detected: {blocktype_match.group(1)}")
             block_type_str = blocktype_match.group(1).strip()
             # Support multiple block types separated by commas
             # Convert strings to BlockType Enum objects
@@ -467,11 +493,30 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
 
         self.console.print(f"[dim]  -> Grep results validated[/dim]")
         return "validated"
+    
+    def use_tree_tool(self, state: WorkflowState) -> WorkflowState:
+        self.console.print("[dim]--- SUB-NODE: Tree Tool ---[/dim]")
+        root_path: str = state["tool_parameter"]
+        root_path = root_path.strip().strip("'\"")
+        
+        tree: str = self.tree_tool.tree_tool(root_path, self.config_manager.get("main_pipeline.file_tree_max_tok"))
+        real_root = "Database Root" if tree.startswith("├") else tree.split("\n")[0]
+        
+        # We use rewritten_prompt to store the res of the tree tool even though
+        # it will be given to planner
+        state["rewritten_prompt"] = tree
+
+        outcome_string = f"Succesfully generated file_tree from root : {real_root}"
+        self._append_history(state, "tree_tool", root_path, outcome_string, state["current_thought"])
+        
+        return state
+        
 
     def build_graph(self):
         self.add_node("agentic_router", self.agentic_router)
         self.add_node("rag_tool", self.use_rag_tool)
         self.add_node("grep_tool", self.use_grep_tool)
+        self.add_node("tree_tool", self.use_tree_tool)
         self.add_node("script_finder_tool", self.use_script_finder_tool)
         self.add_node("simple_regeneration_tool", self.use_simple_regeneration_tool)
         
@@ -483,6 +528,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             {
                 "rag_tool": "rag_tool",
                 "grep_tool": "grep_tool",
+                "tree_tool": "tree_tool",
                 "script_finder_tool": "script_finder_tool",
                 "simple_regeneration_tool": "simple_regeneration_tool",
                 "grade_answer": END 
@@ -498,6 +544,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             }
         )
         
+        self.add_edge("tree_tool", "agentic_router")
         self.add_edge("rag_tool", END)
         self.add_edge("script_finder_tool", END)
         self.add_edge("simple_regeneration_tool", END)
