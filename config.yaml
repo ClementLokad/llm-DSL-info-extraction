@@ -10,7 +10,7 @@
 # =============================================================================
 agent:
   # Default agent to use for queries
-  default_model: "mistral"  # Options: "gemini", "gpt", "mistral", "groq"
+  default_model: "qwen"  # Options: "gemini", "gpt", "mistral", "groq"
   # Delay in seconds between LLM calls to avoid rate limits (0 = disabled)
   rate_limit_delay: 2
 
@@ -20,8 +20,6 @@ agent:
 rag:
   # Number of top relevant chunks to retrieve for each query
   top_k_chunks: 5
-  
-  fusion: False  # Whether to use RAG fusion strategy
 
 # =============================================================================
 # GLOBAL FILE AND DIRECTORY CONSTANTS
@@ -72,6 +70,15 @@ chunker:
 summarizer:
   summary_model: "mistral" # Options: "gemini", "gpt", "mistral", "groq"
   summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
+
+# =============================================================================
+# QUERY TRANSFORMER CONFIGURATION
+# =============================================================================
+
+query_transformer:
+  query_transformer_model: "mistral" # Options: "gemini", "gpt", "mistral", "groq"
+  query_transformer_type: "fusion" # Options: "fusion", "hyde", "none"
+  generated_instances_amount: "several" # Options: "[INTEGER_NUMBER]" i.e : "1", "144"... or "several" to let the llm decide
 
 # =============================================================================
 # EMBEDDER CONFIGURATION
@@ -308,7 +315,6 @@ main_pipeline:
     [2, 3],     # Level 5: Mostly architecture
     [1, 5],     # Level 6: Root folders only
   ]
-  file_tree_max_tok : 500
 
     
 # =============================================================================

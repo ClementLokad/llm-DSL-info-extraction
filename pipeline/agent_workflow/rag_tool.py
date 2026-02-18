@@ -2,6 +2,7 @@ from typing import List
 from pipeline.agent_workflow.workflow_base import BaseRAGTool
 from rag.core.base_retriever import BaseRetriever, RetrievalResult
 from rag.core.base_embedder import BaseEmbedder
+from rag.summarizers import HyDeGenerator
 from config_manager import get_config
 from agents.prepare_agent import prepare_default_agent
 from rag.utils.script_scanner import replace_constants_in_script

@@ -34,7 +34,6 @@ def prepare_default_agent() -> LLMAgent:
     """Prepare and return the default LLM agent based on configuration."""
     return prepare_agent(get_config().get_default_agent().lower())
 
-
 def prepare_benchmark_agent() -> LLMAgent:
     """Prepare and return the benchmark LLM agent based on configuration."""
     return prepare_agent(get_config().get_benchmark_agent().lower())
@@ -42,3 +41,7 @@ def prepare_benchmark_agent() -> LLMAgent:
 def prepare_summary_agent() -> LLMAgent:
     """Prepare and return the embedder summary LLM agent based on configuration."""
     return prepare_agent(get_config().get_summary_agent().lower())
+
+def prepare_query_transformer_agent() -> LLMAgent:
+    """Prepare and return the query transformer LLM agent based on configuration."""
+    return prepare_agent(get_config().get_query_transformer_agent().lower())

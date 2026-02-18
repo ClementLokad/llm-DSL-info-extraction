@@ -11,5 +11,6 @@ __all__ = [
     "BaseParser", "CodeBlock",
     "BaseChunker", "CodeChunk", 
     "BaseEmbedder",
+    "BaseQueryTransformer",
     "BaseRetriever", "RetrievalResult"
 ]

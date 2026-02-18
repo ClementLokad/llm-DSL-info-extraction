@@ -5,6 +5,11 @@ from rag.core.base_chunker import CodeChunk
 import agents.prepare_agent as prepare_agent
 
 class ChunkSummarizer():
+    """
+    Chunk summarizer able to summarize chunks into concise summaries in order to create a json index of 
+    summaries ready to be embedded.
+    """
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         config = config or {}
         self.summary_agent = prepare_agent.prepare_summary_agent()
