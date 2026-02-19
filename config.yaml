@@ -20,6 +20,7 @@ agent:
 rag:
   # Number of top relevant chunks to retrieve for each query
   top_k_chunks: 5
+  rerank_multiplier: 10
   
   fusion: False  # Whether to use RAG fusion strategy
 

@@ -33,9 +33,11 @@ class SimpleRAGTool(BaseRAGTool):
         results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
         return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
     
-    def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks"), verbose = False) -> List[RetrievalResult]:
+    def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks"), rerank_multiplier = get_config().get("rag.rerank_multiplier"), verbose = False, key_words:List[str] = None) -> List[RetrievalResult]:
         """Retrieve relevant documents based on the query"""
         results = []
+        if key_words==None:
+            key_words = []
 
         if get_config().get('rag.fusion', False):
             base_fusion_question = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text.\n"
@@ -49,11 +51,24 @@ class SimpleRAGTool(BaseRAGTool):
             questions = raw_questions.split("$")
             for sub_question in questions:
                 emb = self.embedder.embed_text(sub_question)
-                results.extend(self.retriever.search(emb, top_k=top_k))
-            results = self.merge_rag_results(results)[:top_k]
+                results.extend(self.retriever.search(emb, top_k=top_k*rerank_multiplier))
+            results = self.merge_rag_results(results)[:top_k*rerank_multiplier]
         else:
             emb = self.embedder.embed_text(query)
-            results = self.retriever.search(emb, top_k=top_k)
+            results = self.retriever.search(emb, top_k=top_k*rerank_multiplier)
+
+        # Rerank results if needed
+        if rerank_multiplier > 1:
+            for result in results:
+                chunk_text = result.chunk.content.lower()
+                matches = sum(1 for key in key_words if key.lower() in chunk_text)
+                if matches > 0:
+                    result.score = min(1.0, result.score * (1 + 0.1* matches / len(key_words)))
+            # Sort results by score after reranking
+            sorted_results = sorted(results, key=lambda r: r.score, reverse=True)
+            for i, result in enumerate(sorted_results, start=1):
+                result.rank = i
+            results = sorted_results[:top_k]
         
         # Replace constants in result
         for result in results:
