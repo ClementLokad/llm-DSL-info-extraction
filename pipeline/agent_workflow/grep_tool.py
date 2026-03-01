@@ -354,6 +354,7 @@ class GrepTool(BaseGrepTool):
 
 if __name__ == "__main__":
     grep_tool = GrepTool()
-    results = grep_tool.search(pattern='read "/Clean/Items.ion"')
+    results = grep_tool.search(pattern='annual.*growth')
+    print(len(results))
     for res in results:
         print(f"File: {res.metadata['original_file_path']}\nContent:\n{res.chunk.content}\n{'-'*40}\n")
