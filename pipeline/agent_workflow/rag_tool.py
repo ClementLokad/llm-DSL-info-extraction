@@ -7,6 +7,12 @@ from rag.embedders.qdrant_embedder import QdrantEmbedder
 from config_manager import get_config
 from agents.prepare_agent import prepare_default_agent
 from rag.utils.script_scanner import replace_constants_in_script
+<<<<<<< HEAD
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
+=======
+from pathlib import Path
+>>>>>>> f99a21177cceb476a4f9f61da0f79aaab6472a82
 import time
 import re
 
@@ -40,6 +46,28 @@ class SimpleRAGTool(BaseRAGTool):
                 merged_results[result.chunk.content] = (1/(k+result.rank), result.chunk, result.metadata)
         results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
         return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
+    
+    def reranker(self, query: str, results: List[RetrievalResult]) -> List[RetrievalResult]:
+        """Rerank the retrieved results based on their relevance to the query"""
+        inputs = self.reranker_tokenizer([query] * len(results), [result.chunk.content for result in results], return_tensors="pt", padding=True, truncation=True)
+        with torch.no_grad():
+            logits = self.reranker_model(**inputs).logits
+            # convert logits to a positive-class probability
+            if logits.size(1) == 1:
+                # binary/regression head with single logit -> sigmoid
+                probs_pos = torch.sigmoid(logits[:, 0])
+            else:
+                probs = torch.softmax(logits, dim=1)
+                probs_pos = probs[:, 1]
+        # sort by relevance probability
+        reranked_results = sorted(zip(results, probs_pos.tolist()), key=lambda x: x[1], reverse=True)
+        updated_results = []
+        for i, (result, prob) in enumerate(reranked_results, start=1):
+            # update score and rank on the original RetrievalResult objects
+            result.score = float(prob)
+            result.rank = i
+            updated_results.append(result)
+        return updated_results
     
     def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks"), rerank_multiplier = get_config().get("rag.rerank_multiplier"), verbose = False, key_words:List[str] = None, sources: str = None) -> List[RetrievalResult]:
         """Retrieve relevant documents based on the query"""
