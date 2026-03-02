@@ -4,7 +4,7 @@ import re
 from langgraph.graph import END, StateGraph, START
 from config_manager import get_config
 from pipeline.agent_workflow.workflow_base import *
-from langgraph_base import AgentGraphState, BasePipeline, GraphState
+from pipeline.langgraph_base import AgentGraphState, BasePipeline, GraphState
 
 from rich.console import Console, Group
 from rich.panel import Panel

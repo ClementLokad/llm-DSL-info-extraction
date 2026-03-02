@@ -1,7 +1,7 @@
 import re
 from typing import TypedDict, List, Optional, Dict, Any, Tuple
 from langgraph.graph import END, StateGraph, START
-from langgraph_base import AgentGraphState, ActionLog
+from pipeline.langgraph_base import AgentGraphState, ActionLog
 from rag.core.base_retriever import RetrievalResult, BaseRetriever
 from rag.core.base_embedder import BaseEmbedder
 from agents.prepare_agent import *

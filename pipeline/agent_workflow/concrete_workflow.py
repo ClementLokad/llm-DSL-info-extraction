@@ -11,6 +11,10 @@ class BaseTreeTool:
         res = "" # Placeholder for actual tree calulation
         return res
     
+    def custom_tree(root_path, max_depth, max_children) -> str:
+        res = "" # Placeholder for actual tree calulation
+        return res
+    
     def get_description(self) -> Tuple[str, str, List[str]]:
         return "", "", [] # Placeholder
 
@@ -75,6 +79,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 "Select the tool best suited to start the investigation.\n\n"
                 
                 ) + first_tools_desc + (
+                
+                "Here is the result of the tree_tool from the root of the codebase to help you better visualize the structure of this account:\n"
+                f"{self.tree_tool.custom_tree('', 3, 3)}\n\n"
 
                 "### PLANNING INSTRUCTIONS\n"
                 "1. Analyze the 'Mission Goal'. Identify the most critical keyword or concept.\n"
@@ -325,7 +332,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # Retrieve optional key words from the query to boost relevance of results containing these keywords
         key_words = re.search(r"<key_words>(.*?)</key_words>", query, re.DOTALL)
         if key_words:
-            print(f"Key words detected in query: {key_words.group(1)}")
+            if state['pipeline_state']['verbose']:
+                print(f"Key words detected in query: {key_words.group(1)}")
             key_words_str = key_words.group(1)
             key_words_list = [kw.strip() for kw in key_words_str.split(',') if kw.strip()]
         else:

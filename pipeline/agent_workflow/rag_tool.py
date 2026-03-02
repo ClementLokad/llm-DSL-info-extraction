@@ -8,10 +8,10 @@ from config_manager import get_config
 from agents.prepare_agent import prepare_default_agent
 from rag.utils.script_scanner import replace_constants_in_script
 from pathlib import Path
+from fastembed.rerank.cross_encoder import TextCrossEncoder
 import time
 import re
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch 
+import math
 
 class SimpleRAGTool(BaseRAGTool):
     """
@@ -25,13 +25,9 @@ class SimpleRAGTool(BaseRAGTool):
         self.embedder = embedder
         self.rate_limit_delay = get_config().get("agent.rate_limit_delay")
         self.agent = prepare_default_agent()
-        tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-reranker-v2-m3")
-        model = AutoModelForSequenceClassification.from_pretrained("BAAI/bge-reranker-v2-m3")
-        model.eval()
-        self.reranker_tokenizer = tokenizer
-        self.reranker_model = model
     
     def merge_rag_results(self, results):
+        """Merges rag results from different sub-questions using Reciprocal Rank Fusion (RRF)"""
         k=10
         merged_results = {}
         for result in results:
@@ -43,28 +39,6 @@ class SimpleRAGTool(BaseRAGTool):
                 merged_results[result.chunk.content] = (1/(k+result.rank), result.chunk, result.metadata)
         results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
         return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
-    
-    def reranker(self, query: str, results: List[RetrievalResult]) -> List[RetrievalResult]:
-        """Rerank the retrieved results based on their relevance to the query"""
-        inputs = self.reranker_tokenizer([query] * len(results), [result.chunk.content for result in results], return_tensors="pt", padding=True, truncation=True)
-        with torch.no_grad():
-            logits = self.reranker_model(**inputs).logits
-            # convert logits to a positive-class probability
-            if logits.size(1) == 1:
-                # binary/regression head with single logit -> sigmoid
-                probs_pos = torch.sigmoid(logits[:, 0])
-            else:
-                probs = torch.softmax(logits, dim=1)
-                probs_pos = probs[:, 1]
-        # sort by relevance probability
-        reranked_results = sorted(zip(results, probs_pos.tolist()), key=lambda x: x[1], reverse=True)
-        updated_results = []
-        for i, (result, prob) in enumerate(reranked_results, start=1):
-            # update score and rank on the original RetrievalResult objects
-            result.score = float(prob)
-            result.rank = i
-            updated_results.append(result)
-        return updated_results
     
     
     def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks"), rerank_multiplier = get_config().get("rag.rerank_multiplier"), verbose = False, key_words:List[str] = None, sources: str = None) -> List[RetrievalResult]:
@@ -107,7 +81,7 @@ class SimpleRAGTool(BaseRAGTool):
             sorted_results = sorted(results, key=lambda r: r.score, reverse=True)
             for i, result in enumerate(sorted_results, start=1):
                 result.rank = i
-            results = reranker(query, sorted_results)[:top_k]
+            results = sorted_results[:top_k]
         
         # Replace constants in result
         for result in results:
@@ -132,7 +106,7 @@ class SimpleRAGTool(BaseRAGTool):
         
         return usage, parameter, examples
 
-class AdvancedRAGTool(BaseRAGTool):
+class AdvancedRAGTool(SimpleRAGTool):
     """
     An advanced implementation of BaseRAGTool.
     Thanks to the use of Qdrant's hybrid search capabilities, this tool can perform a single 
@@ -146,24 +120,43 @@ class AdvancedRAGTool(BaseRAGTool):
         self.retriever = retriever
         self.embedder = embedder
         self.rate_limit_delay = get_config().get("agent.rate_limit_delay")
+        self.cross_encoding = get_config().get("main_pipeline.rag_tool.cross_encoding", False)
+        self.ce_multiplier = get_config().get("main_pipeline.rag_tool.cross_encoding_multiplier", 3)
         self.agent = prepare_default_agent()
-    
-    def merge_rag_results(self, results):
-        k=10
-        merged_results = {}
-        for result in results:
-            if result.chunk.content in merged_results.keys():
-                score, chunk, metadata = merged_results[result.chunk.content]
-                merged_results[result.chunk.content] = (score + 1/(k+result.rank), chunk, metadata)
-                metadata.update(result.chunk.metadata)
-            else:
-                merged_results[result.chunk.content] = (1/(k+result.rank), result.chunk, result.metadata)
-        results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
-        return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
+        self.reranker_model = TextCrossEncoder(get_config().get("main_pipeline.rag_tool.cross_encoder",
+                                                              "jinaai/jina-reranker-v2-base-multilingual"))
+
+    def ce_reranker(self, query: str, results: List[RetrievalResult]) -> List[RetrievalResult]:
+        """Rerank the retrieved results using fastembed cross-encoder"""
+        if not results: return []
+        
+        # Prepare the documents to pair with the query
+        documents = [f"Source: {result.chunk.metadata['original_file_path']}\n" + result.chunk.content for result in results]
+        
+        # FastEmbed handles batching, truncation, and output parsing automatically!
+        # It yields a generator of scores (floats)
+        scores = list(self.reranker_model.rerank(query, documents))
+        
+        # Apply Sigmoid to convert logits to 0-1 probabilities
+        for result, logit in zip(results, scores):
+            # Safe sigmoid calculation
+            probability = 1 / (1 + math.exp(-logit))
+            result.score = probability
+            
+        sorted_results = sorted(results, key=lambda r: r.score, reverse=True)
+        
+        for i, result in enumerate(sorted_results, start=1):
+            result.rank = i
+            
+        return sorted_results
     
     def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks"), verbose = False, key_words:List[str] = None, sources: List[str] = None) -> List[RetrievalResult]:
         """Retrieve relevant documents based on the query"""
         results = []
+        
+        retrieval_k = top_k
+        if self.cross_encoding:
+            retrieval_k = top_k*self.ce_multiplier
 
         if get_config().get('rag.fusion', False):
             base_fusion_question = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text.\n"
@@ -176,12 +169,15 @@ class AdvancedRAGTool(BaseRAGTool):
                 print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
             questions = raw_questions.split("$")
             for sub_question in questions:
-                results.extend(self.retriever.search_hybrid(sub_question, self.embedder, top_k=top_k, keywords=key_words,
-                                                            source_substrings=sources))
-            results = self.merge_rag_results(results)[:top_k]
+                results.extend(self.retriever.search_hybrid(sub_question, self.embedder, top_k=retrieval_k,
+                                                            keywords=key_words, source_substrings=sources))
+            results = self.merge_rag_results(results)[:retrieval_k]
         else:
-            results = self.retriever.search_hybrid(query, self.embedder, top_k=top_k,
-                                                   keywords=key_words, source_substrings=sources)
+            results = self.retriever.search_hybrid(query, self.embedder, top_k=retrieval_k,
+                                                       keywords=key_words, source_substrings=sources)
+        
+        if self.cross_encoding:
+            results = self.ce_reranker(query, results)[:top_k]
         
         # Replace constants in result
         for result in results:
@@ -191,7 +187,7 @@ class AdvancedRAGTool(BaseRAGTool):
         return results
     
     def get_description(self) -> Tuple[str, str, List[str]]:
-        usage = "Retrieve Envision concepts or Lokad business logic using SOTA Vector DBs and cross-encoding."
+        usage = "Retrieve Envision concepts or Lokad business logic using SOTA Hybrid DB and cross-encoding."
         parameter = (
             "A natural language query describing the concept to find.\n"
             "   Key words (Optionnal): add <key_words>KEYWORD1,KEYWORD2</key_words> to boost the relevance of results containing those keywords.\n"
@@ -227,7 +223,7 @@ if __name__ == "__main__":
     rag_tool = AdvancedRAGTool(retriever, embedder)
     query = "How is the cost of possessing (holding) a unit of product in stock modeled in Envision?"
     try:
-        results = rag_tool.retrieve(query, verbose=True, key_words=["cost", "possessing", "holding"], source_strings=["/7. Documentation/", "/4. Optimization workflow"])
+        results = rag_tool.retrieve(query, verbose=True, key_words=["cost", "possessing", "holding"], sources=["/7. Documentation/", "/4. Optimization workflow"])
     finally:
         retriever.close()
 

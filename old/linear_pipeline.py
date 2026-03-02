@@ -3,6 +3,7 @@ from pathlib import Path
 
 from rich.console import Console
 from rich.markup import escape
+from typing import List
 
 import config_manager
 import agents.prepare_agent as prepare_agent
@@ -11,20 +12,21 @@ from rag.utils.switch_db import get_default_embedder, get_default_retriever
 from rag.retrievers.grep_retriever import GrepRetriever
 from rag.router import Router, QueryType
 from rag.core.base_retriever import RetrievalResult
-from langgraph_base import BasePipeline, GraphState
+from pipeline.langgraph_base import BasePipeline, GraphState
 
-def merge_rag_results(results):
-    k=10
-    merged_results = {}
-    for result in results:
-        if result.chunk.content in merged_results.keys():
-            score, chunk, metadata = merged_results[result.chunk.content]
-            merged_results[result.chunk.content] = (score + 1/(k+result.rank), chunk, metadata)
-            metadata.update(result.chunk.metadata)
-        else:
-            merged_results[result.chunk.content] = (1/(k+result.rank), result.chunk, result.metadata)
-    results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
-    return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
+def merge_rag_results(results: List[RetrievalResult]) -> List[RetrievalResult]:
+        """Merges rag results from different sub-questions using Reciprocal Rank Fusion (RRF)"""
+        k=10
+        merged_results = {}
+        for result in results:
+            if result.chunk.content in merged_results.keys():
+                score, chunk, metadata = merged_results[result.chunk.content]
+                merged_results[result.chunk.content] = (score + 1/(k+result.rank), chunk, metadata)
+                metadata.update(result.chunk.metadata)
+            else:
+                merged_results[result.chunk.content] = (1/(k+result.rank), result.chunk, result.metadata)
+        results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
+        return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
 
 
 class MainLinearPipeline(BasePipeline):

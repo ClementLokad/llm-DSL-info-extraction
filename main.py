@@ -28,7 +28,7 @@ from pipeline.agent_workflow.script_finder_tool import PathScriptFinder
 from pipeline.agent_workflow.rag_tool import SimpleRAGTool, AdvancedRAGTool
 from pipeline.agent_workflow.file_tree_tool import FileTreeTool
 from pipeline.agent_workflow.agentic_pipeline import AgenticPipeline
-from langgraph_base import BasePipeline, GraphState, BenchmarkState
+from pipeline.langgraph_base import BasePipeline, GraphState, BenchmarkState
 
 class MainAgenticPipeline(AgenticPipeline):
     def __init__(self, console: Console, verbose=True):

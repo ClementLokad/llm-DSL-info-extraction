@@ -357,7 +357,8 @@ class GrepTool(BaseGrepTool):
         parameter = (
             "A precise regex pattern (most of the time a simple string suffice).\n"
             "     Optionally restrict scope by adding <sources>PATH_REGEX</sources>. "
-            "The results are restricted to files whose path matches the source regex. This allows searching inside specific folders but use ONLY when NECESSARY as you may miss relevant information.\n" 
+            "The results are restricted to files whose path matches the source regex (note that this must be a regex not a comma-separated list). "
+            "This allows searching inside specific folders but use ONLY when NECESSARY as you may miss relevant information.\n" 
             "     Optionally restrict scope by adding <block_type>BLOCK_TYPE</block_type> (BLOCK_TYPE must be comma-separated BLOCK_TYPE1,BLOCK_TYPE2...). " 
             "The results are restricted to blocks of the specified type(s). This allows searching for specific code structures but use ONLY when NECESSARY as you may miss relevant information. "
             "Enum of block types : COMMENT, SECTION_HEADER, IMPORT, READ, WRITE, CONST, EXPORT, TABLE_DEFINITION, ASSIGNMENT, SHOW, KEEP_WHERE, FORM_READ, CONTROL_FLOW, UNKNOWN"

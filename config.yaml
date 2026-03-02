@@ -293,6 +293,9 @@ main_pipeline:
   
   rag_tool:
     advanced: true # requires qdrant embedder and retriever
+    cross_encoding: true
+    cross_encoding_multiplier: 5
+    cross_encoder: "jinaai/jina-reranker-v2-base-multilingual"
 
   # Define "Detail Levels" from most detailed to least detailed.
   # Format: (max_depth, max_children)
