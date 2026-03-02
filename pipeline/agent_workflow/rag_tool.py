@@ -1,7 +1,9 @@
-from typing import List
+from typing import List, Tuple
 from pipeline.agent_workflow.workflow_base import BaseRAGTool
 from rag.core.base_retriever import BaseRetriever, RetrievalResult
 from rag.core.base_embedder import BaseEmbedder
+from rag.retrievers.qdrant_retriever import QdrantRetriever
+from rag.embedders.qdrant_embedder import QdrantEmbedder
 from config_manager import get_config
 from agents.prepare_agent import prepare_default_agent
 from rag.utils.script_scanner import replace_constants_in_script
@@ -35,7 +37,7 @@ class SimpleRAGTool(BaseRAGTool):
         results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
         return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
     
-    def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks"), rerank_multiplier = get_config().get("rag.rerank_multiplier"), verbose = False, key_words:List[str] = None, sources_regex: str = None) -> List[RetrievalResult]:
+    def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks"), rerank_multiplier = get_config().get("rag.rerank_multiplier"), verbose = False, key_words:List[str] = None, sources: str = None) -> List[RetrievalResult]:
         """Retrieve relevant documents based on the query"""
         results = []
         if key_words==None:
@@ -62,7 +64,7 @@ class SimpleRAGTool(BaseRAGTool):
         # Rerank results if needed
         if rerank_multiplier > 1:
             # Pre-compile regex outside the loop to save processing time
-            source_pattern = re.compile(sources_regex) if sources_regex else None
+            source_pattern = re.compile(sources) if sources else None
             for result in results:
                 chunk_text = result.chunk.content.lower()
                 matches = sum(1 for key in key_words if key.lower() in chunk_text)
@@ -79,18 +81,108 @@ class SimpleRAGTool(BaseRAGTool):
         
         # Replace constants in result
         for result in results:
-           cleaned_content = replace_constants_in_script(result.chunk.content, script_path=result.chunk.metadata["file_path"])
-           result.chunk.content = cleaned_content
+            cleaned_content = replace_constants_in_script(result.chunk.content, script_path=result.chunk.metadata["file_path"])
+            result.chunk.content = cleaned_content
 
         return results
+    
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        usage = "Retrieve Envision concepts or Lokad business logic."
+        parameter = (
+            "A natural language query describing the concept to find.\n"
+            "   Key words (Optionnal): add <key_words>KEYWORD1,KEYWORD2</key_words> to boost the relevance of results containing those keywords.\n"
+            "   Sources (Optionnal): add <sources>PATH_REGEX</sources> to boost the relevance of results from files whose path matches the regex."
+        )
+        examples = [
+            "<parameter>how does the refund policy work?</parameter>",
+            "<parameter>how is growth defined? <key_words>growth</key_words></parameter>",
+            "<parameter>What can we do on this account? <sources>/1. utilities/</sources></parameter>",
+            "<parameter>To whom does this account belong? <sources>/7. Documentation/</sources><key_words>owner,belong</key_words></parameter>"
+        ]
+        
+        return usage, parameter, examples
+
+class AdvancedRAGTool(BaseRAGTool):
+    """
+    An advanced implementation of BaseRAGTool.
+    Thanks to the use of Qdrant's hybrid search capabilities, this tool can perform a single 
+    search that combines both dense vector similarity and keyword-based sparse matching, with 
+    configurable boosting and penalization based on keywords and source path patterns.
+    
+    This class uses a provided retriever to perform retrieval operations.
+    """
+    
+    def __init__(self, retriever: QdrantRetriever, embedder: QdrantEmbedder):
+        self.retriever = retriever
+        self.embedder = embedder
+        self.rate_limit_delay = get_config().get("agent.rate_limit_delay")
+        self.agent = prepare_default_agent()
+    
+    def merge_rag_results(self, results):
+        k=10
+        merged_results = {}
+        for result in results:
+            if result.chunk.content in merged_results.keys():
+                score, chunk, metadata = merged_results[result.chunk.content]
+                merged_results[result.chunk.content] = (score + 1/(k+result.rank), chunk, metadata)
+                metadata.update(result.chunk.metadata)
+            else:
+                merged_results[result.chunk.content] = (1/(k+result.rank), result.chunk, result.metadata)
+        results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
+        return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
+    
+    def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks"), verbose = False, key_words:List[str] = None, sources: List[str] = None) -> List[RetrievalResult]:
+        """Retrieve relevant documents based on the query"""
+        results = []
+
+        if get_config().get('rag.fusion', False):
+            base_fusion_question = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text.\n"
+            
+            if self.rate_limit_delay > 0:
+                time.sleep(self.rate_limit_delay)
+                
+            raw_questions = self.agent.generate_response(base_fusion_question + query)
+            if verbose:
+                print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
+            questions = raw_questions.split("$")
+            for sub_question in questions:
+                results.extend(self.retriever.search_hybrid(sub_question, self.embedder, top_k=top_k, keywords=key_words,
+                                                            source_substrings=sources))
+            results = self.merge_rag_results(results)[:top_k]
+        else:
+            results = self.retriever.search_hybrid(query, self.embedder, top_k=top_k,
+                                                   keywords=key_words, source_substrings=sources)
+        
+        # Replace constants in result
+        for result in results:
+            cleaned_content = replace_constants_in_script(result.chunk.content, script_path=result.chunk.metadata["file_path"])
+            result.chunk.content = cleaned_content
+
+        return results
+    
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        usage = "Retrieve Envision concepts or Lokad business logic using SOTA Vector DBs and cross-encoding."
+        parameter = (
+            "A natural language query describing the concept to find.\n"
+            "   Key words (Optionnal): add <key_words>KEYWORD1,KEYWORD2</key_words> to boost the relevance of results containing those keywords.\n"
+            "   Sources (Optionnal): add <sources>SUBSTRING1,SUBSTRING2</sources> to boost the relevance of results from files whose path contains at least one of the substrings."
+        )
+        examples = [
+            "<parameter>how does the refund policy work?</parameter>",
+            "<parameter>how is growth defined? <key_words>growth</key_words></parameter>",
+            "<parameter>What can we do on this account? <sources>/1. utilities/,/7. Documentation/0 General Organization</sources></parameter>",
+            "<parameter>To whom does this account belong? <sources>/7. Documentation/</sources><key_words>owner,belong</key_words></parameter>"
+        ]
+        
+        return usage, parameter, examples
 
 if __name__ == "__main__":
-    from rag.retrievers.faiss_retriever import FAISSRetriever
-    from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
+    from rag.retrievers.qdrant_retriever import QdrantRetriever
+    from rag.embedders.qdrant_embedder import QdrantEmbedder
     
-    embedder = SentenceTransformerEmbedder(get_config().get_embedder_config())
+    embedder = QdrantEmbedder(get_config().get_embedder_config())
     embedder.initialize()
-    retriever = FAISSRetriever(get_config().get_retriever_config())
+    retriever = QdrantRetriever(get_config().get_retriever_config())
     retriever.initialize(embedder.embedding_dimension)
     
     # Determine index type from flags and config
@@ -102,10 +194,13 @@ if __name__ == "__main__":
     
     retriever.load_index(str(index_path))
     
-    rag_tool = SimpleRAGTool(retriever, embedder)
+    rag_tool = AdvancedRAGTool(retriever, embedder)
     query = "How is the cost of possessing (holding) a unit of product in stock modeled in Envision?"
-    results = rag_tool.retrieve(query, verbose=True, key_words=["cost", "possessing", "holding"])
-    
+    try:
+        results = rag_tool.retrieve(query, verbose=True, key_words=["cost", "possessing", "holding"], source_strings=["/7. Documentation/", "/4. Optimization workflow"])
+    finally:
+        retriever.close()
+
     for result in results:
         print("\n\n" + "="*60 + "\n\n")
-        print(f"Score: {result.score}, Rank: {result.rank}, Path: {result.chunk.metadata['original_file_path']}\nContent: {result.chunk.content}\n")
+        print(f"Score: {result.score*100:.2f}%, Rank: {result.rank}, Path: {result.chunk.metadata['original_file_path']}\nContent: {result.chunk.content}\n")

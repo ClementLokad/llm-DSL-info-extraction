@@ -38,8 +38,8 @@ class BaseEmbedder(ABC):
         self.config = config or {}
         self.model_name = self.config.get('model_name', 'default')
         self.batch_size = self.config.get('batch_size', 32)
-        self.max_length = self.config.get('max_length', 512)
-        self.normalize = self.config.get('normalize', True)
+        self.max_length = self.config.get('max_seq_length', 512)
+        self.normalize = self.config.get('normalize_embeddings', True)
         self.logger = logging.getLogger(self.__class__.__name__)
         self._is_initialized = False
     

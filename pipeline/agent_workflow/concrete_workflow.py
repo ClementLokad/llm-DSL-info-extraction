@@ -2,6 +2,7 @@ import config_manager
 from pipeline.agent_workflow.workflow_base import *
 from agents.prepare_agent import prepare_agent
 from rag.core.base_parser import BlockType
+from pipeline.agent_workflow.rag_tool import AdvancedRAGTool
 import time
 import re
 
@@ -9,6 +10,9 @@ class BaseTreeTool:
     def tree_tool(root_path: str, max_tokens: int = 1000) -> str:
         res = "" # Placeholder for actual tree calulation
         return res
+    
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        return "", "", [] # Placeholder
 
 class ConcreteAgentWorkflow(BaseAgentWorkflow):
     """
@@ -28,6 +32,16 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                                                                  self.config_manager.get_default_agent()))
         self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
     
+    def format_tool_description(self, usage: str, parameter: str, examples: List[str]):
+        join_string = "\n     • "
+        plural_string = "s:\n     • "
+        desc = (
+            f"   - Usage: {usage}\n"
+            f"   - Parameter: {parameter}\n"
+            f"   - Example{plural_string if len(examples) > 1 else ': '}{join_string.join(examples)}\n\n"
+        )
+        return desc
+    
     def design_planner_prompt(self, state: WorkflowState) -> str:
         """
         Creates a specialized prompt for the 'Planner' role.
@@ -39,41 +53,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         history = self._get_history(state)
         
         first_tools_desc = (
-            "1. rag_tool\n"
-            "   - Usage: Retrieve Envision concepts or Lokad business logic.\n"
-            "   - Parameter: A natural language query describing the concept to find.\n"
-            "   Optionally add key words to the query by adding <key_words>KEYWORD1,KEYWORD2</key_words> to boost the relevance of results containing these keywords.\n"
-            "   Optionnaly add sources to the query by adding <sources>PATH_REGEX</sources> to boost the relevance of results from files whose path matches the regex.\n"
-            "   - Examples:\n"
-            "     • <parameter>how does the refund policy work?</parameter>\n"
-            "     • <parameter>how is growth defined? <key_words>growth</key_words></parameter>\n"
-            "     • <parameter>What can we do on this account? <sources>/1. utilities/</sources></parameter>\n"
-            "     • <parameter>To whom does this account belong? <sources>/7. Documentation/</sources><key_words>owner,belong</key_words></parameter>\n\n"
-
-            "2. grep_tool\n"
-            "   - Usage: Find specific Envision code implementations, variable definitions, or error strings.\n"
-            "   - Parameter: A precise regex pattern (most of the time a simple string suffice). \n"
-            "     Optionally restrict scope by adding <sources>PATH_REGEX</sources>. "
-            "The results are restricted to files whose path matches the source regex. This allows searching inside specific folders but use ONLY when NECESSARY as you may miss relevant information.\n" 
-            "     Optionally restrict scope by adding <block_type>BLOCK_TYPE</block_type> (BLOCK_TYPE must be comma-separated BLOCK_TYPE1,BLOCK_TYPE2...). " 
-            "The results are restricted to blocks of the specified type(s). This allows searching for specific code structures but use ONLY when NECESSARY as you may miss relevant information. "
-            "Enum of block types : COMMENT, SECTION_HEADER, IMPORT, READ, WRITE, CONST, EXPORT, TABLE_DEFINITION, ASSIGNMENT, SHOW, KEEP_WHERE, FORM_READ, CONTROL_FLOW, UNKNOWN\n" \
-            "   - Examples:\n"
-            "     • Standard (Simple pattern): <parameter>LotMultiplier</parameter>\n"
-            "     • Standard (Complex regex pattern): <parameter>show (linechart|label)</parameter>\n"
-            '     • With source filter (Folder scope): <parameter>read "/Manual/Dashboard.ion" <sources>/modules/</sources></parameter>\n'
-            '     • With block type filter: <parameter> LotMultiplier <block_type>READ, FORM_READ</block_type></parameter>\n'
-            "     • With both filters: <parameter> FcItems.ion <block_type>WRITE</block_type><sources>/1. utilities</sources></parameter>\n\n"
-
-            "3. tree_tool\n"
-            "   - Usage: Get a condensed summary of the file tree starting from a specific path. The structure of the codebase is semantically crucial so do not hesitate to use this tool.\n"
-            "   - Parameter: The root_path string from which to start the file tree traversal.\n"
-            "   - Example: <parameter>/</parameter> or <parameter>/1. utilities/Modules</parameter>\n\n"
-
-            "4. script_finder_tool\n"
-            "   - Usage: Read specific files. Use RARELY and only when necessary due to high token cost; use grep_tool with sources instead whenever possible.\n"
-            "   - Parameter: Comma-separated filenames or path fragments.\n"
-            "   - Example: <parameter>config.nvn, utils/db.nvn</parameter>\n\n"
+            f"1. rag_tool\n{self.format_tool_description(*self.rag_tool.get_description())}"
+            f"2. grep_tool\n{self.format_tool_description(*self.grep_tool.get_description())}"
+            f"3. tree_tool\n{self.format_tool_description(*self.tree_tool.get_description())}"
+            f"4. script_finder_tool\n{self.format_tool_description(*self.script_finder_tool.get_description())}"
         )
 
         # =================================================================
@@ -161,7 +144,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             
             ) + first_tools_desc + (
             
-            f"{len(first_tools_desc) + 1}. grade_answer\n"
+            f"5. grade_answer\n"
             "   - Usage: If the current answer is satisfying, use this tool to finalize the process.\n"
             "   - Parameter: Type 'None'.\n\n"
         )
@@ -337,6 +320,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         query = state["tool_parameter"]
         # Retrieve the thought generated by the Planner
         thought = state.get("current_thought", "No reasoning provided.")
+        advanced = isinstance(self.rag_tool, AdvancedRAGTool)
         
         # Retrieve optional key words from the query to boost relevance of results containing these keywords
         key_words = re.search(r"<key_words>(.*?)</key_words>", query, re.DOTALL)
@@ -351,18 +335,24 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         
         # Retrieve optional sources from the query to boost relevance of results from files whose path matches the regex
         sources = re.search(r"<sources>(.*?)</sources>", query, re.DOTALL)
-        sources_regex = None
-        if sources:
-            print(f"Sources detected in query: {sources.group(1)}")
-            sources_regex = sources.group(1).strip()
+        sources_info = None
+        if advanced:
+            if sources:
+                print(f"Sources detected in query: {sources.group(1)}")
+                sources_str = sources.group(1).strip()
+                sources_info = [src.strip() for src in sources_str.split(',') if src.strip()]
+        else:
+            if sources:
+                print(f"Sources detected in query: {sources.group(1)}")
+                sources_info = sources.group(1).strip()
 
         clean_query = re.sub(r"<sources>.*?</sources>", "", clean_query, flags=re.DOTALL).strip()
         
         # 1. Execute
-        results = self.rag_tool.retrieve(query=clean_query, verbose=state['pipeline_state']['verbose'], key_words=key_words_list, sources_regex=sources_regex)
+        results = self.rag_tool.retrieve(query=clean_query, verbose=state['pipeline_state']['verbose'], key_words=key_words_list, sources=sources_info)
         
         if state['pipeline_state']['verbose']:
-            self.console.print(f"RAG retrieved {len(results)} results for query: '{escape(query)}'")
+            self.console.print(f"RAG retrieved {len(results)} results for query: '{escape(clean_query)}'")
         
         # 3. Update History
         count = len(results)
@@ -380,7 +370,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         state['rewritten_prompt'] = (
             f"{base_prompt}"
             f"### RAG RESULTS\n"
-            f"The RAG tool retrieved {len(results)} relevant code chunks for the query '{query}'. Here they are:\n"
+            f"The RAG tool retrieved {len(results)} relevant code chunks for the query '{clean_query}'. Here they are:\n"
             f"{raw_results_str}\n\n"
             f"### INSTRUCTION\n"
             f"Using the RAG results above and all of the previous knowledge, answer the question as best as you can."
