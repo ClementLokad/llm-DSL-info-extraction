@@ -5,6 +5,8 @@ from rag.core.base_embedder import BaseEmbedder
 from config_manager import get_config
 from agents.prepare_agent import prepare_default_agent
 from rag.utils.script_scanner import replace_constants_in_script
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
 import time
 
 class SimpleRAGTool(BaseRAGTool):
@@ -19,6 +21,11 @@ class SimpleRAGTool(BaseRAGTool):
         self.embedder = embedder
         self.rate_limit_delay = get_config().get("agent.rate_limit_delay")
         self.agent = prepare_default_agent()
+        tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-reranker-v2-m3")
+        model = AutoModelForSequenceClassification.from_pretrained("BAAI/bge-reranker-v2-m3")
+        model.eval()
+        self.reranker_tokenizer = tokenizer
+        self.reranker_model = model
     
     def merge_rag_results(self, results):
         k=10
@@ -68,7 +75,9 @@ class SimpleRAGTool(BaseRAGTool):
             sorted_results = sorted(results, key=lambda r: r.score, reverse=True)
             for i, result in enumerate(sorted_results, start=1):
                 result.rank = i
-            results = sorted_results[:top_k]
+            results = sorted_results
+            # Keep only the top_k results after reranking 
+            results = self.reranker(query, results)[:top_k]
         
         # Replace constants in result
         for result in results:
@@ -76,3 +85,25 @@ class SimpleRAGTool(BaseRAGTool):
            result.chunk.content = cleaned_content
 
         return results
+
+    def reranker(self, query: str, results: List[RetrievalResult]) -> List[RetrievalResult]:
+        """Rerank the retrieved results based on their relevance to the query"""
+        inputs = self.reranker_tokenizer([query] * len(results), [result.chunk.content for result in results], return_tensors="pt", padding=True, truncation=True)
+        with torch.no_grad():
+            logits = self.reranker_model(**inputs).logits
+            # convert logits to a positive-class probability
+            if logits.size(1) == 1:
+                # binary/regression head with single logit -> sigmoid
+                probs_pos = torch.sigmoid(logits[:, 0])
+            else:
+                probs = torch.softmax(logits, dim=1)
+                probs_pos = probs[:, 1]
+        # sort by relevance probability
+        reranked_results = sorted(zip(results, probs_pos.tolist()), key=lambda x: x[1], reverse=True)
+        updated_results = []
+        for i, (result, prob) in enumerate(reranked_results, start=1):
+            # update score and rank on the original RetrievalResult objects
+            result.score = float(prob)
+            result.rank = i
+            updated_results.append(result)
+        return updated_results
