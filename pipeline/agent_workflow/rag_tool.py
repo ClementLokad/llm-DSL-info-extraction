@@ -191,7 +191,7 @@ class AdvancedRAGTool(SimpleRAGTool):
                 enhanced_query += f" ({'; '.join(context_parts)})"
                 
             # 2. Pass the enhanced query to the reranker
-            results = self.reranker(enhanced_query, results)[:top_k]
+            results = self.ce_reranker(enhanced_query, results)[:top_k]
         
         # Replace constants in result
         for result in results:

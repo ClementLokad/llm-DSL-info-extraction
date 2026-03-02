@@ -333,7 +333,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         key_words = re.search(r"<key_words>(.*?)</key_words>", query, re.DOTALL)
         if key_words:
             if state['pipeline_state']['verbose']:
-                print(f"Key words detected in query: {key_words.group(1)}")
+                self.console.print(f"[dim]Key words detected in query: [bright_magenta]{escape(str(key_words.group(1)))}[/bright_magenta][/dim]")
             key_words_str = key_words.group(1)
             key_words_list = [kw.strip() for kw in key_words_str.split(',') if kw.strip()]
         else:
@@ -343,15 +343,16 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         
         # Retrieve optional sources from the query to boost relevance of results from files whose path matches the regex
         sources = re.search(r"<sources>(.*?)</sources>", query, re.DOTALL)
+
+        if sources and state['pipeline_state']['verbose']:
+            self.console.print(f"[dim]Sources detected in query: [sea_green1]{escape(str(sources.group(1)))}[/sea_green1][/dim]")
+
         sources_info = None
-        if advanced:
-            if sources:
-                print(f"Sources detected in query: {sources.group(1)}")
+        if sources:
+            if advanced:
                 sources_str = sources.group(1).strip()
                 sources_info = [src.strip() for src in sources_str.split(',') if src.strip()]
-        else:
-            if sources:
-                print(f"Sources detected in query: {sources.group(1)}")
+            else:
                 sources_info = sources.group(1).strip()
 
         clean_query = re.sub(r"<sources>.*?</sources>", "", clean_query, flags=re.DOTALL).strip()
