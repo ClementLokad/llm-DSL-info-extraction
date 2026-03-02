@@ -177,7 +177,21 @@ class AdvancedRAGTool(SimpleRAGTool):
                                                        keywords=key_words, source_substrings=sources)
         
         if self.cross_encoding:
-            results = self.ce_reranker(query, results)[:top_k]
+            # 1. Build an enhanced query that a Transformer can understand contextually
+            enhanced_query = query
+            
+            context_parts = []
+            if key_words:
+                context_parts.append(f"Important keywords: {', '.join(key_words)}")
+            if sources:
+                context_parts.append(f"Sources of interest: {', '.join(sources)}")
+                
+            # If we have extra context, append it cleanly inside parentheses
+            if context_parts:
+                enhanced_query += f" ({'; '.join(context_parts)})"
+                
+            # 2. Pass the enhanced query to the reranker
+            results = self.reranker(enhanced_query, results)[:top_k]
         
         # Replace constants in result
         for result in results:
