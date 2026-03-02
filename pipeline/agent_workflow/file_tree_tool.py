@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Tuple, List
 from get_mapping import build_file_tree
 from config_manager import get_config
 from rag.utils.handle_tokens import get_token_count
@@ -156,6 +156,17 @@ class FileTreeTool(BaseTreeTool):
         res += "\n"
         
         return res + self.fit_tree_to_context(tree_root, max_tokens)
+    
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        usage = "Get a condensed summary of the file tree starting from a specific path. "\
+            "The structure of the codebase is semantically crucial so do not hesitate to use this tool."
+        parameter = "The root_path string from which to start the file tree traversal."
+        examples = [
+            "<parameter>/</parameter>",
+            "<parameter>/1. utilities/Modules</parameter>"
+        ]
+        
+        return usage, parameter, examples
 
 if __name__ == "__main__":
     tool = FileTreeTool()

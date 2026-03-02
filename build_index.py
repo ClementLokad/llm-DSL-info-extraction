@@ -8,19 +8,24 @@ sys.path.append(str(Path(__file__).parent))
 from config_manager import ConfigManager
 from rag.parsers.envision_parser import EnvisionParser
 from rag.chunkers.envision_chunker import EnvisionChunker
-from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
-from rag.retrievers.faiss_retriever import FAISSRetriever
+from rag.utils.switch_db import get_default_embedder, get_default_retriever
 
 
 def build_index():
     print("🔨 Building index...")
     cfg = ConfigManager()
     
+    def_ret = cfg.get("retriever.type", "qdrant")
+    def_emb = cfg.get("embedder.default_type", "qdrant")
+    
     parser = EnvisionParser(cfg.get_parser_config())
     chunker = EnvisionChunker(cfg.get_chunker_config())
-    embedder = SentenceTransformerEmbedder(cfg.get_embedder_config())
+    embedder = get_default_embedder()
     embedder.initialize()
-    retriever = FAISSRetriever(cfg.get_retriever_config())
+    retriever = get_default_retriever()
+    if def_ret == "qdrant":
+        retriever.clear_index()
+        print("Old index succesfully emptied")
     retriever.initialize(embedder.embedding_dimension)
     
     dirs = cfg.get('paths.input_dirs', ["env_scripts"])
@@ -39,15 +44,27 @@ def build_index():
     
     print(f"Parsed {len(blocks)} blocks and created {len(chunks)} chunks")
 
-    embeddings = embedder.embed_chunks(chunks)
-    print(f"Generated {embeddings.shape[0]} embeddings")
+    if def_ret == def_emb == "qdrant":
+        embeddings = embedder.embed_chunks_hybrid(chunks)
+    else:
+        embeddings = embedder.embed_chunks(chunks)
+
+    print(f"Generated {len(embeddings)} embeddings")
     
-    retriever.add_chunks(chunks, embeddings)
-    
-    index_path = Path("data/faiss_index")
-    index_path.mkdir(parents=True, exist_ok=True)
-    retriever.save_index(str(index_path))
-    
+    if def_ret == def_emb == "qdrant":
+        retriever.add_chunks_hybrid(chunks, embeddings, summary=False)
+    elif def_ret == "qdrant":
+        retriever.add_chunks(chunks, embeddings, summary=False)
+    else:
+        retriever.add_chunks(chunks, embeddings)
+
+    if def_ret == "qdrant":
+        retriever.close()
+    else:
+        index_path = Path("data/faiss_index")
+        index_path.mkdir(parents=True, exist_ok=True)
+        retriever.save_index(str(index_path))
+
     print("✅ Index built and saved")
 
 

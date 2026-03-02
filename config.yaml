@@ -79,7 +79,7 @@ summarizer:
 # =============================================================================
 embedder:
   # Default embedder type
-  default_type: "sentence_transformer"
+  default_type: "qdrant" # Options: "qdrant", "sentence_transformer", "openai", "gemini"
 
   # Index type
   index_type: "summary"  # Options: summary, full_chunk
@@ -91,6 +91,13 @@ embedder:
     min_lines_preserve: 1        # Always keep at least 1 line
     max_variable_names: 3        # Limit variable names shown in context
     max_table_names: 5           # Limit table names shown in context
+
+  # Qdrant Embedder settings
+  qdrant:
+    dense_model_name: "sentence-transformers/all-MiniLM-L6-v2"
+    sparse_model_name: "Qdrant/bm25"
+    batch_size: 64
+    embedding_dimension: 384 # Default dimension for all-MiniLM-L6-v2
   
   # Sentence Transformer settings
   sentence_transformer:
@@ -101,7 +108,8 @@ embedder:
     normalize_embeddings: true
     batch_size: 32
     max_seq_length: 512
-    show_progress_bar: true 
+    show_progress_bar: true
+    convert_to_numpy: true
   
   # OpenAI embedder settings
   openai:
@@ -123,13 +131,22 @@ embedder:
 # RETRIEVER CONFIGURATION
 # =============================================================================
 retriever:
-  type: "faiss"
+  type: "qdrant"
   
   # Index file names (all file constants externalized from global paths)
   files:
     chunks_filename: "chunks"              # File storing the code chunks data (extension from paths.pickle_extension)
     index_filename: "faiss"                # FAISS vector index file (extension from paths.index_extension)
     metadata_filename: "metadata"          # Index metadata and configuration (extension from paths.pickle_extension)
+
+  qdrant:
+    collection_name: "codebase_rag"
+    qdrant_path: "./data/qdrant" # Directory where Qdrant client and collections are stored
+    local: true
+    top_k: 5
+    rerank_multiplier: 5 # Multiplier for number of chunks to rerank between dense and sparse model on retrieval
+    dense_threshold: 0.45
+    sparse_threshold: 2
   
   # FAISS index settings
   faiss:
@@ -213,30 +230,6 @@ retriever:
     hnsw_ef_construction: 200
 
 # =============================================================================
-# PREPROCESSING PIPELINE CONFIGURATION
-# =============================================================================
-pipeline:
-  # Processing parameters
-  batch_size: 50
-  max_workers: 4
-  show_progress: true
-  
-  # File processing
-  supported_extensions: [".nvn"]
-  encoding: "utf-8"
-  skip_empty_files: true
-  
-  # Output settings
-  save_intermediate_results: true
-  output_format: "json"  # json, pickle, csv
-  
-  # Validation settings
-  validate_chunks: true
-  validate_embeddings: true
-  min_chunks_per_file: 1
-  max_chunks_per_file: 1000
-
-# =============================================================================
 # LOGGING CONFIGURATION
 # =============================================================================
 logging:
@@ -297,6 +290,9 @@ main_pipeline:
     case_sensitive: false
     max_lines: 150
     max_grep_retries: 3
+  
+  rag_tool:
+    advanced: true # requires qdrant embedder and retriever
 
   # Define "Detail Levels" from most detailed to least detailed.
   # Format: (max_depth, max_children)

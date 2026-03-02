@@ -1,13 +1,14 @@
-from typing import List
+from typing import List, Tuple
 from pipeline.agent_workflow.workflow_base import BaseRAGTool
 from rag.core.base_retriever import BaseRetriever, RetrievalResult
 from rag.core.base_embedder import BaseEmbedder
+from rag.retrievers.qdrant_retriever import QdrantRetriever
+from rag.embedders.qdrant_embedder import QdrantEmbedder
 from config_manager import get_config
 from agents.prepare_agent import prepare_default_agent
 from rag.utils.script_scanner import replace_constants_in_script
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch
 import time
+import re
 
 class SimpleRAGTool(BaseRAGTool):
     """
@@ -40,7 +41,7 @@ class SimpleRAGTool(BaseRAGTool):
         results_list = sorted(merged_results.items(), key=lambda item: item[1][0], reverse = True)
         return [RetrievalResult(chunk, score, rank+1, metadata) for rank, (_, (score, chunk, metadata)) in enumerate(results_list)]
     
-    def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks"), rerank_multiplier = get_config().get("rag.rerank_multiplier"), verbose = False, key_words:List[str] = None) -> List[RetrievalResult]:
+    def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks"), rerank_multiplier = get_config().get("rag.rerank_multiplier"), verbose = False, key_words:List[str] = None, sources: str = None) -> List[RetrievalResult]:
         """Retrieve relevant documents based on the query"""
         results = []
         if key_words==None:
@@ -66,11 +67,16 @@ class SimpleRAGTool(BaseRAGTool):
 
         # Rerank results if needed
         if rerank_multiplier > 1:
+            # Pre-compile regex outside the loop to save processing time
+            source_pattern = re.compile(sources) if sources else None
             for result in results:
                 chunk_text = result.chunk.content.lower()
                 matches = sum(1 for key in key_words if key.lower() in chunk_text)
                 if matches > 0:
                     result.score = min(1.0, result.score * (1 + 0.1* matches / len(key_words)))
+
+                if source_pattern and not source_pattern.search(result.chunk.metadata.get("original_file_path", "")):
+                    result.score = result.score * 0.85  # Penalize if source doesn't match
             # Sort results by score after reranking
             sorted_results = sorted(results, key=lambda r: r.score, reverse=True)
             for i, result in enumerate(sorted_results, start=1):
@@ -81,29 +87,7 @@ class SimpleRAGTool(BaseRAGTool):
         
         # Replace constants in result
         for result in results:
-           cleaned_content = replace_constants_in_script(result.chunk.content, script_path=result.chunk.metadata["file_path"])
-           result.chunk.content = cleaned_content
+            cleaned_content = replace_constants_in_script(result.chunk.content, script_path=result.chunk.metadata["file_path"])
+            result.chunk.content = cleaned_content
 
         return results
-
-    def reranker(self, query: str, results: List[RetrievalResult]) -> List[RetrievalResult]:
-        """Rerank the retrieved results based on their relevance to the query"""
-        inputs = self.reranker_tokenizer([query] * len(results), [result.chunk.content for result in results], return_tensors="pt", padding=True, truncation=True)
-        with torch.no_grad():
-            logits = self.reranker_model(**inputs).logits
-            # convert logits to a positive-class probability
-            if logits.size(1) == 1:
-                # binary/regression head with single logit -> sigmoid
-                probs_pos = torch.sigmoid(logits[:, 0])
-            else:
-                probs = torch.softmax(logits, dim=1)
-                probs_pos = probs[:, 1]
-        # sort by relevance probability
-        reranked_results = sorted(zip(results, probs_pos.tolist()), key=lambda x: x[1], reverse=True)
-        updated_results = []
-        for i, (result, prob) in enumerate(reranked_results, start=1):
-            # update score and rank on the original RetrievalResult objects
-            result.score = float(prob)
-            result.rank = i
-            updated_results.append(result)
-        return updated_results

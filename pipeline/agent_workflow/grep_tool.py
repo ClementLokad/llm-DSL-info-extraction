@@ -2,7 +2,7 @@ from importlib import metadata
 import re
 import pickle
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from rag.core.base_retriever import RetrievalResult, CodeChunk
 from rag.core.base_parser import CodeBlock, BlockType 
@@ -351,9 +351,31 @@ class GrepTool(BaseGrepTool):
             raise FileNotFoundError(f"Grep index not found at {self.index_path}")
         except Exception as e:
             raise RuntimeError(f"Failed to load grep index: {e}")
+    
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        usage = "Find specific Envision code implementations, variable definitions, or error strings."
+        parameter = (
+            "A precise regex pattern (most of the time a simple string suffice).\n"
+            "     Optionally restrict scope by adding <sources>PATH_REGEX</sources>. "
+            "The results are restricted to files whose path matches the source regex. This allows searching inside specific folders but use ONLY when NECESSARY as you may miss relevant information.\n" 
+            "     Optionally restrict scope by adding <block_type>BLOCK_TYPE</block_type> (BLOCK_TYPE must be comma-separated BLOCK_TYPE1,BLOCK_TYPE2...). " 
+            "The results are restricted to blocks of the specified type(s). This allows searching for specific code structures but use ONLY when NECESSARY as you may miss relevant information. "
+            "Enum of block types : COMMENT, SECTION_HEADER, IMPORT, READ, WRITE, CONST, EXPORT, TABLE_DEFINITION, ASSIGNMENT, SHOW, KEEP_WHERE, FORM_READ, CONTROL_FLOW, UNKNOWN"
+        )
+        examples = [
+            "Standard (Simple pattern): <parameter>LotMultiplier</parameter>",
+            "Standard (Complex regex pattern): <parameter>show (linechart|label)</parameter>",
+            'With source filter (Folder scope): <parameter>read "/Manual/Dashboard.ion" <sources>/modules/</sources></parameter>',
+            'With block type filter: <parameter> LotMultiplier <block_type>READ, FORM_READ</block_type></parameter>',
+            "With both filters: <parameter> FcItems.ion <block_type>WRITE</block_type><sources>/1. utilities</sources></parameter>"
+        ]
+        
+        return usage, parameter, examples
+
 
 if __name__ == "__main__":
     grep_tool = GrepTool()
-    results = grep_tool.search(pattern='read "/Clean/Items.ion"')
+    results = grep_tool.search(pattern='annual.*growth')
+    print(len(results))
     for res in results:
         print(f"File: {res.metadata['original_file_path']}\nContent:\n{res.chunk.content}\n{'-'*40}\n")

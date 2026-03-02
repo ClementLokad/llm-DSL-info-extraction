@@ -102,6 +102,9 @@ class BaseGrepTool():
         """Shortens the elements in results to fit inside at most limit number of lines"""
         # Implementations of shortening
         return results
+    
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        return "", "", [] # Placeholder
 
 class BaseScriptFinderTool():
     """A base tool for finding scripts in a codebase."""
@@ -125,6 +128,9 @@ class BaseScriptFinderTool():
         except Exception as e:
             print(f"Couldn't read the following file {file_path}: {e}")
             return f"Couldn't read the following file {file_path}."
+    
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        return "", "", [] # Placeholder
 
 class BaseRAGTool():
     """A base tool for performing RAG operations."""
@@ -137,6 +143,9 @@ class BaseRAGTool():
         results = []
         # Implementation of retrieval logic would go here
         return results
+    
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        return "", "", [] # Placeholder
 
 class WorkflowState(TypedDict):
     """State definition for the agent workflow."""
