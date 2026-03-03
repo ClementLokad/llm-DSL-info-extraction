@@ -382,7 +382,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             f"The RAG tool retrieved {len(results)} relevant code chunks for the query '{clean_query}'. Here they are:\n"
             f"{raw_results_str}\n\n"
             f"### INSTRUCTION\n"
-            f"Using the RAG results above and all of the previous knowledge, answer the question as best as you can."
+            f"Using the RAG results above and all of the previous knowledge, answer the question as best as you can while remaining concise."
         )
         return state
 
@@ -497,7 +497,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             " Here are the results:\n\n"
             f"{raw_results_str}\n\n"
             "### INSTRUCTION\n"
-            f"Using the Grep results above and all of the previous knowledge, answer the question as best as you can."
+            f"Using the Grep results above and all of the previous knowledge, answer the question as best as you can while remaining concise."
         )
         return state
     
@@ -505,18 +505,18 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self.console.print("[dim]--- SUB-DECISION: Grep results validation ---[/dim]")
         num_retries, len_grep_results = state["local_grep_retries"]
         if num_retries >= self.config_manager.get("main_pipeline.grep_tool.max_grep_retries", 3):
-            self.console.print(f"[dim]  -> Max grep retries reached, grep results validated[/dim]")
+            self.console.print(f"[dim]    -> Max grep retries reached, grep results validated[/dim]")
             return "validated"
         
         if 0 == len_grep_results:
-            self.console.print(f"[dim]  -> 0 grep results replanning[/dim]")
+            self.console.print(f"[dim]    -> 0 grep results replanning[/dim]")
             return "replan"
 
         if len_grep_results > self.config_manager.get("main_pipeline.grep_tool.max_results_to_refine"):
-            self.console.print(f"[dim]  -> {len_grep_results} grep results which is > {get_config().get('main_pipeline.grep_tool.max_results_to_refine')}, replanning[/dim]")
+            self.console.print(f"[dim]    -> {len_grep_results} grep results which is > {get_config().get('main_pipeline.grep_tool.max_results_to_refine')}, replanning[/dim]")
             return "replan"
 
-        self.console.print(f"[dim]  -> Grep results validated[/dim]")
+        self.console.print(f"[dim]    -> Grep results validated[/dim]")
         return "validated"
     
     def use_tree_tool(self, state: WorkflowState) -> WorkflowState:
