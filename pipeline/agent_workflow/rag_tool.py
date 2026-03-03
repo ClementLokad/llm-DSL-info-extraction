@@ -145,10 +145,34 @@ class AdvancedRAGTool(SimpleRAGTool):
             
         sorted_results = sorted(results, key=lambda r: r.score, reverse=True)
         
-        for i, result in enumerate(sorted_results, start=1):
+        # 2. Dynamic Threshold Logic
+        final_results = []
+        best_score = sorted_results[0].score
+        
+        # Define your drop-off tolerance (e.g., anything worse than 50% of the best score is dropped)
+        # Note: You can expose this in your config: get_config().get("rag.dynamic_threshold_ratio", 0.5)
+        drop_off_ratio = get_config().get("main_pipeline.rag_tool.drop_off_ratio", 0.5)
+        
+        # Optional: Define an absolute minimum so we don't pass absolute garbage if the "best" score is terrible
+        absolute_minimum = get_config().get("main_pipeline.rag_tool.absolute_minimum", 0.2)
+        
+        for result in sorted_results:
+            # If the score is less than the absolute minimum, stop completely
+            if result.score < absolute_minimum:
+                break
+            
+            # If the score drops significantly below the top performer, cut the list off here
+            if result.score < (best_score * drop_off_ratio):
+                # We found the "gap" where relevance falls off a cliff
+                break 
+                
+            final_results.append(result)
+        
+        # Assign ranks only to the surviving chunks
+        for i, result in enumerate(final_results, start=1):
             result.rank = i
             
-        return sorted_results
+        return final_results
     
     def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks"), verbose = False, key_words:List[str] = None, sources: List[str] = None) -> List[RetrievalResult]:
         """Retrieve relevant documents based on the query"""
@@ -159,8 +183,13 @@ class AdvancedRAGTool(SimpleRAGTool):
             retrieval_k = top_k*self.ce_multiplier
 
         if get_config().get('rag.fusion', False):
-            base_fusion_question = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text.\n"
-            
+            base_fusion_question = (
+                "You are an expert Envision/Lokad developer. "
+                "Re-write the following user query into 2 different, highly specific technical queries "
+                "that mean the exact same thing but use different programming synonyms or codebase terminology. "
+                "Separate each re-written query with a $ character. Do not add preamble.\n"
+                "Query: "
+            )            
             if self.rate_limit_delay > 0:
                 time.sleep(self.rate_limit_delay)
                 
@@ -168,10 +197,11 @@ class AdvancedRAGTool(SimpleRAGTool):
             if verbose:
                 print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
             questions = raw_questions.split("$")
+            questions = [query] + [q.strip() for q in questions if q.strip()]
             for sub_question in questions:
                 results.extend(self.retriever.search_hybrid(sub_question, self.embedder, top_k=retrieval_k,
                                                             keywords=key_words, source_substrings=sources))
-            results = self.merge_rag_results(results)[:retrieval_k]
+            results = self.merge_rag_results(results)[:retrieval_k*2]
         else:
             results = self.retriever.search_hybrid(query, self.embedder, top_k=retrieval_k,
                                                        keywords=key_words, source_substrings=sources)

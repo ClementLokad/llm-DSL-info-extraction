@@ -296,6 +296,8 @@ main_pipeline:
     cross_encoding: true
     cross_encoding_multiplier: 5
     cross_encoder: "jinaai/jina-reranker-v2-base-multilingual"
+    drop_off_ratio: 0.5 # Documents with less than drop_off_ratio*best_res relevance are discarded
+    absolute_minimum: 0.2 # Documents with less than absolute_minimum relevance are discarded
 
   # Define "Detail Levels" from most detailed to least detailed.
   # Format: (max_depth, max_children)
