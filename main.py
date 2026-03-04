@@ -28,7 +28,7 @@ from pipeline.agent_workflow.script_finder_tool import PathScriptFinder
 from pipeline.agent_workflow.rag_tool import SimpleRAGTool, AdvancedRAGTool
 from pipeline.agent_workflow.file_tree_tool import FileTreeTool
 from pipeline.agent_workflow.agentic_pipeline import AgenticPipeline
-from langgraph_base import BasePipeline, GraphState, BenchmarkState
+from pipeline.langgraph_base import BasePipeline, GraphState, BenchmarkState
 
 class MainAgenticPipeline(AgenticPipeline):
     def __init__(self, console: Console, verbose=True):
@@ -207,9 +207,10 @@ class DSLQuerySystem():
         table.add_column("Question", style="cyan", no_wrap=False)
         table.add_column("Score", style="magenta")
         
-        for r in final_state["grades"]:
-            table.add_row(r['question'], f"{r['score']:.4f}")
-            self.console.print(f"\n[bold green]Question: {escape(r['question'])} [/bold green]\n")
+        for i, r in enumerate(final_state["grades"]):
+            r["id"] = i + 1
+            table.add_row(f"{i+1}) "+r['question'], f"{r['score']:.4f}")
+            self.console.print(f"\n[bold green]{i+1}) Question: {escape(r['question'])} [/bold green]\n")
             self.console.print(f"[bold purple]  Référence: {escape(r['reference'])}[/bold purple]")
             self.console.print("\n[bold blue]  LLM: [/bold blue]")
             self.console.print(Markdown(f"{escape(r['llm_response'])}"))

@@ -11,6 +11,10 @@ class BaseTreeTool:
         res = "" # Placeholder for actual tree calulation
         return res
     
+    def custom_tree(root_path, max_depth, max_children) -> str:
+        res = "" # Placeholder for actual tree calulation
+        return res
+    
     def get_description(self) -> Tuple[str, str, List[str]]:
         return "", "", [] # Placeholder
 
@@ -75,6 +79,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 "Select the tool best suited to start the investigation.\n\n"
                 
                 ) + first_tools_desc + (
+                
+                "Here is the result of the tree_tool from the root of the codebase to help you better visualize the structure of this account:\n"
+                f"{self.tree_tool.custom_tree('', 3, 3)}\n\n"
 
                 "### PLANNING INSTRUCTIONS\n"
                 "1. Analyze the 'Mission Goal'. Identify the most critical keyword or concept.\n"
@@ -325,7 +332,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # Retrieve optional key words from the query to boost relevance of results containing these keywords
         key_words = re.search(r"<key_words>(.*?)</key_words>", query, re.DOTALL)
         if key_words:
-            print(f"Key words detected in query: {key_words.group(1)}")
+            if state['pipeline_state']['verbose']:
+                self.console.print(f"[dim]Key words detected in query: [bright_magenta]{escape(str(key_words.group(1)))}[/bright_magenta][/dim]")
             key_words_str = key_words.group(1)
             key_words_list = [kw.strip() for kw in key_words_str.split(',') if kw.strip()]
         else:
@@ -335,15 +343,16 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         
         # Retrieve optional sources from the query to boost relevance of results from files whose path matches the regex
         sources = re.search(r"<sources>(.*?)</sources>", query, re.DOTALL)
+
+        if sources and state['pipeline_state']['verbose']:
+            self.console.print(f"[dim]Sources detected in query: [sea_green1]{escape(str(sources.group(1)))}[/sea_green1][/dim]")
+
         sources_info = None
-        if advanced:
-            if sources:
-                print(f"Sources detected in query: {sources.group(1)}")
+        if sources:
+            if advanced:
                 sources_str = sources.group(1).strip()
                 sources_info = [src.strip() for src in sources_str.split(',') if src.strip()]
-        else:
-            if sources:
-                print(f"Sources detected in query: {sources.group(1)}")
+            else:
                 sources_info = sources.group(1).strip()
 
         clean_query = re.sub(r"<sources>.*?</sources>", "", clean_query, flags=re.DOTALL).strip()
@@ -373,7 +382,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             f"The RAG tool retrieved {len(results)} relevant code chunks for the query '{clean_query}'. Here they are:\n"
             f"{raw_results_str}\n\n"
             f"### INSTRUCTION\n"
-            f"Using the RAG results above and all of the previous knowledge, answer the question as best as you can."
+            f"Using the RAG results above and all of the previous knowledge, answer the question as best as you can while remaining concise."
         )
         return state
 
@@ -488,7 +497,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             " Here are the results:\n\n"
             f"{raw_results_str}\n\n"
             "### INSTRUCTION\n"
-            f"Using the Grep results above and all of the previous knowledge, answer the question as best as you can."
+            f"Using the Grep results above and all of the previous knowledge, answer the question as best as you can while remaining concise."
         )
         return state
     
@@ -496,18 +505,18 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self.console.print("[dim]--- SUB-DECISION: Grep results validation ---[/dim]")
         num_retries, len_grep_results = state["local_grep_retries"]
         if num_retries >= self.config_manager.get("main_pipeline.grep_tool.max_grep_retries", 3):
-            self.console.print(f"[dim]  -> Max grep retries reached, grep results validated[/dim]")
+            self.console.print(f"[dim]    -> Max grep retries reached, grep results validated[/dim]")
             return "validated"
         
         if 0 == len_grep_results:
-            self.console.print(f"[dim]  -> 0 grep results replanning[/dim]")
+            self.console.print(f"[dim]    -> 0 grep results replanning[/dim]")
             return "replan"
 
         if len_grep_results > self.config_manager.get("main_pipeline.grep_tool.max_results_to_refine"):
-            self.console.print(f"[dim]  -> {len_grep_results} grep results which is > {get_config().get('main_pipeline.grep_tool.max_results_to_refine')}, replanning[/dim]")
+            self.console.print(f"[dim]    -> {len_grep_results} grep results which is > {get_config().get('main_pipeline.grep_tool.max_results_to_refine')}, replanning[/dim]")
             return "replan"
 
-        self.console.print(f"[dim]  -> Grep results validated[/dim]")
+        self.console.print(f"[dim]    -> Grep results validated[/dim]")
         return "validated"
     
     def use_tree_tool(self, state: WorkflowState) -> WorkflowState:
