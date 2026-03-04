@@ -98,29 +98,31 @@ class MainAgenticPipeline(AgenticPipeline):
             
             return {"grade": grade}
         
-        elif self.config_manager.get_benchmark_type() == 'llm_as_a_judge':
-            from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark
+        elif self.config_manager.get_benchmark_type().startswith('llm_as_a_judge'):
+            from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark, LLMAsAJudgeBenchmark2
             self.console.print("[dim]--- NODE: Judge LLM Grade Answer ---[/dim]")
             
-            benchmark = LLMAsAJudgeBenchmark()
+            if self.config_manager.get_benchmark_type() == "llm_as_a_judge2":
+                benchmark = LLMAsAJudgeBenchmark2()
+            else:
+                benchmark = LLMAsAJudgeBenchmark()
             benchmark.initialize()
 
             #delay to avoid too many requests
             if rate_limit_delay > 0:
                 time.sleep(rate_limit_delay)
-            
+            qa_pair = {
+                "question": state["question"],
+                "llm_response": state["final_answer"],
+                "reference": state["reference_answer"]
+            }
             try:
-                score = benchmark.judge(state["question"], final_answer, reference_answer)
+                grade = benchmark.run([qa_pair])["results"][0]
             except Exception:
                 self.console.print("[bold red]Error during LLM judging, defaulting score to[/bold red] 0")
-                score = 0
+                grade = {"score": 0, **qa_pair}
             if state["verbose"]:
-                self.console.print(f"[dim]→ LLM Judge score with reference: {score}[/dim]")
-            
-            grade = {"score": score,
-                    "question": state["question"],
-                    "llm_response": state["final_answer"],
-                    "reference": state["reference_answer"]}
+                self.console.print(f"[dim]→ LLM Judge score with reference: {grade['score']}[/dim]")
             
             return {"grade": grade}
 
@@ -376,7 +378,7 @@ EXAMPLES:
 
     parser.add_argument(
         "--benchmarktype", "-bt",
-        choices=["llm_as_a_judge", "cosine_similarity"],
+        choices=["llm_as_a_judge", "llm_as_a_judge2", "cosine_similarity"],
         help="Override benchmark type from config"
     )
 
@@ -488,7 +490,7 @@ EXAMPLES:
 
         #Override benchmark agent if specified
         if args.benchmarkagent:
-            config_manager.get_config().config['benchmark']['benchmark_agent'] = args.benchmarkagent
+            config_manager.get_config().config['benchmark']['benchmark_model'] = args.benchmarkagent
         
         if args.save_data:
             config_manager.get_config().config['benchmark']['save_data'] = args.save_data

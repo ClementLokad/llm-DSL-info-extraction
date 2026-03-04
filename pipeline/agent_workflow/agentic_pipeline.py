@@ -142,7 +142,7 @@ class AgenticPipeline(BasePipeline):
             "### INSTRUCTION\n"
             "Clean and format the following LLM-generated answer into a concise final answer.\n"
             "Remove any extraneous information, tool usage notes, or internal thoughts.\n"
-            "Translate the answer is necessary so that the final answer is in the **same language** as the question\n" \
+            "Translate the answer if necessary so that the final answer is in the **same language** as the question\n" \
             "Cite your sources (whole path of the files).\n"
             "Do NOT add ANY conversational filler.\n\n"
             f"### QUESTION\n{state['question']}\n\n"

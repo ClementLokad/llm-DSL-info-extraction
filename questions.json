@@ -3,7 +3,7 @@
         {
             "question": "Combien de scripts lisent /Clean/Items.ion ?",
             "deterministic": true,
-            "answers": [27]
+            "answers": [28]
         },
         {
             "question": "Quels scripts lisent /Clean/Items.ion ?",
