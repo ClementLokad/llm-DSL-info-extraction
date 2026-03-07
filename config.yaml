@@ -83,7 +83,7 @@ embedder:
   default_type: "qdrant" # Options: "qdrant", "sentence_transformer", "openai", "gemini"
 
   # Index type
-  index_type: "raptor"  # Options: summary, full_chunk, raptor
+  index_type: "summary"  # Options: summary, full_chunk, raptor
   
   # Text preparation settings
   text_preparation:
