@@ -5,7 +5,7 @@ from rag.core.base_chunker import CodeChunk
 import agents.prepare_agent as prepare_agent
 
 class ChunkSummarizer():
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, raptor = False):
         config = config or {}
         self.summary_agent = prepare_agent.prepare_summary_agent()
         self.summary_prompt = (
@@ -25,7 +25,10 @@ class ChunkSummarizer():
             "### Code Chunk to summarize\n"
         )
         # Default to a .json extension
-        self.summary_list_path = config.get('summary_list_path', "summaries.json")
+        if raptor:
+            self.summary_list_path = config.get('raptor_summary_list_path', "summaries.json")
+        else:
+            self.summary_list_path = config.get('summary_list_path', "summaries.json")
 
     def generate_chunk_summary(self, chunk: CodeChunk) -> str:
         """Generates a summary using an LLM agent."""
@@ -108,3 +111,12 @@ class ChunkSummarizer():
         data = self._load_json_data()
         count = len(data)
         return f"{count}/{len(chunks)} summaries generated."
+    
+    def summarize_text(self, text: str) -> str:
+        """
+        Generates a summary from a raw string. 
+        Used primarily by RAPTOR to summarize aggregated cluster texts.
+        """
+        prompt = f"{self.summary_prompt}\n\nCODE/TEXT TO SUMMARIZE:\n{text}\n\n### Summary\n"
+        summary = self.summary_agent.generate_response(prompt)
+        return summary.strip()

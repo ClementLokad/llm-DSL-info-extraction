@@ -72,6 +72,7 @@ chunker:
 summarizer:
   summary_model: "mistral" # Options: "gemini", "gpt", "mistral", "groq"
   summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
+  raptor_summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
 
 # =============================================================================
 # EMBEDDER CONFIGURATION
@@ -81,7 +82,7 @@ embedder:
   default_type: "sentence_transformer"
 
   # Index type
-  index_type: "summary"  # Options: summary, full_chunk
+  index_type: "raptor"  # Options: summary, full_chunk, raptor
   
   # Text preparation settings
   text_preparation:

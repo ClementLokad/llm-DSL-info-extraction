@@ -124,6 +124,8 @@ class MainLinearPipeline(BasePipeline):
             index_path = Path("data/faiss_index")
         if index_type == "summary":
             index_path = Path("data/faiss_summary_index")
+        if index_type == "raptor":
+            index_path = Path("data/raptor_index")
         
         retriever.load_index(str(index_path))
             
@@ -277,6 +279,8 @@ class MainAgenticPipeline(AgenticPipeline):
             index_path = Path("data/faiss_index")
         if index_type == "summary":
             index_path = Path("data/faiss_summary_index")
+        if index_type == "raptor":
+            index_path = Path("data/raptor_summary_index")
         
         retriever.load_index(str(index_path))
             
