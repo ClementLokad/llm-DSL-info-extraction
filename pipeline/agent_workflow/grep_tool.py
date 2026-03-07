@@ -2,10 +2,10 @@ from importlib import metadata
 import re
 import pickle
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from rag.core.base_retriever import RetrievalResult, CodeChunk
-from rag.core.base_parser import CodeBlock
+from rag.core.base_parser import CodeBlock, BlockType 
 from rag.parsers.envision_parser import EnvisionParser
 from pipeline.agent_workflow.workflow_base import BaseGrepTool
 from get_mapping import get_file_mapping
@@ -82,13 +82,14 @@ class GrepTool(BaseGrepTool):
         self,
         pattern: str,
         source_regex: Optional[str] = None,
+        bloc_type: List[BlockType] = None,
     ) -> List[RetrievalResult]:
         """Returns a list of RetrievalResult objects where the pattern matches the content of the CodeChunk.
 
         Args:
             pattern (str): A regex pattern to search for in the content of the CodeChunks.
             source_regex (Optional[str], optional): A regex describing the source files to search in. Defaults to None.
-
+            bloc_type (List[BlockType], optional): A list of block types to filter by. Defaults to None.
         Returns:
             List[RetrievalResult]: A list of RetrievalResult objects containing the matching CodeChunks and their metadata.
         """
@@ -110,20 +111,25 @@ class GrepTool(BaseGrepTool):
         file_consts = {}
         
         clean_target = pattern.strip().strip("'\"").strip("/")
+        flags = 0 if self.case_sensitive else re.IGNORECASE
 
         try:
-            regex = re.compile(pattern, 0 if self.case_sensitive else re.IGNORECASE)
+            regex = re.compile(clean_target, flags)
         except re.error:
-            regex = re.compile(re.escape(pattern), 0 if self.case_sensitive else re.IGNORECASE)
+            regex = re.compile(re.escape(clean_target), flags)
 
         matches = []
 
         for block in self._blocks:
+            # If block type is specified, filter by it
+            if bloc_type is not None and block.block_type not in bloc_type:
+                continue
             # Filter by file_path if provided
             if source_regex is not None and not re.search(source_regex, block.metadata["original_file_path"],
                                                           0 if self.case_sensitive else re.IGNORECASE):
                 continue
             
+            content = block.content
             if is_path_search:
                 if block.file_path not in file_consts:
                     try:
@@ -133,53 +139,27 @@ class GrepTool(BaseGrepTool):
                         print(f"File not found: {block.file_path}")
                         continue
                     file_consts[block.file_path] = collect_constants(script_content)
+                content = replace_constants_in_script(block.content, constants=file_consts[block.file_path])
                 
-                hits = scan_string_for_references(block.content, clean_target,
-                                                  file_consts[block.file_path])
-                cleaned_content = replace_constants_in_script(block.content, constants=file_consts[block.file_path])
-
-                if not hits:
-                    continue
-                else:
-                    matches.append(RetrievalResult(
+            if regex.search(content):
+                matches.append(
+                    RetrievalResult(
                         chunk=CodeChunk(
-                            content=cleaned_content,
+                            content=content,
+                            chunk_type="grep_match",
                             original_blocks=[block],
-                            context="Grep match",
-                            size_tokens=len(block.content) // self.config.get('chunker.chars_per_token', 4),
+                            context="Grep match inside of GrepTool",
+                            size_tokens=len(content) // self.config.get('chunker.chars_per_token', 4),
                             metadata={
                                 "file_path": getattr(block, "file_path", None),
-                                "original_file_path": block.metadata["original_file_path"],
-                                "verb": hits[0]['verb'],
-                                "resolved_path": hits[0]['resolved_path']
+                                "original_file_path": block.metadata["original_file_path"]
                             }
                         ),
-                        score=1.0, # High confidence for exact resolved matches
+                        score=1.0,            # constant score (grep has no similarity metric)
                         rank=1,
                         metadata={"pattern": pattern, "original_file_path": block.metadata["original_file_path"]}
-                    ))
-                
-            else:
-                # Match on the full chunk content
-                if regex.search(block.content):
-                    matches.append(
-                        RetrievalResult(
-                            chunk=CodeChunk(
-                                content=block.content,
-                                chunk_type="grep_match",
-                                original_blocks=[block],
-                                context="Grep match inside of GrepTool",
-                                size_tokens=len(block.content) // self.config.get('chunker.chars_per_token', 4),
-                                metadata={
-                                    "file_path": getattr(block, "file_path", None),
-                                    "original_file_path": block.metadata["original_file_path"]
-                                }
-                            ),
-                            score=1.0,            # constant score (grep has no similarity metric)
-                            rank=1,
-                            metadata={"pattern": pattern, "original_file_path": block.metadata["original_file_path"]}
-                        )
                     )
+                )
         
         return matches
 
@@ -195,13 +175,17 @@ class GrepTool(BaseGrepTool):
 
         Returns:
             List[str]: The list of shortened code strings.
+            
         """
+        
+        clean_target = pattern.strip().strip("'\"").strip("/")
+        
         flags = 0 if self.case_sensitive else re.IGNORECASE
         
         try:
-            regex = re.compile(pattern, flags)
+            regex = re.compile(clean_target, flags)
         except re.error:
-            regex = re.compile(re.escape(pattern), flags)
+            regex = re.compile(re.escape(clean_target), flags)
 
         # 1. Pre-process: Identify all matching line numbers for every file
         # We store this to avoid re-running regex during the optimization loop.
@@ -367,9 +351,32 @@ class GrepTool(BaseGrepTool):
             raise FileNotFoundError(f"Grep index not found at {self.index_path}")
         except Exception as e:
             raise RuntimeError(f"Failed to load grep index: {e}")
+    
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        usage = "Find specific Envision code implementations, variable definitions, or error strings."
+        parameter = (
+            "A precise regex pattern (most of the time a simple string suffice).\n"
+            "     Optionally restrict scope by adding <sources>PATH_REGEX</sources>. "
+            "The results are restricted to files whose path matches the source regex (note that this must be a regex not a comma-separated list). "
+            "This allows searching inside specific folders but use ONLY when NECESSARY as you may miss relevant information.\n" 
+            "     Optionally restrict scope by adding <block_type>BLOCK_TYPE</block_type> (BLOCK_TYPE must be comma-separated BLOCK_TYPE1,BLOCK_TYPE2...). " 
+            "The results are restricted to blocks of the specified type(s). This allows searching for specific code structures but use ONLY when NECESSARY as you may miss relevant information. "
+            "Enum of block types : COMMENT, SECTION_HEADER, IMPORT, READ, WRITE, CONST, EXPORT, TABLE_DEFINITION, ASSIGNMENT, SHOW, KEEP_WHERE, FORM_READ, CONTROL_FLOW, UNKNOWN"
+        )
+        examples = [
+            "Standard (Simple pattern): <parameter>LotMultiplier</parameter>",
+            "Standard (Complex regex pattern): <parameter>show (linechart|label)</parameter>",
+            'With source filter (Folder scope): <parameter>read "/Manual/Dashboard.ion" <sources>/modules/</sources></parameter>',
+            'With block type filter: <parameter> LotMultiplier <block_type>READ, FORM_READ</block_type></parameter>',
+            "With both filters: <parameter> FcItems.ion <block_type>WRITE</block_type><sources>/1. utilities</sources></parameter>"
+        ]
+        
+        return usage, parameter, examples
+
 
 if __name__ == "__main__":
     grep_tool = GrepTool()
-    results = grep_tool.search(pattern="Clean/Items.ion")
+    results = grep_tool.search(pattern='annual.*growth')
+    print(len(results))
     for res in results:
         print(f"File: {res.metadata['original_file_path']}\nContent:\n{res.chunk.content}\n{'-'*40}\n")

@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict, Any, Optional
+from typing import List, Optional, Tuple
 
 from .workflow_base import BaseScriptFinderTool
 from get_mapping import get_file_mapping
@@ -58,6 +58,16 @@ class PathScriptFinder(BaseScriptFinderTool):
                     results.append(file_path)
 
         return results
+
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        usage = "Read specific files. Use RARELY and only when necessary due to high token cost; "\
+            "use grep_tool with sources instead whenever possible."
+        parameter = "Comma-separated filenames or path fragments."
+        examples = [
+            "<parameter>config.nvn, utils/db.nvn</parameter>"
+        ]
+        
+        return usage, parameter, examples
 
 # FOR TESTING
 # if __name__ == "__main__":

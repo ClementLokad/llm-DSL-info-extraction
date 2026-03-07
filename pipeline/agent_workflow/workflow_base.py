@@ -1,7 +1,7 @@
 import re
 from typing import TypedDict, List, Optional, Dict, Any, Tuple
 from langgraph.graph import END, StateGraph, START
-from langgraph_base import AgentGraphState, ActionLog
+from pipeline.langgraph_base import AgentGraphState, ActionLog
 from rag.core.base_retriever import RetrievalResult, BaseRetriever
 from rag.core.base_embedder import BaseEmbedder
 from agents.prepare_agent import *
@@ -102,6 +102,9 @@ class BaseGrepTool():
         """Shortens the elements in results to fit inside at most limit number of lines"""
         # Implementations of shortening
         return results
+    
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        return "", "", [] # Placeholder
 
 class BaseScriptFinderTool():
     """A base tool for finding scripts in a codebase."""
@@ -125,6 +128,9 @@ class BaseScriptFinderTool():
         except Exception as e:
             print(f"Couldn't read the following file {file_path}: {e}")
             return f"Couldn't read the following file {file_path}."
+    
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        return "", "", [] # Placeholder
 
 class BaseRAGTool():
     """A base tool for performing RAG operations."""
@@ -137,6 +143,9 @@ class BaseRAGTool():
         results = []
         # Implementation of retrieval logic would go here
         return results
+    
+    def get_description(self) -> Tuple[str, str, List[str]]:
+        return "", "", [] # Placeholder
 
 class WorkflowState(TypedDict):
     """State definition for the agent workflow."""
@@ -213,7 +222,7 @@ class BaseAgentWorkflow(StateGraph):
         
         # A. Identity
         prompt = self.base_instructions + (
-            "### SYSTEM ROLE\n"
+            "\n### SYSTEM ROLE\n"
             "You are an expert technical assistant working on a **Lokad Envision** codebase.\n"
             "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"
             "Your goal is to answer the user's question by exploiting data from previous retrieval steps.\n"

@@ -1,6 +1,11 @@
 {
     "answered": [
         {
+            "question": "Combien de scripts lisent /Clean/Items.ion ?",
+            "deterministic": true,
+            "answers": [28]
+        },
+        {
             "question": "Quels scripts lisent /Clean/Items.ion ?",
             "deterministic": true,
             "answers": [
@@ -111,13 +116,6 @@
             ]
         },
         {
-            "question": "À quelle fréquence les preprocess sont-ils rafraîchis ?",
-            "deterministic": false,
-            "answers": [
-                "Tous les dimanches"
-            ]
-        },
-        {
             "question": "Je vais recevoir une nouvelle colonne FuturSellPrice dans ma table catalogue. Dans quel script effectuer des checks de cohérence sur les valeurs observées ?",
             "deterministic": true,
             "answers": [
@@ -196,20 +194,6 @@
             ]
         },
         {
-            "question": "Où le client peut paramétrer le taux de complétude cible ?",
-            "deterministic": false,
-            "answers": [
-                "/1. utilities/Manufacturing/Operations, via un form paramétrable"
-            ]
-        },
-        {
-            "question": "Pour le web, est-ce que le coefficient d’agressivité est capé d’une manière ou d’une autre ?",
-            "deterministic": false,
-            "answers": [
-                "Oui : sa valeur minimale est 0.2, dans /1. utilities/website/01 Inventory Optimization Overview (web)."
-            ]
-        },
-        {
             "question": "Comment modélise-t-on le coût de posséder une unité d’un produit en stock ?",
             "deterministic": false,
             "answers": [
@@ -228,13 +212,6 @@
             "deterministic": false,
             "answers": [
                 "Oui : /3. Inspectors/7 - Global Business Cockpit"
-            ]
-        },
-        {
-            "question": "De quand datent les premières ventes observables dans la table des ventes ?",
-            "deterministic": true,
-            "answers": [
-                "2015"
             ]
         },
         {
@@ -295,5 +272,36 @@
             "question": "Quels scripts utilisent la variable RedispatchCycleWeeks ?",
             "deterministic": true
         }
+    ],
+    "impossible": [
+        {
+            "question": "À quelle fréquence les preprocess sont-ils rafraîchis ?",
+            "deterministic": false,
+            "answers": [
+                "Tous les dimanches"
+            ]
+        },
+        {
+            "question": "Où le client peut paramétrer le taux de complétude cible ?",
+            "deterministic": false,
+            "answers": [
+                "/1. utilities/Manufacturing/Operations, via un form paramétrable"
+            ]
+        },
+        {
+            "question": "Pour le web, est-ce que le coefficient d’agressivité est capé d’une manière ou d’une autre ?",
+            "deterministic": false,
+            "answers": [
+                "Oui : sa valeur minimale est 0.2, dans /1. utilities/website/01 Inventory Optimization Overview (web)."
+            ]
+        },
+        {
+            "question": "De quand datent les premières ventes observables dans la table des ventes ?",
+            "deterministic": true,
+            "answers": [
+                "2015"
+            ]
+        }
     ]
+
 }

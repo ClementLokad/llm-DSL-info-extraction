@@ -4,7 +4,7 @@ import re
 from langgraph.graph import END, StateGraph, START
 from config_manager import get_config
 from pipeline.agent_workflow.workflow_base import *
-from langgraph_base import AgentGraphState, BasePipeline, GraphState
+from pipeline.langgraph_base import AgentGraphState, BasePipeline, GraphState
 
 from rich.console import Console, Group
 from rich.panel import Panel
@@ -142,8 +142,8 @@ class AgenticPipeline(BasePipeline):
             "### INSTRUCTION\n"
             "Clean and format the following LLM-generated answer into a concise final answer.\n"
             "Remove any extraneous information, tool usage notes, or internal thoughts.\n"
-            "Translate the answer is necessary so that the final answer is in the **same language** as the question\n" \
-            "Cite your sources (files).\n"
+            "Translate the answer if necessary so that the final answer is in the **same language** as the question\n" \
+            "Cite your sources (whole path of the files).\n"
             "Do NOT add ANY conversational filler.\n\n"
             f"### QUESTION\n{state['question']}\n\n"
             "### OUTPUT FORMAT\n"
@@ -156,7 +156,7 @@ class AgenticPipeline(BasePipeline):
         content = ""
         
         if state["verbose"]:
-            content += f"🧹[bold purple] → Cleaning LLM Prompt:[/bold purple]\n{prompt}\n"
+            content += f"🧹[bold purple] → Cleaning LLM Prompt:[/bold purple]\n{escape(prompt)}\n"
         
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)

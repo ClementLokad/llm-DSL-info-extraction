@@ -158,7 +158,7 @@ class ConfigManager:
         embedder_config = self.config.get('embedder', {})
         
         if embedder_type is None:
-            embedder_type = embedder_config.get('default_type', 'sentence_transformer')
+            embedder_type = embedder_config.get('default_type', 'qdrant')
         
         # Return both general config and specific embedder config
         specific_config = embedder_config.get(embedder_type, {})
@@ -169,14 +169,17 @@ class ConfigManager:
             **specific_config  # Flatten specific config for easier access
         }
     
-    def get_retriever_config(self) -> Dict[str, Any]:
+    def get_retriever_config(self, retriever_type: Optional[str] = None) -> Dict[str, Any]:
         """Get retriever configuration section."""
         retriever_config = self.config.get('retriever', {})
         
+        if retriever_type is None:
+            retriever_type = retriever_config.get('type', 'qdrant')
+        
         # Flatten FAISS-specific config to top level for compatibility
-        faiss_config = retriever_config.get('faiss', {})
-        if faiss_config:
-            retriever_config = {**retriever_config, **faiss_config}
+        specific_config = retriever_config.get(retriever_type, {})
+        if specific_config:
+            retriever_config = {**retriever_config, **specific_config}
         
         return retriever_config
     

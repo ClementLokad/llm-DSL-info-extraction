@@ -209,8 +209,8 @@ class BasePipeline:
         
         grades = []
         
-        for question, reference_answer in qa_pairs:
-            self.console.print(f"-> Processing Q/A pair:\n  [bold green]Question: {question}[/bold green]\n"
+        for i, (question, reference_answer) in enumerate(qa_pairs):
+            self.console.print(f"-> Processing Q/A pair n°{i+1}/{len(qa_pairs)}:\n  [bold green]Question: {question}[/bold green]\n"
                                f"  [bold purple]Reference Answer: {reference_answer}[/bold purple]")
             # Initialize state for the sub-graph
             sub_state: GraphState = {
