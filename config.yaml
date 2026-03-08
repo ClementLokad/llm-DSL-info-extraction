@@ -77,7 +77,7 @@ summarizer:
 
 query_transformer:
   query_transformer_model: "mistral" # Options: "gemini", "gpt", "mistral", "groq"
-  query_transformer_type: "fusion" # Options: "fusion", "hyde", "none"
+  query_transformer_type: "fusion" # Options: "fusion", "hyde", [NONE]
   generated_instances_amount: "several" # Options: "[INTEGER_NUMBER]" i.e : "1", "144"... or "several" to let the llm decide
 
 # =============================================================================

@@ -25,7 +25,7 @@ class BaseQueryTransformer(ABC):
         self.rate_limit_delay = config.get('agent.rate_limit_delay', 0)
     
     @abstractmethod
-    def transform(self, query: str) -> list[str]:
+    def transform(self, query: str) -> List[str]:
         """
         Return the result of a call to a LLM in order to transform a query
         

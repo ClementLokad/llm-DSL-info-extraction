@@ -2,7 +2,7 @@ from typing import List
 from pipeline.agent_workflow.workflow_base import BaseRAGTool
 from rag.core.base_retriever import BaseRetriever, RetrievalResult
 from rag.core.base_embedder import BaseEmbedder
-from rag.summarizers import HyDeGenerator
+from rag.core.base_query_transformer import BaseQueryTransformer
 from config_manager import get_config
 from agents.prepare_agent import prepare_default_agent
 from rag.utils.script_scanner import replace_constants_in_script
@@ -15,9 +15,10 @@ class SimpleRAGTool(BaseRAGTool):
     This class uses a provided retriever to perform retrieval operations.
     """
     
-    def __init__(self, retriever: BaseRetriever, embedder: BaseEmbedder):
+    def __init__(self, retriever: BaseRetriever, embedder: BaseEmbedder, query_transformer: BaseQueryTransformer = None):
         super().__init__(retriever)
         self.embedder = embedder
+        self.query_transformer = query_transformer
         self.rate_limit_delay = get_config().get("agent.rate_limit_delay")
         self.agent = prepare_default_agent()
     
@@ -38,21 +39,21 @@ class SimpleRAGTool(BaseRAGTool):
         """Retrieve relevant documents based on the query"""
         results = []
 
-        if get_config().get('rag.fusion', False):
-            base_fusion_question = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text.\n"
-            
-            if self.rate_limit_delay > 0:
-                time.sleep(self.rate_limit_delay)
-                
-            raw_questions = self.agent.generate_response(base_fusion_question + query)
+        # Query transform mode: transform the query before retrieval
+        if self.query_transformer:
+            transformed_question_list = self.query_transformer.transform(query)
+
             if verbose:
-                print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
-            questions = raw_questions.split("$")
-            for sub_question in questions:
+                self.console.print(f"[dim]Raw answer from LLM after query transformation : {', '.join(transformed_question_list)}[/dim]")
+            
+            for sub_question in transformed_question_list:
                 emb = self.embedder.embed_text(sub_question)
                 results.extend(self.retriever.search(emb, top_k=top_k))
             results = self.merge_rag_results(results)[:top_k]
+        
+        # Normal mode: Retrieve via the embedding of the query itself
         else:
+            
             emb = self.embedder.embed_text(query)
             results = self.retriever.search(emb, top_k=top_k)
         

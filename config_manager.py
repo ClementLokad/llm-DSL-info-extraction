@@ -145,6 +145,10 @@ class ConfigManager:
         """Get summarizer configuration section."""
         return self.config.get('summarizer', {})
     
+    def get_query_transformer_config(self) -> Dict[str, Any]:
+        """Get query transformer configuration section."""
+        return self.config.get('query_transformer', {})
+    
     def get_embedder_config(self, embedder_type: Optional[str] = None) -> Dict[str, Any]:
         """
         Get embedder configuration section.
