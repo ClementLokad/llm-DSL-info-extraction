@@ -39,7 +39,7 @@ class Llama3Agent(LLMAgent):
             prompt=prompt,
             context=context,
             stream=False, # Request the full response at once
-            options={"num_ctx": 8192}
+            options={"num_ctx": 16384}
         )
         
         self.context = response["context"]
