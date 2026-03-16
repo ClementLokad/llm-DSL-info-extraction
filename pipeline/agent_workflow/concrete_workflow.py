@@ -84,8 +84,7 @@ def _build_planner_tools(tools: List[Tool], include_grade: bool = True) -> List[
             _tool_desc(
                 name="grade_answer",
                 description=(
-                    "Call this when the current information is sufficient to fully answer "
-                    "the question. This stops the investigation loop."
+                    "This tool stops the investigation loop and initiates grading phase."
                 ),
                 properties={},
                 required=[],
@@ -194,12 +193,24 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             f"### VERIFIED FACTS\n{facts_str}\n\n"
             "### HISTORY (Previous Steps)\n"
             f"{self._get_optimized_history_str(history)}\n\n"
-            "### DECISION LOGIC\n"
-            "1. COMPLETION CHECK: Does the Proposed Solution fully answer the goal? YES → grade_answer.\n"
-            "2. GAP ANALYSIS: What specific information is missing? Choose the most targeted tool.\n"
-            "   Check History: if grep returned 0 or too many results, switch to rag_tool — "
+            "### DECISION LOGIC\n\n"
+            "1. COMPLETION CHECK: Answer these two questions independently:\n"
+            "a. Does the Proposed Solution address the Mission Goal? (form)\n"
+            "b. Is it grounded in specific facts retrieved from the codebase"
+            " with at least one concrete source cited? (evidence)\n"
+            "Only call grade_answer if BOTH are YES.\n"
+            "A negative conclusion (\"this is not done\", \"I found nothing\") answers (a) "
+            "but FAILS (b) unless search results explicitly confirmed the absence. "
+            "In that case, proceed to the Exhaustiveness Check.\n\n"
+            "2. EXHAUSTIVENESS CHECK: If the answer is negative or uncertain, ask yourself:\n"
+            "- Did I try both rag_tool AND grep_tool?\n"
+            "- Did I try boosting rag results with sources and/or kewords ?\n"
+            "- Did I vary the query language (e.g. synonyms, related concepts)?\n"
+            "If any answer is NO → proceed to step 3.\n\n"
+            "3. GAP ANALYSIS: What specific information is missing? Choose the most targeted tool.\n"
+            "Check History: if grep returned 0 or too many results, switch to rag_tool — "
             "semantic search handles broad concepts far better than exact matching. "
-            "If rag_tool returned weak results, then try script_finder or grep with a more specific identifier "
+            "If rag_tool returned weak results, then try grep with a more specific identifier "
             "extracted from those results.\n"
         )
 
@@ -224,6 +235,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self.console.print("[dim]--- SUB-NODE: Agentic Router (Planner) ---[/dim]")
 
         history = self._get_history(state)
+        already_distilled: bool = False
+        reasoning = None
         is_continuation = bool(history)
         include_grade = is_continuation  # grade_answer only available after first step
 
@@ -251,6 +264,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             and state["pipeline_state"].get("execution_history")
             and state["pipeline_state"]["execution_history"][-1]["tool"] == "grep_tool"
         ):
+            already_distilled = True
             len_res = state["local_grep_retries"][1]
             # Remove the tentative history entry so it doesn't double-count
             state["pipeline_state"]["execution_history"] = \
@@ -301,6 +315,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             and history[-1]["tool"] == "tree_tool"
             and state.get("rewritten_prompt")
         ):
+            already_distilled = True
             tree_str = state["rewritten_prompt"]
             state["pipeline_state"]["execution_history"] = \
                 state["pipeline_state"]["execution_history"][:-1]
@@ -339,35 +354,64 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         else:
             if is_continuation:
                 system_prompt = self._continuation_system_prompt(state)
-                user_message = (
-                    "Review the Proposed Solution and Verified Facts above, then "
-                    "select the most appropriate next action."
+
+                # Step 1: let the planner reason freely in text before committing to a tool.
+                # This forces it to execute the flowchart explicitly rather than
+                # pattern-matching to a tool in a single cold inference.
+                self.planner_llm.reset_context()
+                reasoning = self.planner_llm.generate_response(
+                    user_message=(
+                        "Follow the flowchart in your instructions step by step. "
+                        "Write out your reasoning for each step explicitly, "
+                        "then state which tool you will call and why."
+                    ),
+                    system_prompt=system_prompt,
+                    temperature=0.2,
                 )
+                # Notice that reasoning is not used explicitely, it is only to help the model
+                # thinking correctly
+
+                # Step 2: now force a tool call, with the reasoning already in context.
+                # The model sees its own analysis and must act consistently with it.
+                try:
+                    tool_call = self.planner_llm.generate_with_tools(
+                        user_message="Based on your reasoning above, call the appropriate tool now.",
+                        tools=planner_tools,
+                        tool_choice="any",
+                        # No system_prompt here — it is already in self.context from step 1
+                    )
+                except ValueError as exc:
+                    self.console.print(f"[dim][yellow]Planner fallback (normal): {exc}[/yellow][/dim]")
+                    tool_call = ToolCallResult(
+                        tool_name="simple_regeneration_tool",
+                        tool_id="fallback",
+                        arguments={"advice": (
+                            "The planner failed to select a valid tool. "
+                            "Please re-examine the question and select the most appropriate tool."
+                        )},
+                    )
+
             else:
                 system_prompt = self._kickoff_system_prompt(state)
-                user_message = (
-                    "Begin the investigation. Select the best first tool to use."
-                )
-
-            # Reset the planner's conversation for a fresh planning turn
-            self.planner_llm.reset_context()
-            try:
-                tool_call = self.planner_llm.generate_with_tools(
-                    user_message=user_message,
-                    tools=planner_tools,
-                    system_prompt=system_prompt,
-                    tool_choice="any",
-                )
-            except ValueError as exc:
-                self.console.print(f"[dim][yellow]Planner fallback (normal): {exc}[/yellow][/dim]")
-                tool_call = ToolCallResult(
-                    tool_name="simple_regeneration_tool",
-                    tool_id="fallback",
-                    arguments={"advice": (
-                        "The planner failed to select a valid tool. "
-                        "Please re-examine the question and select the most appropriate tool."
-                    )},
-                )
+                # Kickoff: single call is fine, no reasoning needed
+                self.planner_llm.reset_context()
+                try:
+                    tool_call = self.planner_llm.generate_with_tools(
+                        user_message="Begin the investigation. Select the best first tool to use.",
+                        tools=planner_tools,
+                        system_prompt=system_prompt,
+                        tool_choice="any",
+                    )
+                except ValueError as exc:
+                    self.console.print(f"[dim][yellow]Planner fallback (normal): {exc}[/yellow][/dim]")
+                    tool_call = ToolCallResult(
+                        tool_name="simple_regeneration_tool",
+                        tool_id="fallback",
+                        arguments={"advice": (
+                            "The planner failed to select a valid tool. "
+                            "Please re-examine the question and select the most appropriate tool."
+                        )},
+                    )
 
         # ------------------------------------------------------------------
         # Extract and validate the tool decision
@@ -415,20 +459,31 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 prompt_content = Text.from_markup(f"Follow-up prompt: {escape(feedback)}\n")
             else:
                 prompt_content = Panel(escape(system_prompt), title="Planner Prompt", border_style="purple")
+            
+            if reasoning:
+                reasoning_content = Panel(
+                    Markdown(reasoning),
+                    title="Planner Reasoning",
+                    border_style="yellow",
+                )
 
             tool_content = Text.from_markup(
                 f"\nPlanner selected tool: [bold green]{chosen_tool}[/bold green] "
                 f"with arguments: [bold orange3]{escape(param_summary)}[/bold orange3]\n"
             )
             thought_content = Panel(Markdown(thought), title="Planner Thought", border_style="blue")
-            self.console.print(Panel(Group(prompt_content, tool_content, thought_content),
-                                     title=f"Planner - {self.planner_llm.model_name}", border_style="bright_red"))
+            if reasoning:
+                self.console.print(Panel(Group(prompt_content, reasoning_content, tool_content, thought_content),
+                                         title=f"Planner - {self.planner_llm.model_name}", border_style="bright_red"))
+            else:
+                self.console.print(Panel(Group(prompt_content, tool_content, thought_content),
+                                         title=f"Planner - {self.planner_llm.model_name}", border_style="bright_red"))
 
         # ------------------------------------------------------------------
         # Distil previous tool results (lazy distillation)
         # ------------------------------------------------------------------
         exec_history = state["pipeline_state"].get("execution_history", [])
-        if exec_history:
+        if exec_history and not already_distilled:
             prev_results = exec_history[-1].get("results_to_analyse")
             if prev_results and chosen_tool != "grade_answer":
                 self.console.print("[dim]Distilling previous tool results...[/dim]")

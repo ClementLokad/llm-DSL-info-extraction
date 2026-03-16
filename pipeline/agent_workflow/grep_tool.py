@@ -388,9 +388,10 @@ class GrepTool(BaseGrepTool):
                     "items": {"type": "string"},
                     "description": (
                         "Optional list of block types to restrict the search to. "
-                        "Allows targeting specific code structures. "
+                        "Allows targeting specific code structures -> especially useful to know when "
+                        "resources are read or written."
                         "Valid values: COMMENT, SECTION_HEADER, IMPORT, READ, WRITE, CONST, EXPORT, "
-                        "TABLE_DEFINITION, ASSIGNMENT, SHOW, KEEP_WHERE, FORM_READ, CONTROL_FLOW, UNKNOWN. "
+                        "TABLE_DEFINITION, ASSIGNMENT, SHOW, KEEP_WHERE, FORM_READ, CONTROL_FLOW. "
                         "E.g. ['READ', 'FORM_READ'] to search only inside read statements."
                     ),
                 },
