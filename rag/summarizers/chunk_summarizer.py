@@ -32,10 +32,12 @@ class ChunkSummarizer():
 
     def generate_chunk_summary(self, chunk: CodeChunk) -> str:
         """Generates a summary using an LLM agent."""
-        prompt = f"{self.summary_prompt}\n\nCODE:\n{chunk.content}\n\n### Summary\n"
-        chunk_summary = self.summary_agent.generate_response(prompt)
+        system_prompt = f"{self.summary_prompt}\n\n"
+        user_prompt = f"CODE:\n{chunk.content}\n\n### Summary\n"
+        self.summary_agent.reset_context()
+        chunk_summary = self.summary_agent.generate_response(user_prompt, system_prompt=system_prompt, temperature=0.05)
         chunk_summary = f"From script: {chunk.metadata.get('original_file_path', 'Unknown Source')}\n" + chunk_summary.strip()
-        return chunk_summary
+        return chunk_summary.strip()
 
     def _load_json_data(self) -> Dict[str, str]:
         """Helper to load existing summaries from the JSON file."""
@@ -117,6 +119,8 @@ class ChunkSummarizer():
         Generates a summary from a raw string. 
         Used primarily by RAPTOR to summarize aggregated cluster texts.
         """
-        prompt = f"{self.summary_prompt}\n\nCODE/TEXT TO SUMMARIZE:\n{text}\n\n### Summary\n"
-        summary = self.summary_agent.generate_response(prompt)
+        system_prompt = f"{self.summary_prompt}\n\n"
+        user_prompt = f"\n\nCODE/TEXT TO SUMMARIZE:\n{text}\n\n### Summary\n"
+        self.summary_agent.reset_context()
+        summary = self.summary_agent.generate_response(user_prompt, system_prompt=system_prompt, temperature=0.05)
         return summary.strip()

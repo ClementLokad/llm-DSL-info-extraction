@@ -1,5 +1,5 @@
-from typing import List, Tuple
-from pipeline.agent_workflow.workflow_base import BaseRAGTool
+from typing import List, Tuple, Dict, Any
+from pipeline.agent_workflow.workflow_base import BaseRAGTool, _tool_desc
 from rag.core.base_retriever import BaseRetriever, RetrievalResult
 from rag.core.base_embedder import BaseEmbedder
 from rag.retrievers.qdrant_retriever import QdrantRetriever
@@ -52,8 +52,9 @@ class SimpleRAGTool(BaseRAGTool):
             
             if self.rate_limit_delay > 0:
                 time.sleep(self.rate_limit_delay)
-                
-            raw_questions = self.agent.generate_response(base_fusion_question + query)
+            
+            self.agent.reset_context() 
+            raw_questions = self.agent.generate_response(user_message=query, system_prompt=base_fusion_question)
             if verbose:
                 print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
             questions = raw_questions.split("$")
@@ -90,21 +91,40 @@ class SimpleRAGTool(BaseRAGTool):
 
         return results
     
-    def get_description(self) -> Tuple[str, str, List[str]]:
-        usage = "Retrieve Envision concepts or Lokad business logic."
-        parameter = (
-            "A natural language query describing the concept to find.\n"
-            "   Key words (Optionnal): add <key_words>KEYWORD1,KEYWORD2</key_words> to boost the relevance of results containing those keywords.\n"
-            "   Sources (Optionnal): add <sources>PATH_REGEX</sources> to boost the relevance of results from files whose path matches the regex."
+    def get_description(self) -> Dict[str, Any]:
+        return _tool_desc(
+            name="rag_tool",
+            description=(
+                "Retrieve Envision concepts or Lokad business logic using semantic search."
+            ),
+            properties={
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "A natural language query describing the concept to find. "
+                        "E.g. 'how does the refund policy work?' or 'how is growth defined?'."
+                    ),
+                },
+                "key_words": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional list of exact keywords to boost the relevance of results "
+                        "containing those keywords. "
+                        "E.g. ['growth'] or ['owner', 'belong']."
+                    ),
+                },
+                "sources": {
+                    "type": "string",
+                    "description": (
+                        "Optional path regex to boost the relevance of results from files "
+                        "whose path matches. "
+                        "E.g. '/1. utilities/' or '/7. Documentation/0 General Organization'."
+                    ),
+                },
+            },
+            required=["query"],
         )
-        examples = [
-            "<parameter>how does the refund policy work?</parameter>",
-            "<parameter>how is growth defined? <key_words>growth</key_words></parameter>",
-            "<parameter>What can we do on this account? <sources>/1. utilities/</sources></parameter>",
-            "<parameter>To whom does this account belong? <sources>/7. Documentation/</sources><key_words>owner,belong</key_words></parameter>"
-        ]
-        
-        return usage, parameter, examples
 
 class AdvancedRAGTool(SimpleRAGTool):
     """
@@ -193,7 +213,8 @@ class AdvancedRAGTool(SimpleRAGTool):
             if self.rate_limit_delay > 0:
                 time.sleep(self.rate_limit_delay)
                 
-            raw_questions = self.agent.generate_response(base_fusion_question + query)
+            self.agent.reset_context() 
+            raw_questions = self.agent.generate_response(user_message=query, system_prompt=base_fusion_question)
             if verbose:
                 print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
             questions = raw_questions.split("$")
@@ -230,21 +251,47 @@ class AdvancedRAGTool(SimpleRAGTool):
 
         return results
     
-    def get_description(self) -> Tuple[str, str, List[str]]:
-        usage = "Retrieve Envision concepts or Lokad business logic using SOTA Hybrid DB and cross-encoding."
-        parameter = (
-            "A natural language query describing the concept to find.\n"
-            "   Key words (Optionnal): add <key_words>KEYWORD1,KEYWORD2</key_words> to boost the relevance of results containing those keywords.\n"
-            "   Sources (Optionnal): add <sources>SUBSTRING1,SUBSTRING2</sources> to boost the relevance of results from files whose path contains at least one of the substrings."
+    def get_description(self) -> Dict[str, Any]:
+        return _tool_desc(
+            name="rag_tool",
+            description=(
+                "Semantic search over the knowledge base using SOTA Hybrid DB and cross-encoding. "
+                "Combines dense vector similarity and keyword-based sparse matching."
+                "This is the DEFAULT starting tool for most questions. "
+                "Use whenever the question involves a concept, a behaviour, business logic, "
+                "or any term that could appear in many different contexts. "
+                "Also use when a prior grep returned too many results or irrelevant matches — "
+                "semantic search will find the most relevant chunks regardless of exact wording."
+            ),
+            properties={
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "A natural language query describing the concept to find. "
+                        "E.g. 'how does the refund policy work?' or 'how is growth defined?'."
+                    ),
+                },
+                "key_words": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional list of exact keywords to boost the relevance of results "
+                        "containing those keywords. "
+                        "E.g. ['growth'] or ['owner', 'belong']."
+                    ),
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional list of path substrings to boost the relevance of results "
+                        "from files whose path contains at least one of the substrings. "
+                        "E.g. ['/1. utilities/', '/7. Documentation/0 General Organization']."
+                    ),
+                },
+            },
+            required=["query"],
         )
-        examples = [
-            "<parameter>how does the refund policy work?</parameter>",
-            "<parameter>how is growth defined? <key_words>growth</key_words></parameter>",
-            "<parameter>What can we do on this account? <sources>/1. utilities/,/7. Documentation/0 General Organization</sources></parameter>",
-            "<parameter>To whom does this account belong? <sources>/7. Documentation/</sources><key_words>owner,belong</key_words></parameter>"
-        ]
-        
-        return usage, parameter, examples
 
 if __name__ == "__main__":
     from rag.retrievers.qdrant_retriever import QdrantRetriever

@@ -48,7 +48,10 @@ class LLMAsAJudgeBenchmark(Benchmark):
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)
         
-        text_score = self.agent.generate_response(self.prompt + f"\n\nQuestion : {question}\nVraie réponse : {reference}\nRéponse du LLM : {llm_response}")
+        self.agent.reset_context()
+        text_score = self.agent.generate_response(system_prompt=self.prompt,
+                                                  user_message=f"\n\nQuestion : {question}\nVraie réponse : {reference}\nRéponse du LLM : {llm_response}",
+                                                  temperature=0.05)
         if text_score not in ["1", "0"]:
             raise Exception("Score invalide")
         return (int(text_score))
@@ -103,9 +106,11 @@ class LLMAsAJudgeBenchmark2(Benchmark):
         
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)
-            
-        full_prompt = f"{self.prompt}\n\nQuestion : {question}\nVraie réponse : {reference}\nRéponse du LLM : {llm_response}"
-        raw_response = self.agent.generate_response(full_prompt)
+        
+        self.agent.reset_context()
+        raw_response = self.agent.generate_response(system_prompt=self.prompt,
+                                                  user_message=f"\n\nQuestion : {question}\nVraie réponse : {reference}\nRéponse du LLM : {llm_response}",
+                                                  temperature=0.05)
         
         # Robust JSON extraction (in case the LLM wraps it in ```json ... ``` tags)
         json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)

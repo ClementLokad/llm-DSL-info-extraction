@@ -1,7 +1,7 @@
 import os
-from typing import List, Optional, Tuple
+from typing import List, Optional, Dict, Any
 
-from .workflow_base import BaseScriptFinderTool
+from .workflow_base import BaseScriptFinderTool, _tool_desc
 from get_mapping import get_file_mapping
 from config_manager import get_config
 
@@ -46,32 +46,50 @@ class PathScriptFinder(BaseScriptFinderTool):
         return root
 
     def find_scripts(self, script_names: List[str]) -> List[str]:
-        """Searches files """
+        """Searches files and returns absolute paths"""
         
         results = []
         
         for file_path in self.file_list:
             stripped_name = self.strip_extension(os.path.basename(file_path))
             for file_name in script_names:
-                stripped_target = self.strip_extension(file_name)
-                if self.mapping.get(stripped_name, "").endswith(stripped_target):
+                stripped_target = str(self.strip_extension(file_name)).strip("/")
+                original_path = str(self.strip_extension(self.mapping.get(stripped_name, "")))
+                if original_path.endswith(stripped_target):
                     results.append(file_path)
 
         return results
+    
+    def original_path(self, path: str) -> str:
+        stripped_name = self.strip_extension(os.path.basename(path))
+        if stripped_name in self.mapping:
+            return self.mapping[stripped_name]
+        else:
+            return "Unknown Path"
 
-    def get_description(self) -> Tuple[str, str, List[str]]:
-        usage = "Read specific files. Use RARELY and only when necessary due to high token cost; "\
-            "use grep_tool with sources instead whenever possible."
-        parameter = "Comma-separated filenames or path fragments."
-        examples = [
-            "<parameter>config.nvn, utils/db.nvn</parameter>"
-        ]
-        
-        return usage, parameter, examples
+    def get_description(self) -> Dict[str, Any]:
+        return _tool_desc(
+            name="script_finder_tool",
+            description=(
+                "Read specific files in full. Use RARELY and only when necessary due to high token cost; "
+                "use grep_tool with a sources filter instead whenever possible."
+            ),
+            properties={
+                "script_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "List of filenames or path fragments to locate and read. "
+                        "E.g. ['Functions.nvn', '/7. Documentation/1 Project']."
+                    ),
+                },
+            },
+            required=["script_names"],
+        )
 
 # FOR TESTING
-# if __name__ == "__main__":
-#     print('execution')
-#     finder = PathScriptFinder(search_dirs=["./pipeline/agent_workflow/search_test_folder"])
-#     finder.create_path_dict_from_txt(mapping_path="./pipeline/agent_workflow/search_test_folder/mapping_test.txt")
-#     content = finder.read_file(original_path="./bonjour/bonsoir/coucou3.txt", search_dirs=finder.search_dirs)
+if __name__ == "__main__":
+    print('execution')
+    finder = PathScriptFinder()
+    res = finder.find_scripts(["1 - Item Inspector"])
+    print([finder.original_path(r) for r in res])

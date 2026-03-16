@@ -124,7 +124,7 @@ class MainAgenticPipeline(AgenticPipeline):
                 self.console.print("[bold red]Error during LLM judging, defaulting score to[/bold red] 0")
                 grade = {"score": 0, **qa_pair}
             if state["verbose"]:
-                self.console.print(f"[dim]→ LLM Judge score with reference: {grade['score']}[/dim]")
+                self.console.print(f"[dim]→ LLM ({benchmark.agent.model_name}) Judge score with reference: {grade['score']}[/dim]")
             
             return {"grade": grade}
 
@@ -277,7 +277,7 @@ EXAMPLES:
   python main.py --agent mistral --query "code analysis"      # Use specific agent
   python main.py --agent gpt --interactive            # Start interactive with GPT
   python main.py --agent gemini --query "find pattern"        # Query with Gemini
-  python main.py --agent llama3 --query "summarize"          # Query with local Llama3
+  python main.py --agent qwen --query "summarize"          # Query with local Qwen
   
   # Index type
   python main.py --indextype full_chunk --query "[QUERY]"  # Use full chunk index
@@ -349,7 +349,7 @@ EXAMPLES:
     # Agent selection
     parser.add_argument(
         "--agent", "-a",
-        choices=["gemini", "gpt", "mistral", "llama3", "groq", "qwen"],
+        choices=["mistral", "groq", "qwen", "qwen-ssh"],
         help="Override default agent from config"
     )
     
@@ -386,18 +386,18 @@ EXAMPLES:
 
     parser.add_argument(
         "--benchmarkagent", "-ba",
-        choices=["gemini", "gpt", "mistral", "llama3", "groq", "qwen"],
+        choices=["mistral", "groq", "qwen", "qwen-ssh"],
         help="Override benchmark agent from config"
     )
     
     parser.add_argument(
-        "--token_count",
+        "--token_count", "-tc",
         action="store_true",
         help="Get the total tokens used for LLM calls"
     )
     
     parser.add_argument(
-        "--save_data",
+        "--save_data", "-sd",
         action="store_true",
         help="If benchmark is used, the results are saved in a json summary"
     )
@@ -476,7 +476,7 @@ EXAMPLES:
             pipeline_logic['planner_llm'] = args.agent
             pipeline_logic['cleaning_llm'] = args.agent
 
-        if config_manager.get_config().get_default_agent() in ['llama3', "qwen"]:
+        if config_manager.get_config().get_default_agent() in ["qwen", "qwen-ssh"]:
             # Disable rate limiting for local LLM
             config_manager.get_config().config['agent']['rate_limit_delay'] = 0
         

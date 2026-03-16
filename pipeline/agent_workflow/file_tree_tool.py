@@ -1,7 +1,8 @@
-from typing import Dict, Tuple, List
+from typing import Dict, Any
 from get_mapping import build_file_tree
 from config_manager import get_config
 from rag.utils.handle_tokens import get_token_count
+from pipeline.agent_workflow.workflow_base import _tool_desc
 from pipeline.agent_workflow.concrete_workflow import BaseTreeTool
 from pathlib import PurePath
 
@@ -182,16 +183,25 @@ class FileTreeTool(BaseTreeTool):
         
         return res
     
-    def get_description(self) -> Tuple[str, str, List[str]]:
-        usage = "Get a condensed summary of the file tree starting from a specific path. "\
-            "The structure of the codebase is semantically crucial so do not hesitate to use this tool."
-        parameter = "The root_path string from which to start the file tree traversal."
-        examples = [
-            "<parameter>/</parameter>",
-            "<parameter>/1. utilities/Modules</parameter>"
-        ]
-        
-        return usage, parameter, examples
+    def get_description(self) -> Dict[str, Any]:
+        return _tool_desc(
+            name="tree_tool",
+            description=(
+                "Get a condensed summary of the file tree starting from a specific path. "
+                "The structure of the codebase is semantically crucial so do not hesitate to use this tool."
+            ),
+            properties={
+                "root_path": {
+                    "type": "string",
+                    "description": (
+                        "The path from which to start the file tree traversal. "
+                        "Use '/' or '' for the repository root. "
+                        "E.g. '/' or '/1. utilities/Modules'."
+                    ),
+                },
+            },
+            required=["root_path"],
+        )
 
 if __name__ == "__main__":
     tool = FileTreeTool()

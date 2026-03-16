@@ -7,119 +7,161 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.table import Table
 from rich.markup import escape
-
-
+ 
+_DISTILLATION_SYSTEM_PROMPT = (
+    "You are the Memory Manager of a complex RAG Agent. "
+    "Your sole responsibility is to extract and preserve key facts from raw documents "
+    "so that the agent can answer its query without re-reading those documents. "
+    "Be concise but never discard important information. "
+    "Output only XML <fact> tags — no preamble, no commentary."
+)
+ 
+_DISTILL_SINGLE_SYSTEM_PROMPT = (
+    "You are a precise information extractor. "
+    "Given a document and a query, extract only the facts directly relevant to the query. "
+    "If the document is irrelevant, reply with exactly: IRRELEVANT. "
+    "No preamble, no commentary."
+)
+ 
+ 
 class LLMDistillationTool(BaseDistillationTool):
     """
-    A concrete implementation of BaseDistillationTool using an LLM.
-    
-    This class uses a provided LLM to perform text distillation operations.
+    Concrete distillation tool backed by an LLM.
+ 
+    Both methods now use generate_response(user_message, system_prompt=...)
+    so the static persona lands in the 'system' role and the dynamic content
+    (documents, query, previous generation) stays in the 'user' role.
+    The distillation LLM context is always reset before each call — distillation
+    is stateless by design.
     """
-    
-    def distill(self, content: str, query: str, thought: str, verbose=False) -> str:
-        """Single item distillation (Legacy/Fallback)."""
-        prompt = (
+ 
+    def distill(self, content: str, query: str, thought: str, source: str = None, verbose=False) -> str:
+        """Single-item distillation (used by script_finder_tool)."""
+ 
+        user_message = (
             f"### CONTEXT\n"
             f"Query: {query}\n"
             f"Planner Thought: {thought}\n\n"
-            f"### CONTENT TO ANALYZE\n"
-            f"{content[:200_000]}\n\n" # Safety truncation
-            f"### INSTRUCTION\n"
-            f"Extract a concise summary from the CONTENT that specifically answers the Query or the Thought.\n"
-            f"If the content is irrelevant, return 'IRRELEVANT'.\n"
-            f"Do not add conversational filler."
+            f"### CONTENT TO ANALYZE"
         )
-        
+        if source:
+            user_message += f" FROM {source}"
+        user_message += (
+            f"\n{content[:200_000]}\n\n"   # safety truncation
+            f"### TASK\n"
+            f"Extract a concise summary that specifically answers the Query or Thought. "
+            f"If the content is irrelevant, return 'IRRELEVANT'."
+        )
+ 
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)
-        
-        response = self.llm.generate_response(prompt)
-        
+ 
+        self.llm.reset_context()
+        response = self.llm.generate_response(
+            user_message = user_message,
+            system_prompt = _DISTILL_SINGLE_SYSTEM_PROMPT,
+            temperature = 0.15
+        )
+ 
         if verbose:
-            prompt_content = Panel(escape(prompt), title="Distillation LLM Prompt", border_style="purple")
-            response_content = Panel(Markdown(response), title="Distillation LLM Response", border_style="blue")
-            self.console.print(Panel(Group(prompt_content, response_content), title="Distillation Tool", border_style="yellow"))
-        
+            prompt_content = Panel(escape(user_message), title="Distillation Prompt", border_style="purple")
+            response_content = Panel(Markdown(response), title="Distillation Response", border_style="blue")
+            self.console.print(Panel(Group(prompt_content, response_content),
+                                     title="Distillation Tool", border_style="yellow"))
+ 
         return response
-
-    def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str, previous_generation: Optional[str] = None, verbose=False) -> List[str]:
+ 
+    def distill_batch(
+        self,
+        items: List[Tuple[str, str]],
+        query: str,
+        thought: str,
+        previous_generation: Optional[str] = None,
+        verbose=False,
+    ) -> List[str]:
         """
-        Summarize multiple content items in one go and map facts back to their source using XML parsing.
-        Now considers the Main LLM's previous attempt to answer.
+        Distil multiple content items in one LLM call.
+ 
+        The static Memory Manager persona goes into the system role.
+        All dynamic content (query, documents, previous generation) goes into
+        the user role so the model receives a clean separation between
+        who it is and what it needs to do.
         """
         if not items:
             return []
-
-        total_sources = set()
-        for (_, source) in items:
-            total_sources.add(source)
-
-        # 1. Construct a batch prompt
-        prompt_text = (
-            f"### SYSTEM ROLE\n"
-            f"You are the Memory Manager of a complex RAG Agent. The agent has just attempted to answer a query using the documents below.\n\n"
-            f"### CONTEXT\nQuery: {query}\n\nCurrent Thought of the agent: {thought}\n"
+ 
+        total_sources = {source for _, source in items}
+ 
+        # --- User message: all dynamic content ---
+        user_message = (
+            f"### CONTEXT\n"
+            f"Query: {query}\n"
+            f"Current Thought of the agent: {thought}\n"
         )
-        
+ 
         if previous_generation:
-            prompt_text += (
+            user_message += (
                 f"\n### PREVIOUS AGENT ATTEMPT\n"
                 f"The Main Agent read the documents below and generated this answer:\n"
                 f"\"{previous_generation}\"\n"
-                f"Use this context to identify which facts were likely used or missed.\n\n"
+                f"Use this context to identify which facts were likely used or missed.\n"
             )
-
-        prompt_text += (
-            f"### DOCUMENTS TO ANALYZE\n"
-            f"Here are the {len(items)} items to analyse which are from {len(total_sources)} distinct scripts:\n\n"
+ 
+        user_message += (
+            f"\n### DOCUMENTS TO ANALYZE\n"
+            f"Here are the {len(items)} items to analyse "
+            f"from {len(total_sources)} distinct scripts:\n\n"
         )
-        
-        # We verify sources to map them back later
-        indexed_sources = {}
-        
+ 
         for i, (content, source) in enumerate(items):
-            # Limit content length per chunk to avoid context overflow
-            snippet = content[:2000] 
-            prompt_text += f"--- ITEM {i+1} FROM {source} ---\n{snippet}\n\n"
-            indexed_sources[i+1] = source
-
-        prompt_text += (
-            "### INSTRUCTION\n"
-            "Analyze the items above. Extract concise and yet sufficient key facts that help answer the Query or the Thought.\n"
-            "Your goal is to build a persistent memory for the RAG Agent. The Agent is moving to the next step and will lose access "
-            "to these raw documents, so you must not discard any important information found here.\n"
-            "Discard irrelevant text. Combine duplicate information.\n"
+            snippet = content[:2000]
+            user_message += f"--- ITEM {i+1} FROM {source} ---\n{snippet}\n\n"
+ 
+        user_message += (
+            "### TASK\n"
+            "Analyze the items above. Extract concise but sufficient key facts that help "
+            "answer the Query or the Thought.\n"
+            "The Agent is moving to the next step and will lose access to these raw documents, "
+            "so do not discard any important information found here.\n"
+            "Discard only irrelevant text. Combine duplicate information.\n"
             "\n"
-            "### CRITICAL OUTPUT FORMAT\n"
-            "You MUST output the results in strict XML format.\n"
-            "Wrap each distinct fact in a <fact> tag.\n"
+            "### OUTPUT FORMAT\n"
+            "Output strictly in XML. Wrap each distinct fact in a <fact> tag.\n"
             "\n"
-            "Example 1:\n"
+            "Example:\n"
             "<fact>Overall, 9 files read \"Data.ion\"</fact>\n"
-            "<fact>4 files read \"Data.ion\" as \"Data[Id unsafe]\"</fact>\n"
-            "\n"
-            "Example 2:\n"
-            "<fact>The script /4. Optimization workflow/03.b. Forecasting tries to predict future demand.</fact>\n"
+            "<fact>The script /4. Optimization workflow/03.b. Forecasting predicts future demand.</fact>\n"
             "\n"
             "Begin XML output:"
         )
-
-        # 2. Call the LLM
-        response = self.llm.generate_response(prompt_text)
-        
-        # 3. Parse the response using Regex
-        fact_pattern = r"<fact>(.*?)</fact>"
-        distilled_results = re.findall(fact_pattern, response, re.IGNORECASE | re.DOTALL)
-        
+ 
+        if self.rate_limit_delay > 0:
+            time.sleep(self.rate_limit_delay)
+ 
+        self.llm.reset_context()
+        response = self.llm.generate_response(
+            user_message=user_message,
+            system_prompt=_DISTILLATION_SYSTEM_PROMPT,
+            temperature=0.15
+        )
+ 
+        # Parse <fact> tags
+        distilled_results = re.findall(
+            r"<fact>(.*?)</fact>", response, re.IGNORECASE | re.DOTALL
+        )
+ 
         if verbose:
-            prompt_content = Panel(escape(prompt_text), title="Distillation LLM Prompt", border_style="purple")
-            if not response.strip().startswith("```"):
-                response = f"```xml\n{response.strip()}\n```"
-            response_content = Panel(Markdown(escape(response)), title="Distillation LLM Response", border_style="blue")
-            results_content = Table(title="Parsed Distilled Results", border_style="bold bright_yellow", show_lines=True)
-            results_content.add_column("Facts", style="cyan", no_wrap=False)
+            prompt_content = Panel(escape(user_message), title="Distillation Prompt", border_style="purple")
+            display_response = response.strip()
+            if not display_response.startswith("```"):
+                display_response = f"```xml\n{display_response}\n```"
+            response_content = Panel(Markdown(escape(display_response)),
+                                     title="Distillation Response", border_style="blue")
+            results_table = Table(title="Parsed Facts", border_style="bold bright_yellow", show_lines=True)
+            results_table.add_column("Facts", style="cyan", no_wrap=False)
             for fact in distilled_results:
-                results_content.add_row(escape(fact))
-            self.console.print(Panel(Group(prompt_content, response_content, results_content), title="Distillation Tool", border_style="yellow"))
-
+                results_table.add_row(escape(fact))
+            self.console.print(Panel(Group(prompt_content, response_content, results_table),
+                                     title="Distillation Tool", border_style="yellow"))
+ 
         return distilled_results
