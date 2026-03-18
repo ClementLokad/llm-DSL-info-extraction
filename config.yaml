@@ -286,7 +286,7 @@ main_pipeline:
 
   grep_tool:
     max_results: 50
-    max_results_to_refine: 100
+    max_results_to_refine: 50
     index_path: "./data/grep_index"
     case_sensitive: false
     max_lines: 150
