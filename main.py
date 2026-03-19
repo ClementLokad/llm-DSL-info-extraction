@@ -28,7 +28,7 @@ from pipeline.agent_workflow.script_finder_tool import PathScriptFinder
 from pipeline.agent_workflow.rag_tool import SimpleRAGTool, AdvancedRAGTool
 from pipeline.agent_workflow.file_tree_tool import FileTreeTool
 from pipeline.agent_workflow.agentic_pipeline import AgenticPipeline
-from pipeline.langgraph_base import BasePipeline, GraphState, BenchmarkState
+from pipeline.langgraph_base import BasePipeline, GraphState, BenchmarkState, APIError
 
 class MainAgenticPipeline(AgenticPipeline):
     def __init__(self, console: Console, verbose=True):
@@ -118,11 +118,7 @@ class MainAgenticPipeline(AgenticPipeline):
                 "llm_response": state["final_answer"],
                 "reference": state["reference_answer"]
             }
-            try:
-                grade = benchmark.run([qa_pair])["results"][0]
-            except Exception:
-                self.console.print("[bold red]Error during LLM judging, defaulting score to[/bold red] 0")
-                grade = {"score": 0, **qa_pair}
+            grade = benchmark.run([qa_pair])["results"][0]
             if state["verbose"]:
                 self.console.print(f"[dim]→ LLM ({benchmark.agent.model_name}) Judge score with reference: {grade['score']}[/dim]")
             
@@ -180,7 +176,87 @@ class DSLQuerySystem():
             self.pipeline.rag["retriever"].close()  # Ensure Qdrant client is properly closed on exit
         self.console.print("\n[bold]👋 Goodbye![/bold]")
     
-    def benchmark(self, questions_json_path: str, verbose=False):
+    def _display_and_save_results(
+        self,
+        grades: list,
+        questions_json_path: str,
+        interrupted: bool = False,
+    ) -> None:
+        """
+        Display a results table and optionally save to JSON.
+ 
+        Extracted so that it can be called both on normal completion and on
+        partial results after an interruption.
+ 
+        Args:
+            grades:              List of grade dicts collected so far.
+            questions_json_path: Original benchmark file path (used for the
+                                 saved filename stem).
+            interrupted:         Whether the run was cut short — affects the
+                                 heading and the saved filename.
+        """
+        if not grades:
+            self.console.print("[yellow]No results to display.[/yellow]")
+            return
+ 
+        heading = "# Benchmark Results (PARTIAL — interrupted)" if interrupted else "# Benchmark Results"
+        self.console.print(Markdown(heading))
+ 
+        table = Table(title="Benchmark Grades", show_lines=True)
+        table.add_column("Question", style="cyan", no_wrap=False)
+        table.add_column("Score", style="magenta")
+ 
+        for r in grades:
+            table.add_row(f"{r['id']}) " + r['question'], f"{r['score']:.4f}")
+            self.console.print(f"\n[bold green]{r['id']}) Question: {escape(r['question'])} [/bold green]\n")
+            self.console.print(f"[bold purple]  Référence: {escape(r['reference'])}[/bold purple]")
+            self.console.print("\n[bold blue]  LLM: [/bold blue]")
+            self.console.print(Markdown(f"{escape(r['llm_response'])}"))
+            self.console.print(f"\n[bold red] Score : [/bold red]{escape(str(r['score']))}")
+ 
+        self.console.print("\n")
+        self.console.print(Align.center(table))
+ 
+        avg = sum(r["score"] for r in grades) / len(grades)
+        label = f"Moyenne partielle ({len(grades)} questions)" if interrupted else "Moyenne globale"
+        self.console.print(f"\n[bold]{label} : {avg:.4f}[/bold]")
+ 
+        if self.config_manager.get("main_pipeline.token_count", False):
+            self.console.print(
+                f"\n[bold]Tokens used: [/bold]{self.config_manager.get('tokens_in')} "
+                f"[green]tokens in[/green], {self.config_manager.get('tokens_out')} [red]tokens out[/red]"
+            )
+ 
+        if self.config_manager.get("benchmark.save_data", False):
+            data_dir = self.config_manager.get("paths.data_dir", "data")
+            benchmark_name = Path(questions_json_path).stem
+            suffix = "_partial" if interrupted else ""
+            res_dir = (
+                data_dir
+                + f"/benchmark_results/{benchmark_name}"
+                + suffix
+                + f"_{time.strftime('%Y-%m-%d_%H-%M-%S')}.json"
+            )
+            res_path = Path(res_dir)
+            res_path.parent.mkdir(parents=True, exist_ok=True)
+            res = {
+                "Models": {
+                    "Main agent": self.config_manager.get("agent.default_model"),
+                    "Benchmark agent": self.config_manager.get("benchmark.benchmark_model")
+                },
+                "Results": grades
+            }
+            if self.config_manager.get("main_pipeline.token_count", False):
+                res["Tokens used"] = {
+                    "In": self.config_manager.get('tokens_in'),
+                    "Out": self.config_manager.get('tokens_out'),
+                }
+            with open(res_path, 'w', encoding='utf-8') as f:
+                json.dump(res, f, indent=4, ensure_ascii=False)
+            self.console.print(f"\n[dim]Results saved to {res_path}[/dim]")
+    
+    def benchmark(self, questions_json_path: str, verbose=False,
+                  start_from: int = 1):
         # Build the sub-graph for single Q/A processing
         sub_rag_system = self.pipeline.build_single_qa_graph()
         
@@ -193,54 +269,48 @@ class DSLQuerySystem():
         # Charger les questions
         with open(questions_json_path, "r", encoding="utf-8") as f:
             questions = json.load(f)
+        
+        qa_pairs = [
+            (q["question"], "\n".join([str(a) for a in q["answers"]]))
+            for q in questions['answered']
+        ]
+        
+        total = len(qa_pairs)
+        
+        # Validate start_from
+        if start_from < 1 or start_from > total:
+            self.console.print(
+                f"[bold red]--benchmarkstart {start_from} is out of range "
+                f"(1–{total}). Running from question 1.[/bold red]"
+            )
+            start_from = 1
+ 
+        if start_from > 1:
+            self.console.print(
+                f"[yellow]Skipping questions 1–{start_from - 1}. "
+                f"Starting from question {start_from}/{total}.[/yellow]"
+            )
             
         input_state = BenchmarkState(
-            qa_pairs=[(q["question"], "\n".join([str(a) for a in q["answers"]])) for q in questions['answered']],
+            qa_pairs=qa_pairs[start_from-1:],
             verbose=verbose,
             sub_rag_system=sub_rag_system
         )
 
         try:
             final_state = app.invoke(input_state)
+        except APIError as exc:
+            final_state = exc.saved_state
         finally:
             if isinstance(self.pipeline.rag["retriever"], QdrantRetriever):
                 self.pipeline.rag["retriever"].close()  # Ensure Qdrant client is properly closed on exit
-        self.console.print(Markdown("# Benchmark Results"))
+        
+        # Put correct id for questions
+        grades = final_state["grades"]
+        for (i, r) in enumerate(grades):
+            r["id"] = i+start_from
             
-        table = Table(title="Benchmark Grades", show_lines=True)
-        table.add_column("Question", style="cyan", no_wrap=False)
-        table.add_column("Score", style="magenta")
-        
-        for i, r in enumerate(final_state["grades"]):
-            r["id"] = i + 1
-            table.add_row(f"{i+1}) "+r['question'], f"{r['score']:.4f}")
-            self.console.print(f"\n[bold green]{i+1}) Question: {escape(r['question'])} [/bold green]\n")
-            self.console.print(f"[bold purple]  Référence: {escape(r['reference'])}[/bold purple]")
-            self.console.print("\n[bold blue]  LLM: [/bold blue]")
-            self.console.print(Markdown(f"{escape(r['llm_response'])}"))
-            self.console.print(f"\n[bold red] Score : [/bold red]{escape(str(r['score']))}")
-        
-        self.console.print("\n")
-        self.console.print(Align.center(table))
-        self.console.print(f"\n[bold]Moyenne globale : {final_state['benchmark_results']['average_score']:.4f}[/bold]")
-        if self.config_manager.get("main_pipeline.token_count", False):
-            self.console.print(f"\n[bold]Tokens used: [/bold]{self.config_manager.get('tokens_in')} [green]tokens in[/green]"
-                               f", {self.config_manager.get('tokens_out')} [red]tokens out[/red]")
-        
-        if self.config_manager.get("benchmark.save_data", False):
-            data_dir = self.config_manager.get("paths.data_dir", "data")
-            benchmark_name = Path(questions_json_path).stem
-            res_dir = data_dir + f"/benchmark_results/{benchmark_name}_{time.strftime('%Y-%m-%d_%H-%M-%S')}.json"
-            res_path = Path(res_dir)
-            # Create the parent directories if they don't exist
-            res_path.parent.mkdir(parents=True, exist_ok=True)
-            res = final_state['grades']
-            if self.config_manager.get("main_pipeline.token_count", False):
-                res = {"Tokens used": {"In": self.config_manager.get('tokens_in'), 
-                                       "Out": self.config_manager.get('tokens_out')},
-                       "Results": res}
-            with open(res_path, 'w', encoding='utf-8') as f:
-                json.dump(res, f, indent=4, ensure_ascii=False)
+        self._display_and_save_results(grades, questions_json_path, len(grades) != total-start_from+1)
 
 
 def main():
@@ -292,6 +362,7 @@ EXAMPLES:
   python main.py --benchmarkpath test.json --verbose  # Benchmark with detailed output
   python main.py --benchmarktype llm_as_a_judge --benchmarkagent gpt --benchmarkpath data.json   # Use LLM judge
   python main.py --benchmarktype cosine_similarity --benchmarkpath data.json # Use cosine similarity
+  python main.py --benchmarkpath questions.json --benchmarkstart 5  # Resume from Q5
   
   # Linear mode
   python main.py --linear             # Untoggle agentic pipeline
@@ -388,6 +459,18 @@ EXAMPLES:
         "--benchmarkagent", "-ba",
         choices=["mistral", "groq", "qwen", "qwen-ssh"],
         help="Override benchmark agent from config"
+    )
+    
+    parser.add_argument(
+        "--benchmarkstart", "-bs",
+        metavar="N",
+        type=int,
+        default=1,
+        help=(
+            "1-based index of the question to start the benchmark from. "
+            "Questions before this index are skipped. "
+            "Useful to resume a benchmark that was interrupted."
+        )
     )
     
     parser.add_argument(
@@ -522,7 +605,8 @@ EXAMPLES:
 
         # Benchmark mode
         if args.benchmarkpath:
-            system.benchmark(args.benchmarkpath, verbose=verbose)
+            system.benchmark(args.benchmarkpath, verbose=verbose,
+                             start_from=args.benchmarkstart)
        
         # Determine mode and execute
         elif args.query:

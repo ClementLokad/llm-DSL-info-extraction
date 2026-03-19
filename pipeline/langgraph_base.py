@@ -97,6 +97,11 @@ class BenchmarkState(TypedDict):
     sub_rag_system: StateGraph
     verbose: bool
 
+class APIError(Exception):
+    def __init__(self, message, saved_state):
+        super().__init__(message)
+        self.saved_state = saved_state
+
 
 # --- 2. Define Graph Nodes ---
 # Each node is a function that takes the state as input
@@ -228,8 +233,26 @@ class BasePipeline:
             
             app = sub_rag_system.compile()
             
+            interrupted = False
+            
             # Execute the sub-graph
-            final_state = app.invoke(sub_state)
+            try:
+                final_state = app.invoke(sub_state)
+            except KeyboardInterrupt:
+                self.console.print(
+                    "\n[bold yellow]⚠ Benchmark interrupted by user.[/bold yellow]"
+                )
+                interrupted = True
+            except Exception as exc:
+                self.console.print(
+                    f"\n[bold red]⚠ Benchmark stopped on question "
+                    f"{len(grades)+1}/{len(qa_pairs)} due to error:[/bold red]\n{exc}"
+                )
+                interrupted = True
+            
+            if interrupted:
+                state["grades"] = grades
+                raise APIError("Stopped due to API Error", state)
 
             # Collect the grade
             grades.append(final_state["grade"])

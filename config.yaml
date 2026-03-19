@@ -275,7 +275,7 @@ logging:
 # =============================================================================
 main_pipeline:
   agentic: true
-  token_count: false
+  token_count: true
 
   agent_logic:
     max_retries: 2
