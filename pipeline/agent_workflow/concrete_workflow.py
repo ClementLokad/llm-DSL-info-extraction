@@ -328,6 +328,49 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 tool_id="fallback",
                 arguments={"advice": str(exc)},
             )
+        
+    def _plan_rag_followup(self, state, planner_tools) -> "ToolCallResult":
+        """Handle the RAG-tool follow-up branch.
+        
+        Called when the previous tool was rag_tool but no results were found. 
+        The model can use the RAG output (stored in state['rewritten_prompt']) 
+        as context to decide how to proceed — whether to try grep_tool with specific 
+        keywords/sources, or to reformulate the query and try RAG again."""
+        # --- Step 1: Retrieve RAG output and clean up history ---
+        rag_output = state["rewritten_prompt"]
+        state["pipeline_state"]["execution_history"] = (
+            state["pipeline_state"]["execution_history"][:-1]
+        )
+        
+        # --- Step 2: Submit RAG result and ask for the next tool ---
+        pending = state.get("pending_tool_call", {})
+        try:
+            return self.planner_llm.submit_tool_result_and_continue(
+                tool_call_id=pending.get("tool_id", "unknown"),
+                tool_name="rag_tool",
+                result=(
+                    "The RAG search did not return any relevant results. "
+                    "Here is the context that was used for the search:\n\n"
+                    f"{rag_output}"
+                ),
+                next_instruction=(
+                    "Based on this information, select the next tool to call. "
+                    "You might want to try grep_tool with specific keywords/sources, "
+                    "or reformulate the query and try RAG again."
+                ),
+                tools=planner_tools,
+                tool_choice="any",
+            )
+        except ValueError as exc:
+            self.console.print(
+                f"[dim][yellow]Planner fallback (RAG follow-up): {exc}[/yellow][/dim]"
+            )
+            return ToolCallResult(
+                tool_name="simple_regeneration_tool",
+                tool_id="fallback",
+                arguments={"advice": str(exc)},
+            )
+
     
     
     def _plan_normal(self, state, planner_tools, is_continuation) -> "tuple[ToolCallResult, str, str]":
@@ -469,6 +512,12 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             and history[-1]["tool"] == "tree_tool"
             and state.get("rewritten_prompt")
         )
+
+        rag_followup_active = (
+            history
+            and history[-1]["tool"] == "rag_tool"
+            and state.get("rewritten_prompt")
+        )
     
         if grep_refinement_active:
             already_distilled = True  # grep refinement never has raw results to distil
@@ -477,6 +526,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         elif tree_followup_active:
             already_distilled = True  # tree output is not evidence, nothing to distil
             tool_call = self._plan_tree_followup(state, planner_tools)
+        
+        elif rag_followup_active:
+            already_distilled = True  # RAG follow-up is triggered by a negative result, so no distillation needed
+            tool_call = self._plan_rag_followup(state, planner_tools)
     
         else:
             tool_call, system_prompt, reasoning = self._plan_normal(
@@ -531,6 +584,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 # Follow-up branches: show the feedback that was submitted
                 prompt_content = Text.from_markup(
                     f"[dim]Follow-up branch: {('grep refinement' if grep_refinement_active else 'tree follow-up')}[/dim]"
+                )
+            elif rag_followup_active:
+                prompt_content = Text.from_markup(
+                    f"[dim]Follow-up branch: RAG refinement[/dim]"
                 )
             else:
                 prompt_content = Panel(
@@ -903,6 +960,23 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
 
         self.console.print("[dim]    -> Grep results validated.[/dim]")
         return "validated"
+    
+    def refine_rag(self, state: WorkflowState) -> str:
+        self.console.print("[dim]--- SUB-DECISION: RAG results validation ---[/dim]")
+        # For simplicity, we only check if any results were returned; more complex
+        # validation could be implemented as needed.
+        exec_history = state["pipeline_state"].get("execution_history", [])
+        if not exec_history or exec_history[-1]["tool"] != "rag_tool":
+            self.console.print("[dim]    -> No recent RAG call found. Validated by default.[/dim]")
+            return "validated"
+
+        last_results = exec_history[-1].get("results_to_analyse", [])
+        if last_results:
+            self.console.print(f"[dim]    -> RAG returned {len(last_results)} results, validated.[/dim]")
+            return "validated"
+        else:
+            self.console.print("[dim]    -> RAG returned 0 results, replanning.[/dim]")
+            return "replan"
 
     # -----------------------------------------------------------------------
     # Graph assembly
@@ -935,8 +1009,13 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             {"replan": "agentic_router", "validated": END},
         )
         self.add_edge("tree_tool", "agentic_router")
-        self.add_edge("rag_tool", END)
+        self.add_conditional_edges(
+            "rag_tool",
+            self.refine_rag,
+            {"replan": "agentic_router", "validated": END}
+        )
         self.add_edge("script_finder_tool", END)
         self.add_edge("simple_regeneration_tool", END)
 
         return self.compile()
+        
