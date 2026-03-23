@@ -1,28 +1,19 @@
-from agents.gemini_agent import GeminiAgent
 from agents.mistral_agent import MistralAgent
-from agents.gpt_agent import GPTAgent
-from agents.llama3_agent import Llama3Agent
 from agents.groq_agent import GroqAgent
 from agents.qwen_agent import QwenAgent
+from agents.qwen_ssh_agent import QwenSSHAgent
 from agents.base import LLMAgent
 from config_manager import get_config
 
 def prepare_agent(agent_name: str) -> LLMAgent:
         """Prepare and return the default LLM agent based on configuration."""
         agent : LLMAgent
-        if agent_name == 'gemini':
-            agent = GeminiAgent()
-        elif agent_name == 'mistral':
+        if agent_name == 'mistral':
             agent = MistralAgent()
-        elif agent_name == 'gpt':
-            agent = GPTAgent()
-        elif agent_name == 'llama3':
-            agent = Llama3Agent()
-            agent = GPTAgent()
-        elif agent_name == 'llama3.2':
-            agent = Llama3Agent('llama3.2')
         elif agent_name == 'qwen':
             agent = QwenAgent()
+        elif agent_name == 'qwen-ssh':
+            agent = QwenSSHAgent()
         elif agent_name == 'groq':
             agent = GroqAgent()
         else:

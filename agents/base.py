@@ -1,14 +1,23 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from config_manager import get_config
 from rag.utils.handle_tokens import get_token_count
+from dataclasses import dataclass
 import time
 import functools
+
+
+@dataclass
+class ToolCallResult:
+    tool_name: str
+    tool_id: str        # providers without IDs can use a uuid4()
+    arguments: dict
+
 
 def rate_limited(max_retries: int = 3, initial_delay: float = 1.0):
     """
     Decorator to handle rate limiting and retries for LLM API calls.
-    
+
     Args:
         max_retries: Maximum number of retry attempts
         initial_delay: Initial delay between retries in seconds
@@ -19,7 +28,6 @@ def rate_limited(max_retries: int = 3, initial_delay: float = 1.0):
             for attempt in range(max_retries):
                 try:
                     result = func(*args, **kwargs)
-                    # Short pause after successful call
                     time.sleep(0.1)
                     return result
                 except Exception as e:
@@ -37,52 +45,171 @@ def rate_limited(max_retries: int = 3, initial_delay: float = 1.0):
 
 
 class LLMAgent(ABC):
-    """Abstract interface for LLM agents"""
-    
+    """Abstract interface for LLM agents."""
+
     @staticmethod
     def count_tokens(func):
+        """
+        Decorator that counts input and output tokens for any LLM call.
+
+        Input counting strategy per method:
+          generate_response              → user_message + system_prompt (if any)
+          generate_with_tools            → user_message + system_prompt (if any)
+          submit_tool_result_and_continue→ result + next_instruction
+
+        All parameters may arrive as positional args or keyword args depending
+        on the call site, so we resolve them by name from the function signature
+        using functools rather than relying on positional index.
+        """
+        import inspect
+        sig = inspect.signature(func)
+        param_names = list(sig.parameters.keys())  # includes 'self'
+
         @functools.wraps(func)
-        def wrapper(agent, question, *args, **kwargs):
-            if get_config().get("main_pipeline.token_count", False):
-                get_config().config["tokens_in"] += get_token_count(question)
-                res = func(agent, question, *args, **kwargs)
+        def wrapper(agent, *args, **kwargs):
+            if not get_config().get("main_pipeline.token_count", False):
+                return func(agent, *args, **kwargs)
+
+            # Build a unified name→value mapping for all arguments
+            # (positional args are matched to parameter names by position,
+            #  skipping 'self' which is already bound to agent)
+            bound: Dict[str, Any] = {}
+            for i, val in enumerate(args):
+                # param_names[0] is 'self', positional args start at index 1
+                if i + 1 < len(param_names):
+                    bound[param_names[i + 1]] = val
+            bound.update(kwargs)
+
+            # --- Count input tokens ---
+            tokens_in = 0
+
+            # user_message is present in generate_response and generate_with_tools
+            user_message = bound.get("user_message", "")
+            if isinstance(user_message, str):
+                tokens_in += get_token_count(user_message)
+
+            # system_prompt is optional in generate_response and generate_with_tools
+            system_prompt = bound.get("system_prompt", "")
+            if isinstance(system_prompt, str) and system_prompt:
+                tokens_in += get_token_count(system_prompt)
+
+            # result + next_instruction are present in submit_tool_result_and_continue
+            tool_result = bound.get("result", "")
+            if isinstance(tool_result, str) and tool_result:
+                tokens_in += get_token_count(tool_result)
+
+            next_instruction = bound.get("next_instruction", "")
+            if isinstance(next_instruction, str) and next_instruction:
+                tokens_in += get_token_count(next_instruction)
+
+            get_config().config["tokens_in"] += tokens_in
+
+            # --- Call the actual method ---
+            res = func(agent, *args, **kwargs)
+
+            # --- Count output tokens ---
+            # generate_response returns a str
+            # generate_with_tools and submit_tool_result_and_continue return ToolCallResult
+            if isinstance(res, str):
                 get_config().config["tokens_out"] += get_token_count(res)
-                return res
-            return func(agent, question, *args, **kwargs)
+            elif isinstance(res, ToolCallResult):
+                # Count the stringified arguments as a proxy for output tokens
+                get_config().config["tokens_out"] += get_token_count(
+                    str(res.tool_name) + str(res.arguments)
+                )
+
+            return res
+
         return wrapper
-    
+
     @abstractmethod
     def initialize(self) -> None:
-        """Initialize the agent with its required configurations"""
-        self.context = None
-    
-    @count_tokens
-    @abstractmethod  
-    def generate_response(self, question: str, context: Optional[Any] = None) -> str:
-        """Generate a response to a question with optional context
-        
+        """Initialize the agent with its required configurations."""
+        self.context = []
+
+    @abstractmethod
+    def generate_response(
+        self,
+        user_message: str,
+        system_prompt: Optional[str] = None,
+        context: Optional[List[Dict[str, Any]]] = None,
+        temperature: float = 0.3,
+    ) -> str:
+        """Generate a plain-text response.
+
         Args:
-            question: The question asked by the user
-            context: Optional context to provide to the LLM
-            
+            user_message: The user's message.
+            system_prompt: Optional system-role instruction injected as the first
+                message in the conversation (replaces any previously stored system
+                prompt when supplied).
+            context: Optional explicit history to use instead of the stored one.
+            temperature: Sampling temperature.
+
         Returns:
-            str: The response generated by the LLM
+            str: The assistant's text reply.
         """
         pass
-    
-    def follow_up_question(self, question: str) -> str:
-        """Generate a response to a question using context from previous request
-        
+
+    @abstractmethod
+    def generate_with_tools(
+        self,
+        user_message: str,
+        tools: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+        tool_choice: str = "any",
+    ) -> ToolCallResult:
+        """Ask the model to call one of the provided tools.
+
         Args:
-            question: The question asked by the user
-            
+            user_message: The user-facing question / instruction.
+            tools: List of tool-schema dicts
+                   (``{"type": "function", "function": {...}}``).
+            system_prompt: Optional system instruction.
+            tool_choice: "any" forces a tool call (mapped to "required" for
+                         OpenAI-compatible providers).
+
         Returns:
-            str: The response generated by the LLM
+            ToolCallResult
         """
-        return self.generate_response(question, self.context)
-    
+        pass
+
+    @abstractmethod
+    def submit_tool_result_and_continue(
+        self,
+        tool_call_id: str,
+        tool_name: str,
+        result: str,
+        next_instruction: str,
+        tools: List[Dict[str, Any]],
+        tool_choice: str = "any",
+    ) -> ToolCallResult:
+        """
+        Append a tool-role message and ask the model for its next tool call.
+        Used to continue a tool-calling loop without breaking the conversation.
+
+        Args:
+            tool_call_id:     ID from the preceding generate_with_tools call.
+            tool_name:        Name of the function that was executed.
+            result:           Serialised result of executing the tool.
+            next_instruction: User-turn message prompting the next action.
+            tools:            Available tool schemas.
+            tool_choice:      "any"/"required" both force a tool call.
+
+        Returns:
+            ToolCallResult
+        """
+        pass
+
+    def follow_up_question(self, question: str) -> str:
+        """Continue the conversation using the stored context."""
+        return self.generate_response(question)
+
+    def reset_context(self) -> None:
+        """Clear the stored conversation history."""
+        self.context = []
+
     @property
     @abstractmethod
     def model_name(self) -> str:
-        """Return the model name for identification"""
+        """Return the model name for identification."""
         pass

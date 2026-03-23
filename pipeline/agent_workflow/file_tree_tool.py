@@ -1,7 +1,8 @@
-from typing import Dict
+from typing import Dict, Any
 from get_mapping import build_file_tree
 from config_manager import get_config
 from rag.utils.handle_tokens import get_token_count
+from pipeline.agent_workflow.workflow_base import _tool_desc
 from pipeline.agent_workflow.concrete_workflow import BaseTreeTool
 from pathlib import PurePath
 
@@ -156,6 +157,51 @@ class FileTreeTool(BaseTreeTool):
         res += "\n"
         
         return res + self.fit_tree_to_context(tree_root, max_tokens)
+    
+    def custom_tree(self, root_path: str, max_depth: int, max_children: int) -> str:
+        path_obj = PurePath(root_path)
+        parts = [p for p in path_obj.parts if p and p != path_obj.anchor]
+        tree_root = self.tree
+        res = "/"
+        for part in parts:
+            if part in tree_root:
+                tree_root = tree_root[part]
+                res += f"{part}/"
+            else:
+                break
+        
+        res += "\n"
+        
+        lines = self.render_condensed_tree(
+            tree_root, 
+            max_depth=max_depth, 
+            max_children=max_children
+        )
+        rendered_tree = "\n".join(lines)
+        
+        res += rendered_tree
+        
+        return res
+    
+    def get_description(self) -> Dict[str, Any]:
+        return _tool_desc(
+            name="tree_tool",
+            description=(
+                "Get a condensed summary of the file tree starting from a specific path. "
+                "The structure of the codebase is semantically crucial so do not hesitate to use this tool."
+            ),
+            properties={
+                "root_path": {
+                    "type": "string",
+                    "description": (
+                        "The path from which to start the file tree traversal. "
+                        "Use '/' or '' for the repository root. "
+                        "E.g. '/' or '/1. utilities/Modules'."
+                    ),
+                },
+            },
+            required=["root_path"],
+        )
 
 if __name__ == "__main__":
     tool = FileTreeTool()

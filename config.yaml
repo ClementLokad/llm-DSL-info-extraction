@@ -20,6 +20,9 @@ agent:
 rag:
   # Number of top relevant chunks to retrieve for each query
   top_k_chunks: 5
+  rerank_multiplier: 10
+  
+  fusion: False  # Whether to use RAG fusion strategy
 
 # =============================================================================
 # GLOBAL FILE AND DIRECTORY CONSTANTS
@@ -68,8 +71,9 @@ chunker:
 # SUMMARIZER CONFIGURATION
 # =============================================================================
 summarizer:
-  summary_model: "mistral" # Options: "gemini", "gpt", "mistral", "groq"
+  summary_model: "qwen-ssh" # Options: "mistral", "groq", "qwen", "qwen-ssh"
   summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
+  raptor_summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
 
 # =============================================================================
 # QUERY TRANSFORMER CONFIGURATION
@@ -85,10 +89,10 @@ query_transformer:
 # =============================================================================
 embedder:
   # Default embedder type
-  default_type: "sentence_transformer"
+  default_type: "qdrant" # Options: "qdrant", "sentence_transformer", "openai", "gemini"
 
   # Index type
-  index_type: "summary"  # Options: summary, full_chunk
+  index_type: "summary"  # Options: summary, full_chunk, raptor
   
   # Text preparation settings
   text_preparation:
@@ -97,6 +101,13 @@ embedder:
     min_lines_preserve: 1        # Always keep at least 1 line
     max_variable_names: 3        # Limit variable names shown in context
     max_table_names: 5           # Limit table names shown in context
+
+  # Qdrant Embedder settings
+  qdrant:
+    dense_model_name: "sentence-transformers/all-MiniLM-L6-v2"
+    sparse_model_name: "Qdrant/bm25"
+    batch_size: 64
+    embedding_dimension: 384 # Default dimension for all-MiniLM-L6-v2
   
   # Sentence Transformer settings
   sentence_transformer:
@@ -107,7 +118,8 @@ embedder:
     normalize_embeddings: true
     batch_size: 32
     max_seq_length: 512
-    show_progress_bar: true 
+    show_progress_bar: true
+    convert_to_numpy: true
   
   # OpenAI embedder settings
   openai:
@@ -129,13 +141,22 @@ embedder:
 # RETRIEVER CONFIGURATION
 # =============================================================================
 retriever:
-  type: "faiss"
+  type: "qdrant"
   
   # Index file names (all file constants externalized from global paths)
   files:
     chunks_filename: "chunks"              # File storing the code chunks data (extension from paths.pickle_extension)
     index_filename: "faiss"                # FAISS vector index file (extension from paths.index_extension)
     metadata_filename: "metadata"          # Index metadata and configuration (extension from paths.pickle_extension)
+
+  qdrant:
+    collection_name: "codebase_rag"
+    qdrant_path: "./data/qdrant" # Directory where Qdrant client and collections are stored
+    local: true
+    top_k: 5
+    rerank_multiplier: 5 # Multiplier for number of chunks to rerank between dense and sparse model on retrieval
+    dense_threshold: 0.45
+    sparse_threshold: 2
   
   # FAISS index settings
   faiss:
@@ -219,30 +240,6 @@ retriever:
     hnsw_ef_construction: 200
 
 # =============================================================================
-# PREPROCESSING PIPELINE CONFIGURATION
-# =============================================================================
-pipeline:
-  # Processing parameters
-  batch_size: 50
-  max_workers: 4
-  show_progress: true
-  
-  # File processing
-  supported_extensions: [".nvn"]
-  encoding: "utf-8"
-  skip_empty_files: true
-  
-  # Output settings
-  save_intermediate_results: true
-  output_format: "json"  # json, pickle, csv
-  
-  # Validation settings
-  validate_chunks: true
-  validate_embeddings: true
-  min_chunks_per_file: 1
-  max_chunks_per_file: 1000
-
-# =============================================================================
 # LOGGING CONFIGURATION
 # =============================================================================
 logging:
@@ -287,7 +284,7 @@ logging:
 # =============================================================================
 main_pipeline:
   agentic: true
-  token_count: false
+  token_count: true
 
   agent_logic:
     max_retries: 2
@@ -298,11 +295,19 @@ main_pipeline:
 
   grep_tool:
     max_results: 50
-    max_results_to_refine: 100
+    max_results_to_refine: 50
     index_path: "./data/grep_index"
     case_sensitive: false
     max_lines: 150
     max_grep_retries: 3
+  
+  rag_tool:
+    advanced: true # requires qdrant embedder and retriever
+    cross_encoding: true
+    cross_encoding_multiplier: 5
+    cross_encoder: "jinaai/jina-reranker-v2-base-multilingual"
+    drop_off_ratio: 0.4 # Documents with less than drop_off_ratio*best_res relevance are discarded
+    absolute_minimum: 0.15 # Documents with less than absolute_minimum relevance are discarded
 
   # Define "Detail Levels" from most detailed to least detailed.
   # Format: (max_depth, max_children)
@@ -321,8 +326,8 @@ main_pipeline:
 # BENCHMARK CONFIGURATION
 # =============================================================================
 benchmark:
-  benchmark_type: "llm_as_a_judge" # Choose the benchmark type: "cosine_similarity", "llm_as_a_judge"
-  benchmark_model: "mistral"  # LLM model to use as a judge: "gemini", "gpt", "mistral", "groq"
+  benchmark_type: "llm_as_a_judge" # Choose the benchmark type: "cosine_similarity", "llm_as_a_judge", "llm_as_judge2"
+  benchmark_model: "mistral"  # LLM model to use as a judge: "mistral", "groq", "qwen", "qwen-ssh"
   benchmark_prompt: "You are a strict evaluator. When I give you a question and an LLM’s answer, you must output ONLY a single character: 1 if the answer is fully correct, or 0 if the answer is incorrect. Do NOT output explanations, chain-of-thought, tags, spaces, punctuation, or any extra text. If you output anything other than exactly 1 or 0, you have failed the task. Your entire reply must be exactly one character: 1 or 0."
   save_data: false
 

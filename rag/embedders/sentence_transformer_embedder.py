@@ -25,15 +25,17 @@ class SentenceTransformerEmbedder(BaseEmbedder):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(config)
         
+        specific_conf = self.config["general"]["sentence_transformer"] 
+        
         # Model configuration
-        self.model_name = self.config.get('embedder.sentence_transformer.model_name', 'all-MiniLM-L6-v2')
-        self.model_path = self.config.get('embedder.sentence_transformer.model_path', "data/sentence_transformer")  # Local path if available
-        self.device = self.config.get('device', None)  # None = auto-detect
-        self.trust_remote_code = self.config.get('trust_remote_code', False)
+        self.model_name = specific_conf.get('model_name', 'all-MiniLM-L6-v2')
+        self.model_path = specific_conf.get('model_path', "data/sentence_transformer")  # Local path if available
+        self.device = specific_conf.get('device', None)  # None = auto-detect
+        self.trust_remote_code = specific_conf.get('trust_remote_code', False)
         
         # Processing configuration
-        self.show_progress_bar = self.config.get('show_progress_bar', True)
-        self.convert_to_numpy = self.config.get('convert_to_numpy', True)
+        self.show_progress_bar = specific_conf.get('show_progress_bar', True)
+        self.convert_to_numpy = specific_conf.get('convert_to_numpy', True)
         
         # Model instance (initialized in initialize())
         self.model = None

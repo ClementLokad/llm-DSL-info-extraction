@@ -2,12 +2,12 @@ from importlib import metadata
 import re
 import pickle
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from rag.core.base_retriever import RetrievalResult, CodeChunk
 from rag.core.base_parser import CodeBlock, BlockType 
 from rag.parsers.envision_parser import EnvisionParser
-from pipeline.agent_workflow.workflow_base import BaseGrepTool
+from pipeline.agent_workflow.workflow_base import BaseGrepTool, _tool_desc
 from get_mapping import get_file_mapping
 from config_manager import get_config
 from rag.utils.script_scanner import collect_constants, scan_string_for_references, replace_constants_in_script
@@ -83,6 +83,7 @@ class GrepTool(BaseGrepTool):
         pattern: str,
         source_regex: Optional[str] = None,
         bloc_type: List[BlockType] = None,
+        warnings: Optional[List[str]] = []
     ) -> List[RetrievalResult]:
         """Returns a list of RetrievalResult objects where the pattern matches the content of the CodeChunk.
 
@@ -90,6 +91,7 @@ class GrepTool(BaseGrepTool):
             pattern (str): A regex pattern to search for in the content of the CodeChunks.
             source_regex (Optional[str], optional): A regex describing the source files to search in. Defaults to None.
             bloc_type (List[BlockType], optional): A list of block types to filter by. Defaults to None.
+            warnings: A list of string that is updated if sources_regex is invalid
         Returns:
             List[RetrievalResult]: A list of RetrievalResult objects containing the matching CodeChunks and their metadata.
         """
@@ -103,6 +105,7 @@ class GrepTool(BaseGrepTool):
                     break
             if not valid:
                 print(f"Warning: No files in the mapping match the source_regex '{source_regex}'. Ignoring source filter.")
+                warnings.append("No files in the codebase match the source_regex so source filter was ignored.")
                 source_regex = None
             
         path_regex = r"(\/|\\)|(\.[a-zA-Z0-9]+$)"
@@ -351,9 +354,55 @@ class GrepTool(BaseGrepTool):
             raise FileNotFoundError(f"Grep index not found at {self.index_path}")
         except Exception as e:
             raise RuntimeError(f"Failed to load grep index: {e}")
+    
+    def get_description(self) -> Dict[str, Any]:
+        return _tool_desc(
+            name="grep_tool",
+            description=(
+                "Exact-match text search across the codebase. "
+                "Best for precise, unambiguous identifiers: a known function name, "
+                "a variable, a file path, a specific string literal, or a unique keyword "
+                "that is unlikely to appear in unrelated contexts. "
+                "Avoid for broad concepts (e.g. 'forecasting', 'cost', 'order') — "
+                "these will produce too many irrelevant matches. Use rag_tool instead."
+            ),
+            properties={
+                "pattern": {
+                    "type": "string",
+                    "description": (
+                        "A precise regex pattern to search for (most of the time a simple string suffices) in the CONTENT of the file. "
+                        "E.g. 'LotMultiplier' or 'show (linechart|label)'."
+                    ),
+                },
+                "sources": {
+                    "type": "string",
+                    "description": (
+                        "Optional regex to restrict the search to files whose path matches. "
+                        "This must be a regex, not a comma-separated list. "
+                        "Use ONLY when necessary as you may miss relevant information otherwise. "
+                        "E.g. '/Modules/' to search only inside the Modules folder."
+                    ),
+                },
+                "block_type": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional list of block types to restrict the search to. "
+                        "Allows targeting specific code structures -> especially useful to know when "
+                        "resources are read or written."
+                        "Valid values: COMMENT, SECTION_HEADER, IMPORT, READ, WRITE, CONST, EXPORT, "
+                        "TABLE_DEFINITION, ASSIGNMENT, SHOW, KEEP_WHERE, FORM_READ, CONTROL_FLOW. "
+                        "E.g. ['READ', 'FORM_READ'] to search only inside read statements."
+                    ),
+                },
+            },
+            required=["pattern"],
+        )
+
 
 if __name__ == "__main__":
     grep_tool = GrepTool()
-    results = grep_tool.search(pattern='read "/Clean/Items.ion"')
+    results = grep_tool.search(pattern='annual.*growth')
+    print(len(results))
     for res in results:
         print(f"File: {res.metadata['original_file_path']}\nContent:\n{res.chunk.content}\n{'-'*40}\n")

@@ -64,7 +64,7 @@ class EnvisionParser(BaseParser):
     @property
     def supported_extensions(self) -> List[str]:
         """Return supported file extensions from configuration."""
-        return self.config.get('parser.supported_extensions', ['.nvn'])
+        return self.config.get('supported_extensions', ['.nvn'])
     
     def parse_content(self, content: str, file_path: str = "") -> List[CodeBlock]:
         """

@@ -1,21 +1,53 @@
 import re
+from abc import abstractmethod
 from typing import TypedDict, List, Optional, Dict, Any, Tuple
 from langgraph.graph import END, StateGraph, START
-from langgraph_base import AgentGraphState, ActionLog
+from pipeline.langgraph_base import AgentGraphState, ActionLog
 from rag.core.base_retriever import RetrievalResult, BaseRetriever
 from rag.core.base_embedder import BaseEmbedder
 from agents.prepare_agent import *
 from config_manager import get_config
 
-from rich.console import Console, Group
-from rich.panel import Panel
-from rich.markdown import Markdown
-from rich.text import Text
-from rich.markup import escape
+from rich.console import Console
 
-# --- 1. New Base Class for Distillation ---
 
-class BaseDistillationTool():
+# ---------------------------------------------------------------------------
+# Tool schema helpers
+# ---------------------------------------------------------------------------
+
+def _tool_desc(name: str, description: str, properties: Dict[str, Any],
+                  required: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Build a Mistral-compatible tool definition dict."""
+    # Add thought property
+    properties["thought"] = {
+        "type": "string",
+        "description": "Your concise reasoning for choosing this tool and these parameters."
+    }
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": (required or []) + ["thought"],
+            },
+        },
+    }
+
+class Tool:
+    """Base Class for all tools"""
+    def get_description(self) -> Dict[str, Any]:
+        """Return a OpenAI-compatible tool schema for this tool."""
+        return _tool_desc(name="base_tool", description='', properties={})
+
+
+# ---------------------------------------------------------------------------
+# Distillation tool
+# ---------------------------------------------------------------------------
+
+class BaseDistillationTool(Tool):
     """
     A base tool for distilling retrieved content into concise knowledge facts.
     Implements 'Distill and Discard' with batch processing to save tokens/calls.
@@ -28,39 +60,34 @@ class BaseDistillationTool():
         self.console = console
         self.rate_limit_delay = get_config().get('agent.rate_limit_delay', 0)
 
-    def distill(self, content: str, query: str, thought: str, verbose=False) -> str:
+    def distill(self, content: str, query: str, thought: str, source: str = None, verbose=False) -> str:
         """Single item distillation (Legacy/Fallback)."""
-        # Placeholder for actual LLM call
         return f"Distilled Fact: Content relevant to '{query}' found."
 
-    def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str, llm_response: str = "", verbose=False) -> List[str]:
+    def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str,
+                      llm_response: str = "", verbose=False) -> List[str]:
         """
         Summarize multiple content items in one go.
-        
+
         Args:
             items: List of (content, source_path_str) tuples.
             query: The user question.
             thought: The planner's current reasoning.
             llm_response: The main LLM's response when given the raw tool results.
-            
+
         Returns:
-            List of (fact_summary, source_path) tuples.
+            List of fact summary strings.
         """
         if not items:
             return []
 
-        # 1. Construct a batch prompt
         prompt_text = (
             f"### CONTEXT\nQuery: {query}\nCurrent Thought: {thought}\n\n"
             f"### DOCUMENTS TO ANALYZE\n"
         )
-        
-        # We verify sources to map them back later
         indexed_sources = {}
-        
         for i, (content, source) in enumerate(items):
-            # Limit content length per chunk to avoid context overflow if needed
-            snippet = content[:2000] 
+            snippet = content[:2000]
             prompt_text += f"--- ITEM {i} (Source: {source}) ---\n{snippet}\n\n"
             indexed_sources[i] = source
 
@@ -71,87 +98,104 @@ class BaseDistillationTool():
             "Return the output as a list where each line is: 'Fact [Source: ITEM X]'"
         )
 
-        # 2. Call LLM (Simulated here)
-        # response = self.llm.invoke(prompt_text)
-        
-        # 3. Simulate structured parsing of the LLM response
-        # In reality, you would parse the "Source: ITEM X" to recover the file path.
         distilled_results = []
         for i, source in indexed_sources.items():
-            # This logic mimics the LLM extracting a fact from Item i
-            # and maintaining the correct source path
             fact = f"Distilled info regarding '{query}' extracted from {source.split('/')[-1]}..."
             distilled_results.append(fact)
-            
+
         return distilled_results
 
 
-class BaseGrepTool():
+# ---------------------------------------------------------------------------
+# Tool base classes — get_description() now returns a Mistral tool schema
+# ---------------------------------------------------------------------------
+
+class BaseGrepTool(Tool):
     """A base tool for performing grep-like operations on text data."""
-    
+
     def __init__(self, search_dirs: List[str]):
         self.search_dirs = search_dirs
 
     def search(self, pattern: str, source_regex: Optional[str] = None) -> List[RetrievalResult]:
-        """Search for pattern in source files"""
-        matches = [] 
-        # Implementation of grep logic would go here
-        return matches
-    
+        """Search for pattern in source files."""
+        return []
+
     def shorten_results(self, pattern: str, results: List[str], limit: int) -> List[str]:
-        """Shortens the elements in results to fit inside at most limit number of lines"""
-        # Implementations of shortening
+        """Shorten results to fit within limit lines."""
         return results
 
-class BaseScriptFinderTool():
+    def get_description(self) -> Dict[str, Any]:
+        """Return a OpenAI-compatible tool schema for this tool."""
+        return _tool_desc(name="grep_tool", description='', properties={})
+
+
+class BaseScriptFinderTool(Tool):
     """A base tool for finding scripts in a codebase."""
+
     def __init__(self, search_dirs: List[str]):
         self.search_dirs = search_dirs
 
     def find_scripts(self, script_names: List[str]) -> List[str]:
-        """
-        Find scripts by name in source files.
-        Returns a list of absolute file paths.
-        """
-        # Implementation of find logic would go here
+        """Find scripts by name. Returns a list of absolute file paths."""
         return ["/path/to/found/script.nvn"]
+
+    def original_path(self, path: str) -> str:
+        """Return the orignal path corresponding to given script"""
+        return path # Placeholder
 
     def read_file(self, file_path: str) -> str:
         """Helper to read file content."""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-                return content
+                return f.read()
         except Exception as e:
-            print(f"Couldn't read the following file {file_path}: {e}")
-            return f"Couldn't read the following file {file_path}."
+            return f"Couldn't read the following file {file_path}: {e}"
 
-class BaseRAGTool():
+    def get_description(self) -> Dict[str, Any]:
+        """Return a OpenAI-compatible tool schema for this tool."""
+        return _tool_desc(name="script_finder_tool", description='', properties={})
+
+
+
+class BaseRAGTool(Tool):
     """A base tool for performing RAG operations."""
-    
+
     def __init__(self, retriever: BaseRetriever):
         self.retriever = retriever
 
-    def retrieve(self, query: str, top_k = get_config().get("rag.top_k_chunks")) -> List[RetrievalResult]:
-        """Retrieve relevant documents based on the query"""
-        results = []
-        # Implementation of retrieval logic would go here
-        return results
+    def retrieve(self, query: str, top_k=None, verbose=False,
+                 key_words=None, sources=None) -> List[RetrievalResult]:
+        """Retrieve relevant documents based on the query."""
+        return []
+
+    def get_description(self) -> Dict[str, Any]:
+        """Return a OpenAI-compatible tool schema for this tool."""
+        return _tool_desc(name="rag_tool", description='', properties={})
+
+
+
+# ---------------------------------------------------------------------------
+# State definitions
+# ---------------------------------------------------------------------------
 
 class WorkflowState(TypedDict):
-    """State definition for the agent workflow."""
-    pipeline_state: AgentGraphState # The state of the overall pipeline
-    regenerate: bool 
+    """State definition for the agent workflow sub-graph."""
+    pipeline_state: AgentGraphState
+    regenerate: bool
     current_thought: Optional[str]
-    tool: Optional[str] 
-    tool_parameter: Optional[Any] 
     rewritten_prompt: Optional[str]
     local_grep_retries: Optional[Tuple[int, int]] # Contains (number of retries, last number of grep results)
+    # tool-calling round-trip state
+    pending_tool_call: Optional[Dict[str, Any]]  # {tool_id, tool_name, arguments}
 
+
+# ---------------------------------------------------------------------------
+# Base workflow
+# ---------------------------------------------------------------------------
 
 class BaseAgentWorkflow(StateGraph):
     """A base workflow for agent operations."""
-    
+
     def __init__(self, rag_tool: BaseRAGTool, grep_tool: BaseGrepTool,
                  script_finder_tool: BaseScriptFinderTool,
                  distillation_tool: BaseDistillationTool,
@@ -165,91 +209,70 @@ class BaseAgentWorkflow(StateGraph):
         
         with open("base_instructions.txt", "r") as file:
             self.base_instructions = file.read()
-    
-    # --- Helper: History Management ---
-    
+
+    # -----------------------------------------------------------------------
+    # History helpers
+    # -----------------------------------------------------------------------
+
     def _get_history(self, state: WorkflowState) -> List[ActionLog]:
         """Safely retrieve execution history from the pipeline state."""
-        # Assuming 'execution_history' is added to GraphState, or we inject it dynamically
         return state['pipeline_state'].get("execution_history", [])
 
-    def _append_history(self, state: WorkflowState, tool: str, param: str, summary: str, thought: str,
+    def _append_history(self, state: WorkflowState, tool: str, param: Any, summary: str, thought: str,
                         results_to_analyse: Optional[List[RetrievalResult]] = None) -> None:
         """Append a new action to the history."""
-        # Get existing history from the global pipeline state
         history = self._get_history(state)
-        
-        step_num = len(history) + 1
-        
         new_log: ActionLog = {
-            "step": step_num,
+            "step": len(history) + 1,
             "thought": thought,
             "tool": tool,
             "parameter": str(param),
             "outcome_summary": summary,
-            "results_to_analyse": results_to_analyse
+            "results_to_analyse": results_to_analyse,
         }
-        
-        # Ensure the list exists and append
         if "execution_history" not in state['pipeline_state']:
             state['pipeline_state']["execution_history"] = []
         state['pipeline_state']["execution_history"].append(new_log)
 
-    def _parse_tag(self, tag, text):
+    def _parse_tag(self, tag: str, text: str) -> str:
         match = re.search(f"<{tag}>(.*?)</{tag}>", text, re.DOTALL)
         return match.group(1).strip() if match else ""
 
-    # --- 4. The Context Assembler (Updated for History) ---
+    # -----------------------------------------------------------------------
+    # Prompt builders
+    # -----------------------------------------------------------------------
 
     def design_first_part_prompt(self, state: WorkflowState) -> str:
         """
-        Constructs the 'World State' prompt.
-        Now includes: Question, Knowledge Bank (Facts), AND Execution History (Strategy).
+        Constructs the 'World State' section that precedes every Solver prompt.
+        Contains: question, knowledge bank, current thought.
         """
         question = state['pipeline_state']['question']
         knowledge_bank = state['pipeline_state'].get("knowledge_bank", [])
-        history = self._get_history(state)
         thought = state.get('current_thought', None)
-        
-        # A. Identity
-        prompt = self.base_instructions + (
-            "\n### SYSTEM ROLE\n"
-            "You are an expert technical assistant working on a **Lokad Envision** codebase.\n"
-            "Lokad is a supply chain optimization company, and Envision is their specialized programming language designed for quantitative supply chain logic and probabilistic forecasting.\n"
-            "Your goal is to answer the user's question by exploiting data from previous retrieval steps.\n"
-            "Please cite the relevant sources (files) in your answer if not already done.\n\n"
-            f"### QUESTION\n{question}\n\n"
-        )
 
-        # B. Accumulated Knowledge (The "Facts")
-        # This tells the Solver (and Planner) what we learned from those actions.
+        user_prompt = f"### QUESTION\n{question}\n\n"
         if knowledge_bank:
-            prompt += "### VERIFIED FACTS (Accumulated Knowledge)\n"
+            user_prompt += "### VERIFIED FACTS (Accumulated Knowledge)\n"
             for i, fact in enumerate(knowledge_bank):
-                prompt += f"{i}. {fact}\n"
-            prompt += "\n"
+                user_prompt += f"{i+1}. {fact}\n"
+            user_prompt += "\n"
         else:
-            prompt += "### VERIFIED FACTS\n(No relevant facts have been gathered yet.)\n\n"
+            user_prompt += "### VERIFIED FACTS\n(No relevant facts have been gathered yet.)\n\n"
 
-        # C. Current thought (for correction)
         if thought:
-            prompt += "### CURRENT THOUGHT\n"
-            prompt += f"{thought}\n\n"
-        
-        return prompt
-    
-    def _get_optimized_history_str(self, history: List[ActionLog]) -> str:
-        """
-        Génère une chaîne de caractères optimisée pour l'historique.
-        Stratégie : Garder complet le début et la fin, résumer le milieu.
-        """
+            user_prompt += f"### CURRENT THOUGHT\n{thought}\n\n"
+
+        return user_prompt
+
+    def _get_optimized_history_str(self, history: List["ActionLog"]) -> str:
+        """Compact history string – full for ≤5 steps, compressed otherwise."""
         if not history:
             return "(No previous actions taken.)"
-            
+
         total_steps = len(history)
         history_str = ""
-        
-        # Seuil : Si moins de 5 étapes, on affiche tout
+
         if total_steps <= 5:
             for log in history:
                 history_str += (
@@ -260,8 +283,6 @@ class BaseAgentWorkflow(StateGraph):
                 )
             return history_str
 
-        # Sinon : Compression
-        # 1. Première étape (Contexte initial)
         first = history[0]
         history_str += (
             f"- Step {first['step']} (Start):\n"
@@ -269,14 +290,10 @@ class BaseAgentWorkflow(StateGraph):
             f"  * Tool: {first['tool']} -> {first['parameter']}\n"
             f"  * Outcome: {first['outcome_summary']}\n"
         )
-        
-        # 2. Résumé du milieu (Texte statique pour économiser des tokens, pas d'appel LLM)
         history_str += (
             f"\n... [Steps 2 to {total_steps - 3} were executed. Details hidden for brevity. "
             f"The agent tried various strategies which led to the current state.] ...\n\n"
         )
-        
-        # 3. Les 3 dernières étapes (Détail complet pour la prise de décision immédiate)
         for log in history[-3:]:
             history_str += (
                 f"- Step {log['step']}:\n"
@@ -284,255 +301,59 @@ class BaseAgentWorkflow(StateGraph):
                 f"  * Tool: {log['tool']} -> {log['parameter']}\n"
                 f"  * Outcome: {log['outcome_summary']}\n"
             )
-            
         return history_str
 
+    @abstractmethod
     def design_planner_prompt(self, state: WorkflowState) -> str:
-        """
-        Creates a specialized prompt for the 'Planner' role.
-        Handles two modes:
-        1. Kickoff Mode: First pass, simplified, focus on initial discovery.
-        2. Review Mode: Subsequent passes, full context analysis, focus on gap filling.
-        """
-        question = state['pipeline_state']['question']
-        history = self._get_history(state)
-        knowledge_bank = state['pipeline_state'].get("knowledge_bank", [])
-        
-        prompt = "" # Placeholder for actual planner prompt
+        """Override in subclasses to return the planner's system-role string."""
+        raise NotImplementedError("Subclasses must implement design_planner_prompt.")
 
-        return prompt
+    # -----------------------------------------------------------------------
+    # Planner node
+    # -----------------------------------------------------------------------
 
-    # --- 5. The Planner (Consumes History) ---
-
+    @abstractmethod
     def agentic_router(self, state: WorkflowState) -> WorkflowState:
         """
-        The Planner Node.
-        Generates a Plan (Thought) and selects a Tool.
+        Planner node — must be overridden by concrete subclasses.
+        Base implementation is a no-op placeholder.
         """
-        self.console.print("[dim]--- SUB-NODE: Agentic Router (Planner) ---[/dim]")
-        
-        planning_prompt = self.design_planner_prompt(state)
-        
-        # Call LLM (Pseudo-code)
-        # response = llm.invoke(planning_prompt)
-        # For simulation, let's pretend the LLM returns this:
-        response_text = """
-        <thought>
-        I have found the 'main.py' file, but I don't know which port the server listens on.
-        I should grep for 'PORT' or 'listen' in that file to find the configuration.
-        </thought>
-        <tool>grep_tool</tool>
-        <parameter>listen</parameter>
-        """
-        
-        # Parse XML (Simple regex helper)
-        thought = self._parse_tag("thought", response_text)
-        tool = self._parse_tag("tool", response_text)
-        parameter = self._parse_tag("parameter", response_text)
-
-        # 5. Update State
-        # We store the thought in 'current_thought' so the Tool node can access it later
-        state['current_thought'] = thought
-        state['tool'] = tool
-        state['tool_parameter'] = parameter
-        
-        state["regenerate"] = (tool != "grade_answer" and state["pipeline_state"]["retry_count"] <= get_config().get("main_pipeline.agent_logic.max_retries", 5))
-        
-        if state["pipeline_state"]["verbose"]:
-            prompt_content = Panel(f"Planner Prompt:\n{escape(planning_prompt)}\n\n", title="Planner Prompt", border_style="purple")
-            tool_content = Text.from_markup(f"\nPlanner selected tool: [bold green]{escape(tool)}[/bold green] with "
-                                            f"parameter: [bold orange]{escape(parameter)}[/bold orange]\n")
-            thought_content = Panel(Markdown(f"Thought: {thought}"), title="Thought", border_style="blue")
-            self.console.print(Panel(Group(prompt_content, tool_content, thought_content), title="Planner", border_style="red"))
-
-        return state
+        raise NotImplementedError("Subclasses must implement agentic_router.")
 
     def decide_after_routing(self, state: WorkflowState) -> str:
         self.console.print("[dim]--- SUB-DECISION: After Routing ---[/dim]")
         if state["regenerate"]:
             if state["pipeline_state"]["verbose"]:
-                self.console.print(f"[dim]    -> Routing to tool: [green]{state['tool']}[/green][/dim]")
-            return f"{state['tool']}"
+                self.console.print(f"[dim]    -> Routing to tool: [green]{state['pending_tool_call']['tool_name']}[/green][/dim]")
+            return str(state['pending_tool_call']['tool_name'])
         return "grade_answer"
 
-    # --- 6. The Tools (Producers of History) ---
+    # -----------------------------------------------------------------------
+    # Tool nodes
+    # -----------------------------------------------------------------------
 
-    def use_rag_tool(self, state: WorkflowState) -> WorkflowState:    
-        self.console.print("[dim]--- SUB-NODE: RAG Tool ---[/dim]")
-        query = state["tool_parameter"]
-        # Retrieve the thought generated by the Planner
-        thought = state.get("current_thought", "No reasoning provided.")
-        
-        # 1. Execute
-        results = self.rag_tool.retrieve(query=query, verbose=state['pipeline_state']['verbose'])
-        
-        if state['pipeline_state']['verbose']:
-            self.console.print(f"RAG retrieved {len(results)} results for query: '{escape(query)}'")
-        
-        # 2. Batch Distillation
-        # Prepare inputs: list of (content, file_path)
-        items_to_distill = []
-        for r in results:
-            # Safely get file path or default to 'Unknown'
-            src = r.chunk.metadata.get('original_file_path', 'Unknown Source')
-            items_to_distill.append((r.chunk.content, src))
-            
-        # Call batch distillation once
-        new_facts = self.distillation_tool.distill_batch(items=items_to_distill, query=query,
-                                                         thought=thought, verbose=state['pipeline_state']['verbose'])
-        
-        if "knowledge_bank" not in state['pipeline_state']:
-            state['pipeline_state']["knowledge_bank"] = []
-        state['pipeline_state']["knowledge_bank"].extend(new_facts)
-        
-        # 3. Update History
-        count = len(results)
-        outcome_str = f"Retrieved {count} chunks. Extracted {len(new_facts)} relevant facts."
-        self._append_history(state, "rag_tool", query, outcome_str, thought)
-        
-        # 4. Prompt for Solver
-        base_prompt = self.design_first_part_prompt(state)
-        state['rewritten_prompt'] = (
-            f"{base_prompt}"
-            f"### INSTRUCTION\n"
-            f"New RAG data regarding '{query}' has been distilled into Verified Facts.\n"
-            f"If this is sufficient, answer the question. If not, specify what is missing."
-        )
-        return state
+    @abstractmethod
+    def use_rag_tool(self, state: WorkflowState) -> WorkflowState:
+        """Override in subclasses to call the rag tool and update the state"""
+        raise NotImplementedError("Subclasses must implement use_rag_tool.")
 
+    @abstractmethod
     def use_grep_tool(self, state: WorkflowState) -> WorkflowState:
-        self.console.print("[dim]--- SUB-NODE: Grep Tool ---[/dim]")
-        pattern = state["tool_parameter"]
-        
-        sources_match = re.search(f"<sources>(.*?)</sources>", pattern, re.DOTALL)
-    
-        source_regex = None
+        """Override in subclasses to call the grep tool and update the state"""
+        raise NotImplementedError("Subclasses must implement use_grep_tool.")
 
-        if sources_match:
-            # Extract the source regex inside <sources>
-            source_regex = sources_match.group(1).strip()
-            
-            # Remove the entire <sources> block from raw_content to isolate the grep pattern
-            # This handles cases like: "read <sources>file1</sources>" -> "read"
-            pattern = pattern.replace(sources_match.group(0), "").strip()
-        
-        # Retrieve the thought generated by the Planner
-        thought = state.get("current_thought", "No reasoning provided.")
-        
-        # 1. Execute
-        results = self.grep_tool.search(pattern=pattern, source_regex=source_regex)
-        
-        if state['pipeline_state']['verbose']:
-            self.console.print(f"Grep found {len(results)} matches for pattern: '{escape(pattern)}'")
-        
-        shortened_res = False
-        if len(results) > get_config().get("main_pipeline.grep_tool.max_results"):
-            results = results[:get_config().get("main_pipeline.grep_tool.max_results")]
-            shortened_res = True
-        
-        
-        if state['pipeline_state']['verbose'] and shortened_res:
-                self.console.print(f"Only the first {get_config().get('main_pipeline.grep_tool.max_results')} were analysed")
-        
-        # 2. Batch Distillation
-        # Instead of just listing matches, we analyze the code context around the match
-        items_to_distill = []
-        for r in results:
-            src = r.chunk.metadata.get('original_file_path', 'Unknown Source')
-            # Pass the code content found by grep
-            items_to_distill.append((r.chunk.content, src))
-            
-        # Distill: "What does this code actually do?"
-        new_facts = self.distillation_tool.distill_batch(items=items_to_distill, query=pattern,
-                                                         thought=thought, verbose=state['pipeline_state']['verbose'])
-        
-        if results == []:
-            new_facts.append(f"No matches found for pattern '{pattern}' in {f'sources matching the pattern {source_regex}' if source_regex else 'database'}.")
-        
-        if "knowledge_bank" not in state['pipeline_state']:
-            state['pipeline_state']["knowledge_bank"] = []
-        state['pipeline_state']["knowledge_bank"].extend(new_facts)
-        
-        # 3. Update History
-        match_count = len(results)
-        outcome_str = f"Grep found {match_count} matches."
-        if shortened_res:
-            outcome_str += f"Only the first {get_config().get('main_pipeline.grep_tool.max_results')} were analyzed."
-        outcome_str += f"Extracted {len(new_facts)} relevant facts."
-        self._append_history(state, "grep_tool", pattern, outcome_str, thought)
-        
-        # 4. Design Prompt for Solver
-        base_prompt = self.design_first_part_prompt(state)
-        state['rewritten_prompt'] = (
-            f"{base_prompt}"
-            "### INSTRUCTION\n"
-            f"Code search for '{pattern}' completed. "
-        )
-        if shortened_res:
-            state['rewritten_prompt'] += f'\nWARNING: Results truncated, only first {get_config().get("main_pipeline.grep_tool.max_results")} were analyzed.\n'
-        elif results == []:
-            state['rewritten_prompt'] += f"\nWARNING: No matches were found for pattern '{pattern}' in {f'sources matching the pattern {source_regex}' if source_regex else 'database'}.\n"
-        state['rewritten_prompt'] += (
-            "See results in Verified Facts/History.\n"
-            "If additional information is needed, specify what is missing. Otherwise, analyze the results to answer the question.\n"
-        )
-        return state
-
+    @abstractmethod
     def use_script_finder_tool(self, state: WorkflowState) -> WorkflowState:
-        self.console.print("[dim]--- SUB-NODE: Script Finder Tool ---[/dim]")
-        raw_parameter = state["tool_parameter"] # This is likely a string like "main.py, utils.py"
-        thought = state.get("current_thought", "No reasoning provided.")
-        
-        # --- PARSING FIX ---
-        # Convert comma-separated string to list, cleaning whitespace
-        if isinstance(raw_parameter, str):
-            script_names = [name.strip() for name in raw_parameter.split(',')]
-        else:
-            script_names = raw_parameter # Fallback if it somehow comes as list
-        
-        # 1. Execute Find
-        # This usually returns a list of paths, e.g., ["/src/utils/cleanup.py"]
-        found_paths = self.script_finder_tool.find_scripts(script_names=script_names)
-        
-        # 2. Read & Distill Content
-        new_facts = []
-        for path in found_paths:
-            # We must READ the file content here to make it useful
-            # Assuming BaseScriptFinderTool has a helper or we use a file utility
-            file_content = self.script_finder_tool.read_file(path)
-            new_facts.append((self.distillation_tool.distill(content=file_content,
-                                                            query=state["pipeline_state"]["question"],
-                                                            thought=thought, verbose=state['pipeline_state']['verbose']), path))
-        
-        if "knowledge_bank" not in state['pipeline_state']:
-            state['pipeline_state']["knowledge_bank"] = []
-
-        # Add the distilled content facts
-        state['pipeline_state']["knowledge_bank"].extend(new_facts)
-        
-        # 3. Update History
-        outcome_str = f"Found {len(found_paths)} scripts. Content read and distilled."
-        if len(found_paths) < len(script_names):
-            outcome_str += f" {len(script_names)-len(found_paths)} could not be found. Only the following scripts were found : {found_paths}"
-        self._append_history(state, "script_finder_tool", script_names, outcome_str, thought)
-        
-        # 4. Design Prompt
-        base_prompt = self.design_first_part_prompt(state)
-        state['rewritten_prompt'] = (
-            f"{base_prompt}"
-            f"### INSTRUCTION\n"
-            f"The scripts {found_paths} have been located and analyzed, the details have been added to Verified Facts.\n"
-            f"If additional information is needed, specify what is missing. Otherwise, analyze the results to answer the question.\n"
-        )
-        return state
+        """Override in subclasses to call the script finder tool and update the state"""
+        raise NotImplementedError("Subclasses must implement use_script_finder_tool.")
 
     def use_simple_regeneration_tool(self, state: WorkflowState) -> WorkflowState:
+        """This tool is not supposed to be called by the planner LLM directly but it is a fallback
+        if the tool calling failed."""
         self.console.print("[dim]--- SUB-NODE: Simple Regeneration Tool ---[/dim]")
-        # Note: Regeneration usually doesn't add to history unless it was a distinct step,
-        # but tracking it helps avoid infinite regen loops.
-        self._append_history(state, "regeneration", "N/A", "Refined the reasoning prompt.", state["current_thought"])
-        additional_advice = state["tool_parameter"]
-        
+        self._append_history(state, "regeneration", "N/A",
+                             "Refined the reasoning prompt.", state["current_thought"])
+        additional_advice = state["pending_tool_call"].get("arguments", {}).get("advice", "")
         base_prompt = self.design_first_part_prompt(state)
         state['rewritten_prompt'] = (
             f"{base_prompt}"
@@ -542,15 +363,18 @@ class BaseAgentWorkflow(StateGraph):
         )
         return state
 
+    # -----------------------------------------------------------------------
+    # Graph assembly
+    # -----------------------------------------------------------------------
+
     def build_graph(self):
         self.add_node("agentic_router", self.agentic_router)
         self.add_node("rag_tool", self.use_rag_tool)
         self.add_node("grep_tool", self.use_grep_tool)
         self.add_node("script_finder_tool", self.use_script_finder_tool)
         self.add_node("simple_regeneration_tool", self.use_simple_regeneration_tool)
-        
+
         self.add_edge(START, "agentic_router")
-        
         self.add_conditional_edges(
             "agentic_router",
             self.decide_after_routing,
@@ -559,13 +383,12 @@ class BaseAgentWorkflow(StateGraph):
                 "grep_tool": "grep_tool",
                 "script_finder_tool": "script_finder_tool",
                 "simple_regeneration_tool": "simple_regeneration_tool",
-                "grade_answer": END 
-            }
+                "grade_answer": END,
+            },
         )
-        
         self.add_edge("rag_tool", END)
         self.add_edge("grep_tool", END)
         self.add_edge("script_finder_tool", END)
         self.add_edge("simple_regeneration_tool", END)
-        
+
         return self.compile()
