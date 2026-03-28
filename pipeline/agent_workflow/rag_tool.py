@@ -135,9 +135,10 @@ class AdvancedRAGTool(SimpleRAGTool):
     This class uses a provided retriever to perform retrieval operations.
     """
     
-    def __init__(self, retriever: QdrantRetriever, embedder: QdrantEmbedder):
+    def __init__(self, retriever: QdrantRetriever, embedder: QdrantEmbedder, query_transformer):
         self.retriever = retriever
         self.embedder = embedder
+        self.query_transformer = query_transformer
         self.rate_limit_delay = get_config().get("agent.rate_limit_delay")
         self.cross_encoding = get_config().get("main_pipeline.rag_tool.cross_encoding", False)
         self.ce_multiplier = get_config().get("main_pipeline.rag_tool.cross_encoding_multiplier", 3)
@@ -201,24 +202,14 @@ class AdvancedRAGTool(SimpleRAGTool):
         if self.cross_encoding:
             retrieval_k = top_k*self.ce_multiplier
 
-        if get_config().get('rag.fusion', False):
-            base_fusion_question = (
-                "You are an expert Envision/Lokad developer. "
-                "Re-write the following user query into 2 different, highly specific technical queries "
-                "that mean the exact same thing but use different programming synonyms or codebase terminology. "
-                "Separate each re-written query with a $ character. Do not add preamble.\n"
-                "Query: "
-            )            
-            if self.rate_limit_delay > 0:
-                time.sleep(self.rate_limit_delay)
-                
-            self.agent.reset_context() 
-            raw_questions = self.agent.generate_response(user_message=query, system_prompt=base_fusion_question)
+        # Query transform mode: transform the query before retrieval
+        if self.query_transformer:
+            transformed_question_list = self.query_transformer.transform(query)
+
             if verbose:
-                print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
-            questions = raw_questions.split("$")
-            questions = [query] + [q.strip() for q in questions if q.strip()]
-            for sub_question in questions:
+                self.console.print(f"[dim]Raw answer from LLM after query transformation : {', '.join(transformed_question_list)}[/dim]")
+
+            for sub_question in transformed_question_list:
                 results.extend(self.retriever.search_hybrid(sub_question, self.embedder, top_k=retrieval_k,
                                                             keywords=key_words, source_substrings=sources))
             results = self.merge_rag_results(results)[:retrieval_k*2]

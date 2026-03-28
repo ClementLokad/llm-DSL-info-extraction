@@ -10,7 +10,7 @@ class ChunkSummarizer():
     summaries ready to be embedded.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, raptor = False):
         config = config or {}
         self.summary_agent = prepare_agent.prepare_summary_agent()
         self.summary_prompt = (

@@ -10,6 +10,10 @@ from rag.core.base_retriever import BaseRetriever
 from rag.retrievers.faiss_retriever import FAISSRetriever
 from rag.retrievers.qdrant_retriever import QdrantRetriever
 
+from rag.core.base_query_transformer import BaseQueryTransformer
+from rag.query_transformers.fusion_query_transformer import FusionQueryTransformer 
+from rag.query_transformers.hyde_query_transformer import HydeQueryTransformer 
+
 def get_default_embedder(embedder_type: str = None) -> BaseEmbedder:
     if embedder_type is None:
         emb = get_config().get("embedder.default_type", "qdrant")
@@ -40,3 +44,18 @@ def get_default_retriever(retriever_type: str = None) -> BaseRetriever:
         return QdrantRetriever(get_config().get_retriever_config("qdrant"))
     else:
         raise ValueError(f"Unknown retriever type: {ret}")
+    
+def get_default_query_transformer(query_transformer_type: str = None) -> BaseQueryTransformer:
+    if query_transformer_type is None:
+        qt = get_config().get("query_transformer.type", "fusion")
+    else:
+        qt = query_transformer_type.lower()
+    
+    if not qt:
+        return None
+    elif qt == "hyde":
+        return HydeQueryTransformer(get_config().get_query_transformer_config())
+    elif qt == "fusion":
+        return FusionQueryTransformer(get_config().get_query_transformer_config())
+    else:
+        raise ValueError(f"Unknown retriever type: {qt}")
