@@ -52,9 +52,6 @@ class SimpleRAGTool(BaseRAGTool):
         # Query transform mode: transform the query before retrieval
         if self.query_transformer:
             transformed_question_list = self.query_transformer.transform(query)
-
-            if verbose:
-                self.console.print(f"[dim]Raw answer from LLM after query transformation : {', '.join(transformed_question_list)}[/dim]")
             
             for sub_question in transformed_question_list:
                 emb = self.embedder.embed_text(sub_question)
@@ -205,9 +202,6 @@ class AdvancedRAGTool(SimpleRAGTool):
         # Query transform mode: transform the query before retrieval
         if self.query_transformer:
             transformed_question_list = self.query_transformer.transform(query)
-
-            if verbose:
-                self.console.print(f"[dim]Raw answer from LLM after query transformation : {', '.join(transformed_question_list)}[/dim]")
 
             for sub_question in transformed_question_list:
                 results.extend(self.retriever.search_hybrid(sub_question, self.embedder, top_k=retrieval_k,
