@@ -11,7 +11,7 @@ class FusionQueryTransformer(BaseQueryTransformer):
         super().__init__(config)
         self.agent = prepare_agent.prepare_query_transformer_agent()
         self.rate_limit_delay = config.get('agent.rate_limit_delay', 0)
-        self.fusion_prompt = f"Take the following complex question and decompose it into {self.generated_instances_amount} distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text \n"
+        self.fusion_prompt = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text \n"
 
     def transform(self, query : str) -> list[str]:
         if self.rate_limit_delay > 0:
