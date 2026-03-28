@@ -9,7 +9,7 @@ class HydeQueryTransformer(BaseQueryTransformer):
         super().__init__(config)
         self.index_type = config.get('embedder.index_type', "full_chunk")
 
-    def transform(self, query : str) -> list[str]:
+    def transform(self, query : str, verbose: bool = False) -> list[str]:
         if self.index_type == "summaries":
             self.hyde_prompt = f"Act as an Envision DSL expert. Generate {self.generated_instances_amount} concise technical summaries (max 150 words) of a script answering this query: {query}. Your response must only be the juxtaposition of these summaries, with each one separated by a $ character. Do not add any preamble, explanation, or other text \n"
 
@@ -21,5 +21,14 @@ class HydeQueryTransformer(BaseQueryTransformer):
             time.sleep(self.rate_limit_delay)
         
         sub_queries = self.agent.generate_response(self.hyde_prompt + query)
-        sub_queries_list = sub_queries.split("$")
+        sub_queries_list = [q.strip() for q in sub_queries.split("$") if q.strip()]
+        
+        if verbose:
+            print(f"[Query HyDE] Original query: {query}")
+            print(f"[Query HyDE] Generated {len(sub_queries_list)} instances:")
+            for i, sub_q in enumerate(sub_queries_list, 1):
+                # Truncate long outputs for readability
+                display_text = sub_q if len(sub_q) < 100 else sub_q[:97] + "..."
+                print(f"  {i}. {display_text}")
+        
         return sub_queries_list

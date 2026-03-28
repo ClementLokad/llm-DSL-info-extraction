@@ -11,11 +11,18 @@ class FusionQueryTransformer(BaseQueryTransformer):
         super().__init__(config)
         self.agent = prepare_agent.prepare_query_transformer_agent()
         self.rate_limit_delay = config.get('agent.rate_limit_delay', 0)
-        self.fusion_prompt = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text \n"
+        self.fusion_prompt = f"Take the following complex question and decompose it into {self.generated_instances_amount} distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text \n"
 
-    def transform(self, query : str) -> list[str]:
+    def transform(self, query : str, verbose: bool = False) -> list[str]:
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)
         sub_queries = self.agent.generate_response(self.fusion_prompt + query)
-        sub_queries_list = sub_queries.split("$")
+        sub_queries_list = [q.strip() for q in sub_queries.split("$") if q.strip()]
+        
+        if verbose:
+            print(f"[Query Fusion] Original query: {query}")
+            print(f"[Query Fusion] Generated {len(sub_queries_list)} sub-questions:")
+            for i, sub_q in enumerate(sub_queries_list, 1):
+                print(f"  {i}. {sub_q}")
+        
         return sub_queries_list
