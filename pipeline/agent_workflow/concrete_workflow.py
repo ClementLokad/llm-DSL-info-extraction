@@ -100,6 +100,7 @@ def _build_planner_tools(tools: List[Tool], include_grade: bool = True) -> List[
 VALID_TOOLS = {
     "rag_tool",
     "grep_tool",
+    "graph_tool",
     "script_finder_tool",
     "tree_tool",
     "submit_answer",
@@ -115,6 +116,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self,
         rag_tool: BaseRAGTool,
         grep_tool: BaseGrepTool,
+        graph_tool,
         script_finder_tool: BaseScriptFinderTool,
         distillation_tool: BaseDistillationTool,
         tree_tool: BaseTreeTool,
@@ -123,6 +125,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         super().__init__(rag_tool, grep_tool, script_finder_tool,
                          distillation_tool, console)
         self.tree_tool = tree_tool
+        self.graph_tool = graph_tool
         self.config_manager = config_manager.get_config()
         self.planner_llm = prepare_agent(
             self.config_manager.get(
@@ -153,6 +156,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "### PLANNING INSTRUCTIONS\n"
             "1. Identify the most critical keyword or concept in the Mission Goal.\n"
             "2. Choose the tool that matches the nature of what you are looking for:\n"
+            " - The question is structural (folder hierarchy, dependencies, read/write/import links)\n"
+            "    → graph_tool is preferred for graph-native navigation.\n"
             " - The question mentions a specific file path, function name, variable,"
             " or string literal that is unlikely to appear in unrelated contexts\n"
             "    → grep_tool is precise and fast for exact matches.\n"
@@ -202,6 +207,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "but FAILS (b) unless search results explicitly confirmed the absence. "
             "In that case, proceed to the Exhaustiveness Check.\n\n"
             "2. EXHAUSTIVENESS CHECK: If the answer is negative or uncertain, ask yourself:\n"
+            "- Did I try graph_tool for structural relationships?\n"
             "- Did I try both rag_tool AND grep_tool?\n"
             "- Did I try boosting rag results with sources and/or kewords ?\n"
             "- Did I vary the query language (e.g. synonyms, related concepts)?\n"
@@ -274,7 +280,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 tools=planner_tools,
                 tool_choice="any",
             )
-        except ValueError as exc:
+        except Exception as exc:
             # Model fell back to plain text — redirect to self-correction
             self.console.print(
                 f"[dim][yellow]Planner fallback (grep refine): {exc}[/yellow][/dim]"
@@ -319,7 +325,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 tools=planner_tools,
                 tool_choice="any",
             )
-        except ValueError as exc:
+        except Exception as exc:
             self.console.print(
                 f"[dim][yellow]Planner fallback (tree follow-up): {exc}[/yellow][/dim]"
             )
@@ -328,6 +334,49 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 tool_id="fallback",
                 arguments={"advice": str(exc)},
             )
+        
+    def _plan_rag_followup(self, state, planner_tools) -> "ToolCallResult":
+        """Handle the RAG-tool follow-up branch.
+        
+        Called when the previous tool was rag_tool but no results were found. 
+        The model can use the RAG output (stored in state['rewritten_prompt']) 
+        as context to decide how to proceed — whether to try grep_tool with specific 
+        keywords/sources, or to reformulate the query and try RAG again."""
+        # --- Step 1: Retrieve RAG output and clean up history ---
+        rag_output = state["rewritten_prompt"]
+        state["pipeline_state"]["execution_history"] = (
+            state["pipeline_state"]["execution_history"][:-1]
+        )
+        
+        # --- Step 2: Submit RAG result and ask for the next tool ---
+        pending = state.get("pending_tool_call", {})
+        try:
+            return self.planner_llm.submit_tool_result_and_continue(
+                tool_call_id=pending.get("tool_id", "unknown"),
+                tool_name="rag_tool",
+                result=(
+                    "The RAG search did not return any relevant results. "
+                    "Here is the context that was used for the search:\n\n"
+                    f"{rag_output}"
+                ),
+                next_instruction=(
+                    "Based on this information, select the next tool to call. "
+                    "You might want to try grep_tool with specific keywords/sources, "
+                    "or reformulate the query and try RAG again."
+                ),
+                tools=planner_tools,
+                tool_choice="any",
+            )
+        except Exception as exc:
+            self.console.print(
+                f"[dim][yellow]Planner fallback (RAG follow-up): {exc}[/yellow][/dim]"
+            )
+            return ToolCallResult(
+                tool_name="simple_regeneration_tool",
+                tool_id="fallback",
+                arguments={"advice": str(exc)},
+            )
+
     
     
     def _plan_normal(self, state, planner_tools, is_continuation) -> "tuple[ToolCallResult, str, str]":
@@ -358,7 +407,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                     system_prompt=system_prompt,
                     tool_choice="any",
                 )
-            except ValueError as exc:
+            except Exception as exc:
                 self.console.print(
                     f"[dim][yellow]Planner fallback (kickoff): {exc}[/yellow][/dim]"
                 )
@@ -381,15 +430,30 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # prevents it from pattern-matching directly to submit_answer based on
         # the surface form of the Proposed Solution.  The written reasoning
         # becomes prior context that constrains the tool selection in step 2.
-        reasoning = self.planner_llm.generate_response(
-            user_message=(
-                "Follow the flowchart in your instructions step by step. "
-                "Write out your reasoning for each step explicitly, "
-                "then state which tool you will call and why."
-            ),
-            system_prompt=system_prompt,
-            temperature=0.2,
-        )
+        try:
+            reasoning = self.planner_llm.generate_response(
+                user_message=(
+                    "Follow the flowchart in your instructions step by step. "
+                    "Write out your reasoning for each step explicitly, "
+                    "then state which tool you will call and why."
+                ),
+                system_prompt=system_prompt,
+                temperature=0.2,
+            )
+        except Exception as exc:
+            self.console.print(
+                f"[dim][yellow]Planner fallback (continuation reasoning): {exc}[/yellow][/dim]"
+            )
+            return ToolCallResult(
+                tool_name="grade_answer",
+                tool_id="fallback",
+                arguments={
+                    "thought": (
+                        "Planner reasoning step failed due to provider error; "
+                        "proceeding with current answer."
+                    )
+                },
+            ), system_prompt, reasoning
     
         # Step 2 — Forced tool call.
         # The model's own reasoning from step 1 is now in self.context; it cannot
@@ -401,17 +465,19 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 tool_choice="any",
                 # system_prompt intentionally omitted — already in context from step 1
             )
-        except ValueError as exc:
+        except Exception as exc:
             self.console.print(
                 f"[dim][yellow]Planner fallback (continuation): {exc}[/yellow][/dim]"
             )
             tool_call = ToolCallResult(
-                tool_name="simple_regeneration_tool",
+                tool_name="grade_answer",
                 tool_id="fallback",
-                arguments={"advice": (
-                    "The planner failed to select a valid tool. "
-                    "Please re-examine the question and select the most appropriate tool."
-                )},
+                arguments={
+                    "thought": (
+                        "Planner tool-selection step failed due to provider error; "
+                        "proceeding with current answer."
+                    )
+                },
             )
     
         return tool_call, system_prompt, reasoning
@@ -448,7 +514,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         include_grade = is_continuation
     
         planner_tools = _build_planner_tools(
-            tools=[self.rag_tool, self.grep_tool, self.tree_tool, self.script_finder_tool],
+            tools=[self.rag_tool, self.grep_tool, self.graph_tool, self.tree_tool, self.script_finder_tool],
             include_grade=include_grade,
         )
     
@@ -469,6 +535,12 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             and history[-1]["tool"] == "tree_tool"
             and state.get("rewritten_prompt")
         )
+
+        rag_followup_active = (
+            history
+            and history[-1]["tool"] == "rag_tool"
+            and state.get("rewritten_prompt")
+        )
     
         if grep_refinement_active:
             already_distilled = True  # grep refinement never has raw results to distil
@@ -477,6 +549,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         elif tree_followup_active:
             already_distilled = True  # tree output is not evidence, nothing to distil
             tool_call = self._plan_tree_followup(state, planner_tools)
+        
+        elif rag_followup_active:
+            already_distilled = True  # RAG follow-up is triggered by a negative result, so no distillation needed
+            tool_call = self._plan_rag_followup(state, planner_tools)
     
         else:
             tool_call, system_prompt, reasoning = self._plan_normal(
@@ -531,6 +607,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 # Follow-up branches: show the feedback that was submitted
                 prompt_content = Text.from_markup(
                     f"[dim]Follow-up branch: {('grep refinement' if grep_refinement_active else 'tree follow-up')}[/dim]"
+                )
+            elif rag_followup_active:
+                prompt_content = Text.from_markup(
+                    f"[dim]Follow-up branch: RAG refinement[/dim]"
                 )
             else:
                 prompt_content = Panel(
@@ -861,6 +941,40 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         )
         return state
 
+    def use_graph_tool(self, state: WorkflowState) -> WorkflowState:
+        """Use the structural graph tool for dependency navigation."""
+        self.console.print("[dim]--- SUB-NODE: Graph Tool ---[/dim]")
+        args = state.get("pending_tool_call", {}).get("arguments", {})
+        action = args.get("action")
+        thought = state.get("current_thought", "No reasoning provided.")
+
+        if not action:
+            raise ValueError("graph_tool requires an 'action' argument")
+
+        result = self.graph_tool.execute(**args)
+
+        stats = result.get("stats", {}) if isinstance(result, dict) else {}
+        if isinstance(stats, dict) and stats.get("error"):
+            outcome_str = f"Graph action '{action}' failed: {result.get('error', 'Unknown error')}"
+        else:
+            outcome_str = f"Graph action '{action}' executed successfully."
+
+        self._append_history(state, "graph_tool", args, outcome_str, thought)
+
+        graph_result_text = self.graph_tool.to_prompt_text(result)
+        base_prompt = self.design_first_part_prompt(state)
+        state["rewritten_prompt"] = (
+            f"{base_prompt}"
+            "### GRAPH RESULTS\n"
+            f"Action: {action}\n"
+            f"Parameters: {json.dumps(args, ensure_ascii=False)}\n\n"
+            f"{graph_result_text}\n\n"
+            "### INSTRUCTION\n"
+            "Use these structural graph results together with verified facts to answer "
+            "the question as concisely as possible."
+        )
+        return state
+
     def use_tree_tool(self, state: WorkflowState) -> WorkflowState:
         self.console.print("[dim]--- SUB-NODE: Tree Tool ---[/dim]")
         args = state.get("pending_tool_call", {}).get("arguments", {})
@@ -903,6 +1017,23 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
 
         self.console.print("[dim]    -> Grep results validated.[/dim]")
         return "validated"
+    
+    def refine_rag(self, state: WorkflowState) -> str:
+        self.console.print("[dim]--- SUB-DECISION: RAG results validation ---[/dim]")
+        # For simplicity, we only check if any results were returned; more complex
+        # validation could be implemented as needed.
+        exec_history = state["pipeline_state"].get("execution_history", [])
+        if not exec_history or exec_history[-1]["tool"] != "rag_tool":
+            self.console.print("[dim]    -> No recent RAG call found. Validated by default.[/dim]")
+            return "validated"
+
+        last_results = exec_history[-1].get("results_to_analyse", [])
+        if last_results:
+            self.console.print(f"[dim]    -> RAG returned {len(last_results)} results, validated.[/dim]")
+            return "validated"
+        else:
+            self.console.print("[dim]    -> RAG returned 0 results, replanning.[/dim]")
+            return "replan"
 
     # -----------------------------------------------------------------------
     # Graph assembly
@@ -912,6 +1043,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self.add_node("agentic_router", self.agentic_router)
         self.add_node("rag_tool", self.use_rag_tool)
         self.add_node("grep_tool", self.use_grep_tool)
+        self.add_node("graph_tool", self.use_graph_tool)
         self.add_node("tree_tool", self.use_tree_tool)
         self.add_node("script_finder_tool", self.use_script_finder_tool)
         self.add_node("simple_regeneration_tool", self.use_simple_regeneration_tool)
@@ -923,6 +1055,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             {
                 "rag_tool": "rag_tool",
                 "grep_tool": "grep_tool",
+                "graph_tool": "graph_tool",
                 "tree_tool": "tree_tool",
                 "script_finder_tool": "script_finder_tool",
                 "simple_regeneration_tool": "simple_regeneration_tool",
@@ -935,8 +1068,14 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             {"replan": "agentic_router", "validated": END},
         )
         self.add_edge("tree_tool", "agentic_router")
-        self.add_edge("rag_tool", END)
+        self.add_conditional_edges(
+            "rag_tool",
+            self.refine_rag,
+            {"replan": "agentic_router", "validated": END}
+        )
+        self.add_edge("graph_tool", END)
         self.add_edge("script_finder_tool", END)
         self.add_edge("simple_regeneration_tool", END)
 
         return self.compile()
+        

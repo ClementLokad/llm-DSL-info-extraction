@@ -299,6 +299,12 @@ main_pipeline:
     cross_encoder: "jinaai/jina-reranker-v2-base-multilingual"
     drop_off_ratio: 0.4 # Documents with less than drop_off_ratio*best_res relevance are discarded
     absolute_minimum: 0.15 # Documents with less than absolute_minimum relevance are discarded
+  
+  graph_tool:
+    config_path: "env_graph/config.yaml"
+    auto_build: true
+    default_domain: "scripts"
+    response_max_chars: 12000
 
   # Define "Detail Levels" from most detailed to least detailed.
   # Format: (max_depth, max_children)
