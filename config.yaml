@@ -10,7 +10,7 @@
 # =============================================================================
 agent:
   # Default agent to use for queries
-  default_model: "qwen"  # Options: "gemini", "gpt", "mistral", "groq"
+  default_model: "mistral"  # Options: "gemini", "gpt", "mistral", "groq"
   # Delay in seconds between LLM calls to avoid rate limits (0 = disabled)
   rate_limit_delay: 2
 
