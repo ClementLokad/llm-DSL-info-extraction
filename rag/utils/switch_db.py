@@ -47,7 +47,7 @@ def get_default_retriever(retriever_type: str = None) -> BaseRetriever:
     
 def get_default_query_transformer(query_transformer_type: str = None) -> BaseQueryTransformer:
     if query_transformer_type is None:
-        qt = get_config().get("query_transformer.type", "fusion")
+        qt = get_config().get("query_transformer.query_transformer_type", "fusion")
     else:
         qt = query_transformer_type.lower()
     

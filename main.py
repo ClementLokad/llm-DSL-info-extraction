@@ -444,12 +444,6 @@ EXAMPLES:
         choices=["fusion", "hyde"],
         help="Override query transform mode from config"
     )
-
-    parser.add_argument(
-        "--fusion", "-f",
-        action="store_true",
-        help="Enable RAG fusion"
-    )
     
     parser.add_argument(
         "--benchmarkpath", "-bp",
@@ -570,9 +564,6 @@ EXAMPLES:
         if config_manager.get_config().get_default_agent() in ["qwen", "qwen-ssh"]:
             # Disable rate limiting for local LLM
             config_manager.get_config().config['agent']['rate_limit_delay'] = 0
-        
-        if args.fusion:
-           config_manager.get_config().config['rag']['fusion'] = True
 
         if args.linear != None:
             config_manager.get_config().config['main_pipeline']['agentic'] = not args.linear
@@ -589,8 +580,8 @@ EXAMPLES:
             config_manager.get_config().config['benchmark']['save_data'] = args.save_data
 
         #Override query transform mode if specified
-        if args.benchmarkagent:
-            config_manager.get_config().config['query_transform']['query_transform_mode'] = args.benchmarkagent
+        if args.querytransform:
+            config_manager.get_config().config['query_transformer']['query_transformer_type'] = args.querytransform
         
         if args.token_count:
             config_manager.get_config().config['main_pipeline']['token_count'] = args.token_count

@@ -8,14 +8,9 @@ class HydeQueryTransformer(BaseQueryTransformer):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(config)
         self.index_type = config.get('embedder.index_type', "full_chunk")
-
+        self.hyde_prompt = f"Act as an Envision DSL expert. Generate {self.generated_instances_amount} concise technical summaries (max 150 words) of a script answering this query at the end of this paragraph. Your response must only be the juxtaposition of these summaries, with each one separated by a $ character. Do not add any preamble, explanation, or other text. Query:  \n"
+        
     def transform(self, query : str, verbose: bool = False) -> list[str]:
-        if self.index_type == "summaries":
-            self.hyde_prompt = f"Act as an Envision DSL expert. Generate {self.generated_instances_amount} concise technical summaries (max 150 words) of a script answering this query: {query}. Your response must only be the juxtaposition of these summaries, with each one separated by a $ character. Do not add any preamble, explanation, or other text \n"
-
-        #IN CASE WE WANT TO ADAPT THE PROMPT TO INDEX TYPE
-        # elif self.index_type == "full_chunk":
-        #     self.hyde_prompt = f"Take the following complex question and decompose it into {self.generated_instances_amount} distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text \n"
 
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)
