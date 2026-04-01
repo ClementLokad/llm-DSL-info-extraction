@@ -27,6 +27,7 @@ from pipeline.agent_workflow.grep_tool import GrepTool
 from pipeline.agent_workflow.script_finder_tool import PathScriptFinder
 from pipeline.agent_workflow.rag_tool import SimpleRAGTool, AdvancedRAGTool
 from pipeline.agent_workflow.file_tree_tool import FileTreeTool
+from pipeline.agent_workflow.graph_tool import EnvisionGraphTool
 from pipeline.agent_workflow.agentic_pipeline import AgenticPipeline
 from pipeline.langgraph_base import BasePipeline, GraphState, BenchmarkState, APIError
 
@@ -60,6 +61,7 @@ class MainAgenticPipeline(AgenticPipeline):
         else:
             rag_tool = SimpleRAGTool(retriever=retriever, embedder=embedder)
         grep_tool = GrepTool()
+        graph_tool = EnvisionGraphTool()
         script_finder_tool = PathScriptFinder()
         tree_tool = FileTreeTool()
         distillation_tool = LLMDistillationTool(console=console)
@@ -68,6 +70,7 @@ class MainAgenticPipeline(AgenticPipeline):
         agent_workflow = ConcreteAgentWorkflow(
             rag_tool, 
             grep_tool, 
+            graph_tool,
             script_finder_tool, 
             distillation_tool,
             tree_tool

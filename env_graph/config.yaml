@@ -1,0 +1,61 @@
+# =============================================================================
+# ENV_GRAPH - Parsing and API Configuration
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Parsing - Envision script extraction
+# -----------------------------------------------------------------------------
+parsing:
+  # Directory containing source .nvn scripts
+  script_dir: "env_scripts"
+  
+  # Script file extension
+  script_ext: "nvn"
+  
+  # Extensions considered as data files (creates data_file nodes)
+  data_extensions: ["ion", "csv"]
+  
+  # Optional file ID to logical path mapping
+  mapping_file: "mapping.txt"
+  
+  # Maximum recursion depth for placeholder resolution
+  recursion_limit: 10
+  
+  # Normalize brackets: [ 1 ], [1], [  1  ] -> [ X ]
+  normalize_brackets: true
+
+# -----------------------------------------------------------------------------
+# API - Response mode configuration
+# -----------------------------------------------------------------------------
+api:
+  # Default response mode
+  # Values: "lite" (LLM token optimized), "full" (all metadata)
+  mode: "lite"
+
+# -----------------------------------------------------------------------------
+# Search - query parameters
+# -----------------------------------------------------------------------------
+search:
+  # Maximum number of results returned by search()
+  top_k: 20
+
+# -----------------------------------------------------------------------------
+# Grep - pattern search defaults
+# -----------------------------------------------------------------------------
+grep:
+  # Default node types to inspect
+  # Possible values: script, function, table, data_file, folder
+  default_node_types: ["script", "function"]
+
+# -----------------------------------------------------------------------------
+# Output - generated files
+# -----------------------------------------------------------------------------
+output:
+  # Dependency graph (nodes + edges)
+  network_file: "data/network/network.json"
+  
+  # Generation metadata (stats, timestamp)
+  metadata_file: "data/network/metadata.json"
+  
+  # Number of context lines shown in grep previews
+  snippet_lines: 10
