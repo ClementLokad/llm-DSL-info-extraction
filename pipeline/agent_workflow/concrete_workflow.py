@@ -75,16 +75,16 @@ def _build_planner_tools(tools: List[Tool], include_grade: bool = True) -> List[
     Return the list of tool schemas passed to the Mistral planner call.
 
     Each real retrieval tool is declared with its own schema so the model
-    directly fills in typed, validated arguments.  ``grade_answer`` is a
+    directly fills in typed, validated arguments.  ``submit_answer`` is a
     zero-argument signal to stop the loop.
     """
     tools = [tool.get_description() for tool in tools]
     if include_grade:
         tools.append(
             _tool_desc(
-                name="grade_answer",
+                name="submit_answer",
                 description=(
-                    "This tool stops the investigation loop and initiates grading phase."
+                    "This tool stops the investigation loop and submits the final answer."
                 ),
                 properties={},
                 required=[],
@@ -102,7 +102,7 @@ VALID_TOOLS = {
     "grep_tool",
     "script_finder_tool",
     "tree_tool",
-    "grade_answer",
+    "submit_answer",
 }
 
 
@@ -183,12 +183,12 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "**Lokad Envision** codebase.\n"
             "Your primary goal is EFFICIENCY. Decide whether current information is "
             "sufficient to answer the question.\n"
-            "If the answer is found, call grade_answer immediately.\n\n"
+            "If the answer is found, call submit_answer immediately.\n\n"
             f"### MISSION GOAL\n{question}\n\n"
             "### PROPOSED SOLUTION (From Main Agent)\n"
             f"\"{previous_generation}\"\n\n"
             "**CRITICAL CHECK**: Does the proposed solution directly and fully answer the "
-            "Mission Goal? If YES, call grade_answer. "
+            "Mission Goal? If YES, call submit_answer. "
             "Vague answers or 'I don't know' should be treated as NOT ANSWERED.\n\n"
             f"### VERIFIED FACTS\n{facts_str}\n\n"
             "### HISTORY (Previous Steps)\n"
@@ -197,7 +197,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "1. COMPLETION CHECK: Answer these two questions independently:\n"
             "a. Does the Proposed Solution address the Mission Goal? (form)\n"
             "b. Is it grounded in specific facts retrieved from the codebase ? (evidence)\n"
-            "Only call grade_answer if BOTH are YES.\n"
+            "Only call submit_answer if BOTH are YES.\n"
             "A negative conclusion (\"this is not done\", \"I found nothing\") answers (a) "
             "but FAILS (b) unless search results explicitly confirmed the absence. "
             "In that case, proceed to the Exhaustiveness Check.\n\n"
@@ -378,7 +378,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     
         # Step 1 — Free-text reasoning.
         # Forcing the model to write out each step of the flowchart explicitly
-        # prevents it from pattern-matching directly to grade_answer based on
+        # prevents it from pattern-matching directly to submit_answer based on
         # the surface form of the Proposed Solution.  The written reasoning
         # becomes prior context that constrains the tool selection in step 2.
         reasoning = self.planner_llm.generate_response(
@@ -443,7 +443,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # ------------------------------------------------------------------
         history = self._get_history(state)
         is_continuation = bool(history)
-        # grade_answer is only offered after at least one search step so the
+        # submit_answer is only offered after at least one search step so the
         # model cannot exit on the very first turn without gathering any evidence.
         include_grade = is_continuation
     
@@ -519,7 +519,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     
         max_retries = self.config_manager.get("main_pipeline.agent_logic.max_retries", 5)
         state["regenerate"] = (
-            chosen_tool != "grade_answer"
+            chosen_tool != "submit_answer"
             and state["pipeline_state"]["retry_count"] <= max_retries
         )
     
@@ -568,7 +568,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         exec_history = state["pipeline_state"].get("execution_history", [])
         if exec_history and not already_distilled:
             prev_results = exec_history[-1].get("results_to_analyse")
-            if prev_results and chosen_tool != "grade_answer":
+            if prev_results and chosen_tool != "submit_answer":
                 self.console.print("[dim]Distilling previous tool results...[/dim]")
     
                 items_to_distill = [
@@ -926,7 +926,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 "tree_tool": "tree_tool",
                 "script_finder_tool": "script_finder_tool",
                 "simple_regeneration_tool": "simple_regeneration_tool",
-                "grade_answer": END,
+                "submit_answer": END,
             },
         )
         self.add_conditional_edges(

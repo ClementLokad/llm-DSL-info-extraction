@@ -326,7 +326,7 @@ class BaseAgentWorkflow(StateGraph):
             if state["pipeline_state"]["verbose"]:
                 self.console.print(f"[dim]    -> Routing to tool: [green]{state['pending_tool_call']['tool_name']}[/green][/dim]")
             return str(state['pending_tool_call']['tool_name'])
-        return "grade_answer"
+        return "submit_answer"
 
     # -----------------------------------------------------------------------
     # Tool nodes
@@ -383,7 +383,7 @@ class BaseAgentWorkflow(StateGraph):
                 "grep_tool": "grep_tool",
                 "script_finder_tool": "script_finder_tool",
                 "simple_regeneration_tool": "simple_regeneration_tool",
-                "grade_answer": END,
+                "submit_answer": END,
             },
         )
         self.add_edge("rag_tool", END)
