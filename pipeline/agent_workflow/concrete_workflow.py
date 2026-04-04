@@ -36,6 +36,7 @@ from pipeline.agent_workflow.workflow_base import (
     WorkflowState,
     _tool_desc,
 )
+from pipeline.langgraph_base import KnowledgeElement
 from agents.prepare_agent import prepare_agent
 from agents.base import ToolCallResult
 from rag.core.base_parser import BlockType
@@ -177,7 +178,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
 
         facts_str = ""
         if knowledge_bank:
-            facts_str = "\n".join(f"{i}. {f}" for i, f in enumerate(knowledge_bank))
+            facts_str = "\n".join(f"{i}. {f['fact']}" for i, f in enumerate(knowledge_bank))
         else:
             facts_str = "(Knowledge bank is empty.)"
 
@@ -662,10 +663,23 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                     previous_generation=state["pipeline_state"].get("generation", ""),
                     verbose=state['pipeline_state']['verbose'],
                 )
-                state['pipeline_state'].setdefault("knowledge_bank", []).extend(new_facts)
+                knowledge_elements = [
+                    KnowledgeElement(
+                        fact=fact,
+                        tool=exec_history[-1]["tool"],
+                        query=state['pipeline_state']["question"],
+                        retrieval_results=prev_results
+                    ) for fact in new_facts
+                ]
+                state['pipeline_state'].setdefault("knowledge_bank", []).extend(knowledge_elements)
+                
+                # Complete accumulated_evidence with the distilled retrieval results (key = number of elements)
+                state['pipeline_state'].setdefault("accumulated_evidence", {})[str(len(state['pipeline_state'].get("accumulated_evidence", {})))] = prev_results
+                
                 exec_history[-1]["outcome_summary"] += (
                     f" Extracted {len(new_facts)} relevant facts."
                 )
+
                 if state["pipeline_state"]["verbose"]:
                     self.console.print(f"[dim]Extracted {len(new_facts)} facts.[/dim]")
     
@@ -821,8 +835,13 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         max_grep_retries = self.config_manager.get("main_pipeline.grep_tool.max_grep_retries", 3)
         if not results and state["local_grep_retries"][0] >= max_grep_retries:
             state['pipeline_state'].setdefault("knowledge_bank", []).append(
-                f"No matches found for pattern '{pattern}'"
-                + (f" in sources matching '{source_regex}'." if source_regex else ".")
+                KnowledgeElement(
+                    fact=f"No matches found for pattern '{pattern}'"
+                    + (f" in sources matching '{source_regex}'." if source_regex else "."),
+                    tool="grep_tool",
+                    query=state['pipeline_state']["question"],
+                    retrieval_results=[]
+                )
             )
     
         # ------------------------------------------------------------------
@@ -911,7 +930,15 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             if summary.strip().upper() != "IRRELEVANT":
                 new_facts.append(summary)
 
-        state['pipeline_state'].setdefault("knowledge_bank", []).extend(new_facts)
+        knowledge_elements = [
+            KnowledgeElement(
+                fact=summary,
+                tool="script_finder_tool",
+                query=state["pipeline_state"]["question"],
+                retrieval_results=[]
+            ) for summary in new_facts
+        ]
+        state['pipeline_state'].setdefault("knowledge_bank", []).extend(knowledge_elements)
 
         outcome_str = f"Found {len(found_paths)} scripts. Content read and distilled."
         if len(found_paths) < len(script_names):

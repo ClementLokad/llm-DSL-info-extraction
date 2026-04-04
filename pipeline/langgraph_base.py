@@ -49,6 +49,12 @@ class ActionLog(TypedDict):
     outcome_summary: str # Brief summary of success/failure (not full content)
     results_to_analyse: Optional[List[RetrievalResult]] = None
 
+class KnowledgeElement(TypedDict):
+    fact: str
+    tool: str
+    query: str
+    retrieval_results: List[RetrievalResult]
+
 
 class AgentGraphState(GraphState):
     """
@@ -57,7 +63,7 @@ class AgentGraphState(GraphState):
     Attributes:
         question: The user's input question.
         reference_answer: The reference answer for benchmarking.
-        knowledge_bank: List of facts.
+        knowledge_bank: List of KnowledgeElements containing facts, tool, query and retrieval results.
         execution_history: List of agent iterations.
         prompt: The final prompt sent to the LLM.
         generation: The raw output from the 'Main LLM'.
@@ -70,8 +76,9 @@ class AgentGraphState(GraphState):
     """
     question: str
     reference_answer: str
-    knowledge_bank: List[str]
+    knowledge_bank: List[KnowledgeElement]
     execution_history: List[ActionLog]
+    accumulated_evidence: Dict[str, list[RetrievalResult]]
     prompt: str
     generation: str
     final_answer: Optional[str]

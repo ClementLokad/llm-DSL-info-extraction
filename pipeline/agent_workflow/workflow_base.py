@@ -232,6 +232,7 @@ class BaseAgentWorkflow(StateGraph):
         }
         if "execution_history" not in state['pipeline_state']:
             state['pipeline_state']["execution_history"] = []
+
         state['pipeline_state']["execution_history"].append(new_log)
 
     def _parse_tag(self, tag: str, text: str) -> str:
@@ -254,8 +255,8 @@ class BaseAgentWorkflow(StateGraph):
         user_prompt = f"### QUESTION\n{question}\n\n"
         if knowledge_bank:
             user_prompt += "### VERIFIED FACTS (Accumulated Knowledge)\n"
-            for i, fact in enumerate(knowledge_bank):
-                user_prompt += f"{i+1}. {fact}\n"
+            for i, knowledge_elem in enumerate(knowledge_bank):
+                user_prompt += f"{i+1}. {knowledge_elem['fact']}\n"
             user_prompt += "\n"
         else:
             user_prompt += "### VERIFIED FACTS\n(No relevant facts have been gathered yet.)\n\n"
