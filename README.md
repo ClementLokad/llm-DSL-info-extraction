@@ -130,7 +130,7 @@ python build_summary_index.py
 # Reprendre le calcul de là où on en était
 python build_summary_index.py
 
-# Ne pas le calcul de là où on en était
+# Ecraser le summary avec un nouveau
 python build_summary_index.py --rebuild
 
 ```
@@ -159,7 +159,7 @@ python main.py --verbose
 python main.py --quiet
 
 # --query : Poser une seule question
-python main.py --query "Explain the inventory logic and how it relates to sales"
+python main.py --query "Combien de scripts lisent /Clean/Items.ion ?"
 
 # --status, -s : Donner l'état de de la configuration et de l'index
 

@@ -18,7 +18,7 @@ sys.path.append(str(Path(__file__).parent))
 import config_manager
 import agents.prepare_agent as prepare_agent
 from rag.core.base_embedder import BaseEmbedder
-from rag.utils.switch_db import get_default_embedder, get_default_retriever
+from rag.utils.switch_db import get_default_embedder, get_default_retriever, get_default_query_transformer
 from rag.retrievers.qdrant_retriever import QdrantRetriever
 from old.linear_pipeline import MainLinearPipeline
 from pipeline.agent_workflow.concrete_workflow import ConcreteAgentWorkflow
@@ -43,6 +43,8 @@ class MainAgenticPipeline(AgenticPipeline):
         embedder.initialize()
         retriever = get_default_retriever()
         retriever.initialize(embedder.embedding_dimension)
+
+        query_transformer = get_default_query_transformer()
         
         # Determine index type from flags and config
         index_type = self.config_manager.get("embedder.index_type", "full_chunk")
@@ -55,11 +57,11 @@ class MainAgenticPipeline(AgenticPipeline):
         
         retriever.load_index(str(index_path))
             
-        self.rag = {'embedder': embedder, 'retriever': retriever}
+        self.rag = {'embedder': embedder, 'retriever': retriever, 'query_transformer': query_transformer,}
         if self.config_manager.get("main_pipeline.rag_tool.advanced", False):
-            rag_tool = AdvancedRAGTool(retriever=retriever, embedder=embedder)
+            rag_tool = AdvancedRAGTool(retriever=retriever, embedder=embedder, query_transformer=query_transformer)
         else:
-            rag_tool = SimpleRAGTool(retriever=retriever, embedder=embedder)
+            rag_tool = SimpleRAGTool(retriever=retriever, embedder=embedder, query_transformer=query_transformer)
         grep_tool = GrepTool()
         graph_tool = EnvisionGraphTool()
         script_finder_tool = PathScriptFinder()
@@ -441,9 +443,9 @@ EXAMPLES:
     )
 
     parser.add_argument(
-        "--fusion", "-f",
-        action="store_true",
-        help="Enable RAG fusion"
+        "--querytransform", "-qt",
+        choices=["fusion", "hyde"],
+        help="Override query transform mode from config"
     )
     
     parser.add_argument(
@@ -565,9 +567,6 @@ EXAMPLES:
         if config_manager.get_config().get_default_agent() in ["qwen", "qwen-ssh"]:
             # Disable rate limiting for local LLM
             config_manager.get_config().config['agent']['rate_limit_delay'] = 0
-        
-        if args.fusion:
-           config_manager.get_config().config['rag']['fusion'] = True
 
         if args.linear != None:
             config_manager.get_config().config['main_pipeline']['agentic'] = not args.linear
@@ -582,6 +581,10 @@ EXAMPLES:
         
         if args.save_data:
             config_manager.get_config().config['benchmark']['save_data'] = args.save_data
+
+        #Override query transform mode if specified
+        if args.querytransform:
+            config_manager.get_config().config['query_transformer']['query_transformer_type'] = args.querytransform
         
         if args.token_count:
             config_manager.get_config().config['main_pipeline']['token_count'] = args.token_count

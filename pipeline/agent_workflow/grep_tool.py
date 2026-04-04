@@ -128,8 +128,9 @@ class GrepTool(BaseGrepTool):
             if bloc_type is not None and block.block_type not in bloc_type:
                 continue
             # Filter by file_path if provided
-            if source_regex is not None and not re.search(source_regex, block.metadata["original_file_path"],
-                                                          0 if self.case_sensitive else re.IGNORECASE):
+            original_file_path = block.metadata.get("original_file_path")
+            if source_regex is not None and (original_file_path is None or not re.search(source_regex, original_file_path,
+                                                          0 if self.case_sensitive else re.IGNORECASE)):
                 continue
             
             content = block.content
@@ -155,12 +156,12 @@ class GrepTool(BaseGrepTool):
                             size_tokens=len(content) // self.config.get('chunker.chars_per_token', 4),
                             metadata={
                                 "file_path": getattr(block, "file_path", None),
-                                "original_file_path": block.metadata["original_file_path"]
+                                "original_file_path": block.metadata.get("original_file_path")
                             }
                         ),
                         score=1.0,            # constant score (grep has no similarity metric)
                         rank=1,
-                        metadata={"pattern": pattern, "original_file_path": block.metadata["original_file_path"]}
+                        metadata={"pattern": pattern, "original_file_path": block.metadata.get("original_file_path")}
                     )
                 )
         

@@ -145,6 +145,10 @@ class ConfigManager:
         """Get summarizer configuration section."""
         return self.config.get('summarizer', {})
     
+    def get_query_transformer_config(self) -> Dict[str, Any]:
+        """Get query transformer configuration section."""
+        return self.config.get('query_transformer', {})
+    
     def get_embedder_config(self, embedder_type: Optional[str] = None) -> Dict[str, Any]:
         """
         Get embedder configuration section.
@@ -196,12 +200,16 @@ class ConfigManager:
         return self.config.get('agent', {}).get('default_model', 'mistral')
     
     def get_summary_agent(self) -> str:
-        """Get agent for chunk summaries. Use benchmark_model if specified, otherwise default."""
+        """Get agent for chunk summaries. Use summary_model if specified, otherwise default."""
         return self.config.get('summarizer', {}).get('summary_model', self.get_default_agent())
 
     def get_benchmark_agent(self) -> str:
         """Get agent for llm as a judge. Use benchmark_model if specified, otherwise default."""
         return self.config.get('benchmark', {}).get('benchmark_model', self.get_default_agent())
+    
+    def get_query_transformer_agent(self) -> str:
+        """Get agent for query transformers (hyde, fusion etc). Use query_transformer_model if specified, otherwise default."""
+        return self.config.get('query_transformer', {}).get('query_transformer_model', self.get_default_agent())
     
     def get_benchmark_type(self) -> str:
         """Get benchmark type from configuration."""

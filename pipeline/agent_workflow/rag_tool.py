@@ -2,6 +2,7 @@ from typing import List, Tuple, Dict, Any
 from pipeline.agent_workflow.workflow_base import BaseRAGTool, _tool_desc
 from rag.core.base_retriever import BaseRetriever, RetrievalResult
 from rag.core.base_embedder import BaseEmbedder
+from rag.core.base_query_transformer import BaseQueryTransformer
 from rag.retrievers.qdrant_retriever import QdrantRetriever
 from rag.embedders.qdrant_embedder import QdrantEmbedder
 from config_manager import get_config
@@ -20,9 +21,10 @@ class SimpleRAGTool(BaseRAGTool):
     This class uses a provided retriever to perform retrieval operations.
     """
     
-    def __init__(self, retriever: BaseRetriever, embedder: BaseEmbedder):
+    def __init__(self, retriever: BaseRetriever, embedder: BaseEmbedder, query_transformer: BaseQueryTransformer = None):
         super().__init__(retriever)
         self.embedder = embedder
+        self.query_transformer = query_transformer
         self.rate_limit_delay = get_config().get("agent.rate_limit_delay")
         self.agent = prepare_default_agent()
     
@@ -47,22 +49,16 @@ class SimpleRAGTool(BaseRAGTool):
         if key_words==None:
             key_words = []
 
-        if get_config().get('rag.fusion', False):
-            base_fusion_question = "Take the following complex question and decompose it into several distinct sub-questions. Your response must only be the juxtaposition of these sub-questions, with each one separated by a $ character. Do not add any preamble, explanation, or other text.\n"
+        # Query transform mode: transform the query before retrieval
+        if self.query_transformer:
+            transformed_question_list = self.query_transformer.transform(query, verbose=verbose)
             
-            if self.rate_limit_delay > 0:
-                time.sleep(self.rate_limit_delay)
-            
-            self.agent.reset_context() 
-            raw_questions = self.agent.generate_response(user_message=query, system_prompt=base_fusion_question)
-            if verbose:
-                print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
-            questions = raw_questions.split("$")
-            for sub_question in questions:
+            for sub_question in transformed_question_list:
                 emb = self.embedder.embed_text(sub_question)
                 results.extend(self.retriever.search(emb, top_k=top_k*rerank_multiplier))
             results = self.merge_rag_results(results)[:top_k*rerank_multiplier]
         else:
+            
             emb = self.embedder.embed_text(query)
             results = self.retriever.search(emb, top_k=top_k*rerank_multiplier)
 
@@ -136,9 +132,10 @@ class AdvancedRAGTool(SimpleRAGTool):
     This class uses a provided retriever to perform retrieval operations.
     """
     
-    def __init__(self, retriever: QdrantRetriever, embedder: QdrantEmbedder):
+    def __init__(self, retriever: QdrantRetriever, embedder: QdrantEmbedder, query_transformer):
         self.retriever = retriever
         self.embedder = embedder
+        self.query_transformer = query_transformer
         self.rate_limit_delay = get_config().get("agent.rate_limit_delay")
         self.cross_encoding = get_config().get("main_pipeline.rag_tool.cross_encoding", False)
         self.ce_multiplier = get_config().get("main_pipeline.rag_tool.cross_encoding_multiplier", 3)
@@ -202,24 +199,11 @@ class AdvancedRAGTool(SimpleRAGTool):
         if self.cross_encoding:
             retrieval_k = top_k*self.ce_multiplier
 
-        if get_config().get('rag.fusion', False):
-            base_fusion_question = (
-                "You are an expert Envision/Lokad developer. "
-                "Re-write the following user query into 2 different, highly specific technical queries "
-                "that mean the exact same thing but use different programming synonyms or codebase terminology. "
-                "Separate each re-written query with a $ character. Do not add preamble.\n"
-                "Query: "
-            )            
-            if self.rate_limit_delay > 0:
-                time.sleep(self.rate_limit_delay)
-                
-            self.agent.reset_context() 
-            raw_questions = self.agent.generate_response(user_message=query, system_prompt=base_fusion_question)
-            if verbose:
-                print(f"Raw answer from LLM for decomposition of the query : {raw_questions}")
-            questions = raw_questions.split("$")
-            questions = [query] + [q.strip() for q in questions if q.strip()]
-            for sub_question in questions:
+        # Query transform mode: transform the query before retrieval
+        if self.query_transformer:
+            transformed_question_list = self.query_transformer.transform(query, verbose=verbose)
+
+            for sub_question in transformed_question_list:
                 results.extend(self.retriever.search_hybrid(sub_question, self.embedder, top_k=retrieval_k,
                                                             keywords=key_words, source_substrings=sources))
             results = self.merge_rag_results(results)[:retrieval_k*2]

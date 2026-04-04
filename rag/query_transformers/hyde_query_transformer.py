@@ -1,0 +1,29 @@
+from typing import List, Dict, Any, Optional
+import agents.prepare_agent as prepare_agent
+from rag.core.base_query_transformer import BaseQueryTransformer
+import time
+
+class HydeQueryTransformer(BaseQueryTransformer):
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        super().__init__(config)
+        self.index_type = config.get('embedder.index_type', "full_chunk")
+        self.hyde_prompt = f"Act as an Envision DSL expert. Generate {self.generated_instances_amount} concise technical summaries (max 150 words) of a script answering this query at the end of this paragraph. Your response must only be the juxtaposition of these summaries, with each one separated by a $ character. Do not add any preamble, explanation, or other text. Query:  \n"
+        
+    def transform(self, query : str, verbose: bool = False) -> list[str]:
+
+        if self.rate_limit_delay > 0:
+            time.sleep(self.rate_limit_delay)
+        
+        sub_queries = self.agent.generate_response(self.hyde_prompt + query)
+        sub_queries_list = [q.strip() for q in sub_queries.split("$") if q.strip()]
+        
+        if verbose:
+            print(f"[Query HyDE] Original query: {query}")
+            print(f"[Query HyDE] Generated {len(sub_queries_list)} instances:")
+            for i, sub_q in enumerate(sub_queries_list, 1):
+                # Truncate long outputs for readability
+                display_text = sub_q if len(sub_q) < 100 else sub_q[:97] + "..."
+                print(f"  {i}. {display_text}")
+        
+        return sub_queries_list

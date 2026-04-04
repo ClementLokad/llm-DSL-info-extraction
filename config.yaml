@@ -10,7 +10,7 @@
 # =============================================================================
 agent:
   # Default agent to use for queries
-  default_model: "mistral"  # Options: "mistral", "groq", "qwen", "qwen-ssh"
+  default_model: "mistral"  # Options: "gemini", "gpt", "mistral", "groq"
   # Delay in seconds between LLM calls to avoid rate limits (0 = disabled)
   rate_limit_delay: 2
 
@@ -71,9 +71,18 @@ chunker:
 # SUMMARIZER CONFIGURATION
 # =============================================================================
 summarizer:
-  summary_model: "qwen-ssh" # Options: "mistral", "groq", "qwen", "qwen-ssh"
+  summary_model: "mistral" # Options: "mistral", "groq", "qwen", "qwen-ssh"
   summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
   raptor_summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
+
+# =============================================================================
+# QUERY TRANSFORMER CONFIGURATION
+# =============================================================================
+
+query_transformer:
+  query_transformer_model: "mistral" # Options: "qwen", "gemini", "gpt", "mistral", "groq"
+  query_transformer_type: "fusion" # Options: "fusion", "hyde", [NONE]
+  generated_instances_amount: "several" # Options: "[INTEGER_NUMBER]" i.e : "1", "144"... or "several" to let the llm decide
 
 # =============================================================================
 # EMBEDDER CONFIGURATION
@@ -317,7 +326,6 @@ main_pipeline:
     [2, 3],     # Level 5: Mostly architecture
     [1, 5],     # Level 6: Root folders only
   ]
-  file_tree_max_tok : 500
 
     
 # =============================================================================
