@@ -738,12 +738,39 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     
         # ------------------------------------------------------------------
         # Step 4: Format raw results for the Solver prompt
+        # Group results by source file with line numbers
         # ------------------------------------------------------------------
-        raw_results_str = "\n\n".join(
-            f"=== Source: {r.chunk.metadata.get('original_file_path', 'Unknown')} ===\n"
-            f"{r.chunk.content}"
-            for r in results
-        )
+        results_by_source = {}
+        for r in results:
+            source = r.chunk.metadata.get('original_file_path', 'Unknown')
+            if source not in results_by_source:
+                results_by_source[source] = []
+            
+            # Get line range for this chunk
+            line_start, line_end = r.chunk.get_line_range()
+            results_by_source[source].append({
+                "content": r.chunk.content,
+                "line_start": line_start,
+                "line_end": line_end
+            })
+        
+        # Format output grouped by source with line numbers for each result
+        raw_results_parts = []
+        for source in sorted(results_by_source.keys()):
+            source_results = results_by_source[source]
+            # Only show count if there are multiple results from this file
+            if len(source_results) > 1:
+                raw_results_parts.append(f"=== Source: {source} [{len(source_results)} results] ===")
+            else:
+                raw_results_parts.append(f"=== Source: {source} ===")
+            
+            for result in source_results:
+                line_start = result["line_start"]
+                line_end = result["line_end"]
+                content = result["content"]
+                raw_results_parts.append(f"[Lines {line_start}-{line_end}]:\n{content}")
+        
+        raw_results_str = "\n\n".join(raw_results_parts)
     
         # ------------------------------------------------------------------
         # Step 5: Assemble the rewritten prompt for the Solver
@@ -861,16 +888,36 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # ------------------------------------------------------------------
         max_lines = self.config_manager.get("main_pipeline.grep_tool.max_lines")
         compacted = self.grep_tool.shorten_results(
-            pattern, [r.chunk.content for r in results], max_lines
+            pattern, results, max_lines
         )
         if len(compacted) < len(results):
             raise Exception("Lost results during compaction")
     
-        raw_results_str = "\n\n".join(
-            f"=== Source: {results[i].chunk.metadata.get('original_file_path', 'Unknown')} ===\n"
-            f"{compacted[i]}"
-            for i in range(len(results))
-        )
+        # Group results by source file
+        results_by_source = {}
+        for i, shortened_result in enumerate(compacted):
+            source = results[i].chunk.metadata.get('original_file_path', 'Unknown')
+            if source not in results_by_source:
+                results_by_source[source] = []
+            results_by_source[source].append(shortened_result)
+        
+        # Format output grouped by source with line numbers for each result
+        raw_results_parts = []
+        for source in sorted(results_by_source.keys()):
+            source_results = results_by_source[source]
+            # Only show count if there are multiple results from this file
+            if len(source_results) > 1:
+                raw_results_parts.append(f"=== Source: {source} [{len(source_results)} results] ===")
+            else:
+                raw_results_parts.append(f"=== Source: {source} ===")
+            
+            for shortened_result in source_results:
+                line_start = shortened_result["line_start"]
+                line_end = shortened_result["line_end"]
+                content = shortened_result["content"]
+                raw_results_parts.append(f"[Lines {line_start}-{line_end}]:\n{content}")
+        
+        raw_results_str = "\n\n".join(raw_results_parts)
     
         # ------------------------------------------------------------------
         # Step 6: Assemble the rewritten prompt for the Solver

@@ -79,6 +79,58 @@ class CodeBlock:
             'metadata': self.metadata
         }
     
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CodeBlock':
+        """
+        Reconstruct a CodeBlock instance from its dictionary representation.
+        
+        Args:
+            data: Dictionary containing CodeBlock serialization (typically from to_dict())
+            
+        Returns:
+            A new CodeBlock instance with the same data
+            
+        Raises:
+            KeyError: If required fields are missing from the dictionary
+            ValueError: If block_type value is not a valid BlockType
+        """
+        # Handle block_type: convert from enum or string to BlockType
+        block_type_val = data.get('block_type')
+        if isinstance(block_type_val, BlockType):
+            block_type = block_type_val
+        elif isinstance(block_type_val, str):
+            # Try to get enum by name or by value
+            try:
+                block_type = BlockType[block_type_val]
+            except KeyError:
+                try:
+                    block_type = BlockType(block_type_val)
+                except ValueError:
+                    raise ValueError(f"Invalid block_type: {block_type_val}")
+        else:
+            raise ValueError(f"block_type must be BlockType or string, got {type(block_type_val)}")
+        
+        # Convert dependencies and definitions from lists to sets if needed
+        dependencies = data.get('dependencies')
+        if dependencies is not None and not isinstance(dependencies, set):
+            dependencies = set(dependencies) if dependencies else None
+        
+        definitions = data.get('definitions')
+        if definitions is not None and not isinstance(definitions, set):
+            definitions = set(definitions) if definitions else None
+        
+        return cls(
+            content=data.get('content', ''),
+            block_type=block_type,
+            name=data.get('name'),
+            line_start=data.get('line_start', 0),
+            line_end=data.get('line_end', 0),
+            file_path=data.get('file_path', ''),
+            dependencies=dependencies,
+            definitions=definitions,
+            metadata=data.get('metadata', {}),
+        )
+    
     def __len__(self) -> int:
         """Returns number of lines in the block."""
         return self.content.count('\n') + 1

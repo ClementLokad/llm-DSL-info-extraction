@@ -2,7 +2,7 @@ from importlib import metadata
 import re
 import pickle
 import os
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 
 from rag.core.base_retriever import RetrievalResult, CodeChunk
 from rag.core.base_parser import CodeBlock, BlockType 
@@ -167,19 +167,21 @@ class GrepTool(BaseGrepTool):
         
         return matches
 
-    def shorten_results(self, pattern: str, results: List[str], limit: int) -> List[str]:
+    def shorten_results(self, pattern: str, retrieval_results: List[RetrievalResult], limit: int) -> List[Dict[str, Any]]:
         """
         Shortens results by dynamically adjusting the context window (k) 
         so that the total number of lines fits within the 'limit'.
 
         Args:
             pattern (str): The regex pattern to highlight.
-            results (List[str]): The list of full code strings.
+            retrieval_results (List[RetrievalResult]): The list of RetrievalResult objects to shorten.
             limit (int): The maximum allowed total number of lines across all results.
 
         Returns:
-            List[str]: The list of shortened code strings.
-            
+            List[Dict[str, Any]]: Each dict contains:
+                - 'content': The shortened/formatted code string
+                - 'line_start': Starting line number in the original file (1-indexed)
+                - 'line_end': Ending line number in the original file (1-indexed)
         """
         
         clean_target = pattern.strip().strip("'\"").strip("/")
@@ -191,20 +193,27 @@ class GrepTool(BaseGrepTool):
         except re.error:
             regex = re.compile(re.escape(clean_target), flags)
 
-        # 1. Pre-process: Identify all matching line numbers for every file
-        # We store this to avoid re-running regex during the optimization loop.
+        # 1. Pre-process: Identify all matching line numbers for every result
+        # Store metadata needed to reconstruct line ranges
         file_data = []
-        for content in results:
+        for result in retrieval_results:
+            content = result.chunk.content
             lines = content.splitlines()
             matches = [i for i, line in enumerate(lines) if regex.search(line)]
             
             # If pattern not found (e.g. filename match only), treat line 0 as the 'match'
-            # so we at least show the file header context.
             if not matches and lines:
                 matches = [0]
             
             if lines:
-                file_data.append({"lines": lines, "matches": matches})
+                # Get the original line range from the chunk
+                orig_line_start, orig_line_end = result.chunk.get_line_range()
+                file_data.append({
+                    "lines": lines,
+                    "matches": matches,
+                    "orig_line_start": orig_line_start,
+                    "orig_line_end": orig_line_end,
+                })
 
         # 2. Helper: Calculate total lines used for a specific context size k
         def calculate_total_lines(k):
@@ -260,14 +269,14 @@ class GrepTool(BaseGrepTool):
                 prev_total = total
         else:
             # Even k=0 is too big. We must stick to k=0 (pure matches).
-            # (Optional: You could strictly truncate matches here if necessary)
             optimal_k = 0
 
-        # 4. Render the final output using optimal_k
+        # 4. Render the final output using optimal_k, tracking displayed line ranges
         final_results = []
         for item in file_data:
             lines = item["lines"]
             matches = item["matches"]
+            orig_line_start = item["orig_line_start"]
             
             indices = set()
             for m in matches:
@@ -297,7 +306,20 @@ class GrepTool(BaseGrepTool):
             if sorted_idx[-1] < len(lines)-1:
                 chunk_lines.append("... [truncated]")
             
-            final_results.append("\n".join(chunk_lines))
+            # Calculate the displayed line range (1-indexed to match editor conventions)
+            # First displayed line index (0-indexed) maps to orig_line_start + that index
+            first_displayed_idx = sorted_idx[0]
+            last_displayed_idx = sorted_idx[-1]
+            
+            # Filter out separator lines when calculating span
+            display_line_start = orig_line_start + first_displayed_idx
+            display_line_end = orig_line_start + last_displayed_idx
+            
+            final_results.append({
+                "content": "\n".join(chunk_lines),
+                "line_start": display_line_start,
+                "line_end": display_line_end,
+            })
 
         return final_results
     
@@ -379,6 +401,7 @@ class GrepTool(BaseGrepTool):
                     "type": "string",
                     "description": (
                         "Optional regex to restrict the search to files whose path matches. "
+                        "Useful to search into some folders specifically (to limit the number of results for example). "
                         "This must be a regex, not a comma-separated list. "
                         "Use ONLY when necessary as you may miss relevant information otherwise. "
                         "E.g. '/Modules/' to search only inside the Modules folder."

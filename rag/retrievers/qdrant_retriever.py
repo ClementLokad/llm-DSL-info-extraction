@@ -7,6 +7,7 @@ from rag.embedders.qdrant_embedder import QdrantEmbedder
 
 from rag.core.base_retriever import BaseRetriever, RetrievalResult
 from rag.core.base_chunker import CodeChunk
+from rag.core.base_parser import CodeBlock
 
 from config_manager import get_config
 
@@ -271,12 +272,14 @@ class QdrantRetriever(BaseRetriever):
         for rank, point in enumerate(qdrant_points, start=1):
             chunk = self._chunk_map.get(point.id)
             if not chunk:
+                blocks = [CodeBlock.from_dict(serialized) for serialized
+                          in point.payload.get("original_blocks", [])]
                 # Fallback: reconstruct chunk from payload if not in memory (e.g., after restart)
                 chunk = CodeChunk(
                     content=point.payload.get("content", ""),
                     chunk_id=point.payload.get("chunk_id", point.id),
                     chunk_type=point.payload.get("chunk_type", "unknown"),
-                    original_blocks=point.payload.get("original_blocks", []),
+                    original_blocks=blocks,
                     context=point.payload.get("context", {}),
                     size_tokens=point.payload.get("size_tokens", 0),
                     dependencies=set(point.payload.get("dependencies", [])),
