@@ -519,15 +519,15 @@ class NetworkBuilder:
                 
             # Get the directory part of the path
             path_obj = Path(node.path)
-            parent = str(path_obj.parent)
+            parent = path_obj.parent.as_posix()
             
             if parent and parent != '.':
                 node_folders[node.id] = (parent, domain)
                 
                 # Add all ancestor folders to this domain
                 current = path_obj.parent
-                while str(current) not in ('', '.', '/'):
-                    folder_set.add(str(current))
+                while current.as_posix() not in ('', '.', '/'):
+                    folder_set.add(current.as_posix())
                     current = current.parent
                 
                 # Add root if path is absolute
@@ -579,7 +579,7 @@ class NetworkBuilder:
         # Create CONTAINS edges: folder -> child folders (SCRIPTS domain)
         for folder_path in scripts_folders:
             folder_id = f"folder::scripts::{folder_path}"
-            parent_path = str(Path(folder_path).parent)
+            parent_path = Path(folder_path).parent.as_posix()
             
             if parent_path and parent_path != '.' and parent_path != folder_path:
                 parent_id = f"folder::scripts::{parent_path}"
@@ -593,7 +593,7 @@ class NetworkBuilder:
         # Create CONTAINS edges: folder -> child folders (DATA domain)
         for folder_path in data_folders:
             folder_id = f"folder::data::{folder_path}"
-            parent_path = str(Path(folder_path).parent)
+            parent_path = Path(folder_path).parent.as_posix()
             
             if parent_path and parent_path != '.' and parent_path != folder_path:
                 parent_id = f"folder::data::{parent_path}"
@@ -652,7 +652,7 @@ class NetworkBuilder:
             else:
                 continue
                 
-            parent_folder = str(Path(node.path).parent)
+            parent_folder = Path(node.path).parent.as_posix()
             if parent_folder and parent_folder != '.':
                 key = (parent_folder, domain)
                 if key not in folder_children:

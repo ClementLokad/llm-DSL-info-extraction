@@ -3,7 +3,7 @@ from pipeline.agent_workflow.workflow_base import _tool_desc, Tool
 from rag.core.base_retriever import RetrievalResult
 
 
-class prior_evidence_tool(Tool):
+class PriorEvidenceTool(Tool):
     """
     Tool to retrieve prior evidence/facts from accumulated evidence collected in previous tool calls.
     

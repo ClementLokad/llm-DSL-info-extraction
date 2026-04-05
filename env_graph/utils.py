@@ -1,6 +1,7 @@
 import yaml
 from pathlib import Path
 from typing import Dict, Any
+from get_mapping import get_file_mapping
 
 class ConfigLoader:
     @staticmethod
@@ -22,20 +23,7 @@ class ConfigLoader:
 
     @staticmethod
     def load_mapping(config: dict) -> dict:
-        mapping = {}
-        mapping_file_name = config.get("parsing", {}).get("mapping_file", "mapping.txt")
-        mapping_file = Path(mapping_file_name)
-        if not mapping_file.exists():
-            mapping_file = Path.cwd() / mapping_file_name
-        
-        if mapping_file.exists():
-            with open(mapping_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    parts = line.strip().split(',', 1)
-                    if len(parts) == 2:
-                        mapping[parts[0].strip()] = parts[1].strip()
-        return mapping
-
+        return get_file_mapping(config.get("mapping_file", None))
 
     @staticmethod
     def get_logical_path(filename: str, mapping: dict, extension: str = "nvn") -> str:

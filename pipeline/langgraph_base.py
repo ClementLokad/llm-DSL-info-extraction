@@ -43,6 +43,7 @@ class GraphState(TypedDict):
 class ActionLog(TypedDict):
     """Represents a single step in the agent's history."""
     step: int
+    query: str
     thought: str
     tool: str
     parameter: str

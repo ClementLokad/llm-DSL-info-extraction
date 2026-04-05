@@ -199,6 +199,7 @@ class AgenticPipeline(BasePipeline):
         """
         self.console.print("[dim]--- NODE: Generate Answer (Main LLM) ---[/dim]")
         prompt = state["prompt"]
+        prompt += "\n### LOKAD ASSISTANT ANSWER:\n"
 
         if state["verbose"]:
             prompt_panel = Panel(escape(prompt), title="Main LLM Prompt", border_style="purple")

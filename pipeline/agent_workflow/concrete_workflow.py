@@ -22,6 +22,7 @@ Key changes vs the XML-based version
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -41,8 +42,8 @@ from pipeline.langgraph_base import KnowledgeElement, RetrievalResult
 from agents.prepare_agent import prepare_agent
 from agents.base import ToolCallResult
 from rag.core.base_parser import BlockType
-from pipeline.agent_workflow.rag_tool import AdvancedRAGTool
-from pipeline.agent_workflow.prior_evidence_tool import prior_evidence_tool
+from pipeline.agent_workflow.graph_tool import EnvisionGraphTool
+from pipeline.agent_workflow.prior_evidence_tool import PriorEvidenceTool
 from config_manager import get_config
 from langgraph.graph import END, StateGraph, START
 
@@ -103,7 +104,7 @@ def _build_planner_tools(tools: List[Tool], include_grade: bool = True) -> List[
 VALID_TOOLS = {
     "rag_tool",
     "grep_tool",
-    #"graph_tool",
+    "graph_tool",
     "script_finder_tool",
     "tree_tool",
     "prior_evidence_tool",
@@ -120,18 +121,18 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self,
         rag_tool: BaseRAGTool,
         grep_tool: BaseGrepTool,
-        graph_tool,
+        graph_tool: EnvisionGraphTool,
         script_finder_tool: BaseScriptFinderTool,
         distillation_tool: BaseDistillationTool,
         tree_tool: BaseTreeTool,
-        prior_evidence_tool_instance: prior_evidence_tool = None,
+        prior_evidence_tool: PriorEvidenceTool = None,
         console: Console = Console(),
     ):
         super().__init__(rag_tool, grep_tool, script_finder_tool,
                          distillation_tool, console)
         self.tree_tool = tree_tool
         self.graph_tool = graph_tool
-        self.prior_evidence_tool = prior_evidence_tool_instance or prior_evidence_tool()
+        self.prior_evidence_tool = prior_evidence_tool or PriorEvidenceTool()
         self.mapping = get_file_mapping()
         self.config_manager = config_manager.get_config()
         self.planner_llm = prepare_agent(
@@ -167,9 +168,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "Lokad is a supply chain optimization company. Envision is their specialized "
             "programming language for quantitative supply chain logic.\n"
             "You are initiating a new investigation. Select the best FIRST tool to gather information.\n\n"
+            f"### MISSION GOAL\n{question}\n\n"
             "### CODEBASE STRUCTURE (from root : '/')\n"
             f"{tree_str}\n\n"
-            f"### MISSION GOAL\n{question}\n\n"
             "### PLANNING INSTRUCTIONS\n"
             "1. Identify the most critical keyword or concept in the Mission Goal.\n"
             "2. Choose the tool that matches the nature of what you are looking for:\n"
@@ -235,9 +236,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "Your primary goal is EFFICIENCY. Decide whether current information is "
             "sufficient to answer the question.\n"
             "If the answer is found, call submit_answer immediately.\n\n"
+            f"### MISSION GOAL\n{question}\n\n"
             "### CODEBASE STRUCTURE (from root : '/')\n"
             f"{tree_str}\n\n"
-            f"### MISSION GOAL\n{question}\n\n"
             "### PROPOSED SOLUTION (From Main Agent)\n"
             f"\"{previous_generation}\"\n\n"
             "**CRITICAL CHECK**: Does the proposed solution directly and fully answer the "
@@ -279,7 +280,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     # Planner node  (uses Mistral tool-calling)
     # -----------------------------------------------------------------------
     
-    def _plan_grep_refinement(self, state, planner_tools) -> "ToolCallResult":
+    def _plan_grep_refinement(self, state, planner_tools) -> ToolCallResult:
         """
         Handle the grep-refinement branch.
     
@@ -326,7 +327,13 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 "Respond by calling one of the available tools."
             )
     
-        # --- Step 3: Continue the open planner conversation with the feedback ---
+        # --- Step 3: Store the follow-up prompt in state for verbose display ---
+        state["follow_up_prompt"] = (
+            f"Result:\n{feedback}\n\n"
+            f"Instruction:\n{instructions}"
+        )
+    
+        # --- Step 4: Continue the open planner conversation with the feedback ---
         try:
             return self.planner_llm.submit_tool_result_and_continue(
                 tool_call_id=pending.get("tool_id", "unknown"),
@@ -348,7 +355,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             )
     
     
-    def _plan_tree_followup(self, state, planner_tools) -> "ToolCallResult":
+    def _plan_tree_followup(self, state, planner_tools) -> ToolCallResult:
         """
         Handle the tree-tool follow-up branch.
     
@@ -367,17 +374,25 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             state["pipeline_state"]["execution_history"][:-1]
         )
     
-        # --- Step 2: Submit tree result and ask for the next tool ---
+        # --- Step 2: Construct and store the follow-up prompt ---
+        tree_result = (
+            "Here is the directory tree (rooted at the longest valid prefix "
+            f"of the path you provided):\n\n{tree_str}"
+        )
+        tree_instruction = "Based on the tree above, select the next tool to call."
+        state["follow_up_prompt"] = (
+            f"Result:\n{tree_result}\n\n"
+            f"Instruction:\n{tree_instruction}"
+        )
+    
+        # --- Step 3: Submit tree result and ask for the next tool ---
         pending = state.get("pending_tool_call", {})
         try:
             return self.planner_llm.submit_tool_result_and_continue(
                 tool_call_id=pending.get("tool_id", "unknown"),
                 tool_name="tree_tool",
-                result=(
-                    "Here is the directory tree (rooted at the longest valid prefix "
-                    f"of the path you provided):\n\n{tree_str}"
-                ),
-                next_instruction="Based on the tree above, select the next tool to call.",
+                result=tree_result,
+                next_instruction=tree_instruction,
                 tools=planner_tools,
                 tool_choice="any",
             )
@@ -391,7 +406,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 arguments={"advice": str(exc)},
             )
         
-    def _plan_rag_followup(self, state, planner_tools) -> "ToolCallResult":
+    def _plan_rag_followup(self, state, planner_tools) -> ToolCallResult:
         """Handle the RAG-tool follow-up branch.
         
         Called when the previous tool was rag_tool but no results were found. 
@@ -399,27 +414,35 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         as context to decide how to proceed — whether to try grep_tool with specific 
         keywords/sources, or to reformulate the query and try RAG again."""
         # --- Step 1: Retrieve RAG output and clean up history ---
-        rag_output = state["rewritten_prompt"]
+        parameters = state.get("pending_tool_call", {}).get("arguments", {})
         state["pipeline_state"]["execution_history"] = (
             state["pipeline_state"]["execution_history"][:-1]
         )
         
-        # --- Step 2: Submit RAG result and ask for the next tool ---
+        # --- Step 2: Construct and store the follow-up prompt ---
+        rag_result = (
+            "The RAG search did not return any relevant results. "
+            "Here are the parameters that were used for the search:\n"
+            f"{parameters}\n\n"
+        )
+        rag_instruction = (
+            "Based on this information, select the next tool to call. "
+            "You might want to try grep_tool with specific keywords/sources, "
+            "or reformulate the query and try RAG again."
+        )
+        state["follow_up_prompt"] = (
+            f"Result:\n{rag_result}\n"
+            f"Instruction:\n{rag_instruction}"
+        )
+        
+        # --- Step 3: Submit RAG result and ask for the next tool ---
         pending = state.get("pending_tool_call", {})
         try:
             return self.planner_llm.submit_tool_result_and_continue(
                 tool_call_id=pending.get("tool_id", "unknown"),
                 tool_name="rag_tool",
-                result=(
-                    "The RAG search did not return any relevant results. "
-                    "Here is the context that was used for the search:\n\n"
-                    f"{rag_output}"
-                ),
-                next_instruction=(
-                    "Based on this information, select the next tool to call. "
-                    "You might want to try grep_tool with specific keywords/sources, "
-                    "or reformulate the query and try RAG again."
-                ),
+                result=rag_result,
+                next_instruction=rag_instruction,
                 tools=planner_tools,
                 tool_choice="any",
             )
@@ -434,7 +457,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             )
 
     
-    def _plan_graph_followup(self, state, planner_tools) -> "ToolCallResult":
+    def _plan_graph_followup(self, state, planner_tools) -> ToolCallResult:
         """
         Handle the graph-tool follow-up branch.
         
@@ -452,23 +475,31 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             state["pipeline_state"]["execution_history"][:-1]
         )
         
-        # --- Step 2: Submit graph result and ask for the next tool ---
+        # --- Step 2: Construct and store the follow-up prompt ---
+        graph_result = (
+            "Here are the structural graph results from your navigation:\n\n"
+            f"{graph_str}"
+        )
+        graph_instruction = (
+            "Based on these structural results, decide your next action:\n"
+            "- Continue graph navigation with another action (tree, node, neighbors, edges)\n"
+            "- Or switch to rag_tool/grep_tool to examine specific code\n"
+            "- Or call submit_answer if you have enough information. "
+            "When you're ready to conclude graph exploration, use the 'search' action."
+        )
+        state["follow_up_prompt"] = (
+            f"Result:\n{graph_result}\n\n"
+            f"Instruction:\n{graph_instruction}"
+        )
+        
+        # --- Step 3: Submit graph result and ask for the next tool ---
         pending = state.get("pending_tool_call", {})
         try:
             return self.planner_llm.submit_tool_result_and_continue(
                 tool_call_id=pending.get("tool_id", "unknown"),
                 tool_name="graph_tool",
-                result=(
-                    "Here are the structural graph results from your navigation:\n\n"
-                    f"{graph_str}"
-                ),
-                next_instruction=(
-                    "Based on these structural results, decide your next action:\n"
-                    "- Continue graph navigation with another action (tree, node, neighbors, edges)\n"
-                    "- Or switch to rag_tool/grep_tool to examine specific code\n"
-                    "- Or call submit_answer if you have enough information. "
-                    "When you're ready to conclude graph exploration, use the 'search' action."
-                ),
+                result=graph_result,
+                next_instruction=graph_instruction,
                 tools=planner_tools,
                 tool_choice="any",
             )
@@ -484,7 +515,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
 
     
     
-    def _plan_normal(self, state, planner_tools, is_continuation) -> "tuple[ToolCallResult, str, str]":
+    def _plan_normal(self, state, planner_tools, is_continuation) -> Tuple[ToolCallResult, str, str]:
         """
         Handle the normal planning branch (kickoff or continuation).
     
@@ -588,7 +619,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         return tool_call, system_prompt, reasoning
     
     
-    def agentic_router(self, state: "WorkflowState") -> "WorkflowState":
+    def agentic_router(self, state: WorkflowState) -> WorkflowState:
         """
         Planner node — decides which tool to call next.
     
@@ -619,7 +650,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         include_grade = is_continuation
     
         planner_tools = _build_planner_tools(
-            tools=[self.rag_tool, self.grep_tool, #self.graph_tool,
+            tools=[self.rag_tool, self.grep_tool, self.graph_tool,
                    self.tree_tool, self.script_finder_tool, self.prior_evidence_tool],
             include_grade=include_grade,
         )
@@ -653,7 +684,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         if history and history[-1]["tool"] == "graph_tool" and state.get("rewritten_prompt"):
             # Extract the action from the last history entry to check if it was "search"
             last_entry = history[-1]
-            args = last_entry.get("query") or {}  # query field stores the tool arguments
+            args = last_entry.get("parameter", {})  # query field stores the tool arguments
             action = args.get("action") if isinstance(args, dict) else None
             # Continue navigation loop unless action was "search"
             graph_followup_active = action and action != "search"
@@ -723,18 +754,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # Step 5: Verbose display
         # ------------------------------------------------------------------
         if state["pipeline_state"]["verbose"]:
-            if grep_refinement_active or tree_followup_active:
-                # Follow-up branches: show the feedback that was submitted
-                prompt_content = Text.from_markup(
-                    f"[dim]Follow-up branch: {('grep refinement' if grep_refinement_active else 'tree follow-up')}[/dim]"
-                )
-            elif graph_followup_active:
-                prompt_content = Text.from_markup(
-                    f"[dim]Follow-up branch: graph navigation[/dim]"
-                )
-            elif rag_followup_active:
-                prompt_content = Text.from_markup(
-                    f"[dim]Follow-up branch: RAG refinement[/dim]"
+            # Check if there's a follow-up prompt to display
+            if state.get("follow_up_prompt"):
+                prompt_content = Panel(
+                    escape(state["follow_up_prompt"]), title="Follow-up Prompt", border_style="bright_green"
                 )
             else:
                 prompt_content = Panel(
@@ -806,6 +829,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 if state["pipeline_state"]["verbose"]:
                     self.console.print(f"[dim]Extracted {len(new_facts)} facts.[/dim]")
     
+        # Clear follow_up_prompt after verbose display to avoid stale data in future iterations
+        state.pop("follow_up_prompt", None)
+    
         return state
 
     # -----------------------------------------------------------------------
@@ -854,7 +880,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
 
         return "\n\n".join(raw_results_parts)
     
-    def use_rag_tool(self, state: "WorkflowState") -> "WorkflowState":
+    def use_rag_tool(self, state: WorkflowState) -> WorkflowState:
         """Semantic search — parameters arrive as clean JSON from the tool call."""
         self.console.print("[dim]--- SUB-NODE: RAG Tool ---[/dim]")
     
@@ -922,7 +948,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         )
         return state
     
-    def use_grep_tool(self, state: "WorkflowState") -> "WorkflowState":
+    def use_grep_tool(self, state: WorkflowState) -> WorkflowState:
         """Text grep — parameters arrive as clean JSON from the tool call."""
         self.console.print("[dim]--- SUB-NODE: Grep Tool ---[/dim]")
     
@@ -1103,7 +1129,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         if len(found_paths) < len(script_names):
             outcome_str += (
                 f" {len(script_names) - len(found_paths)} could not be found."
-                f" Only found: {', '.join([self.mapping.get(p, p) for p in found_paths])}."
+                f" Only found: {[self.mapping.get(os.path.splitext(os.path.basename(p))[0], p) for p in found_paths]}."
             )
         self._append_history(state, "script_finder_tool", script_names, outcome_str, thought)
 
@@ -1114,7 +1140,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         )
         if found_paths:
             state['rewritten_prompt'] += (
-                f"The scripts {', '.join([self.mapping.get(p, p) for p in found_paths])} have been located and analyzed, "
+                f"The scripts {[self.mapping.get(os.path.splitext(os.path.basename(p))[0], p) for p in found_paths]} have been located and analyzed, "
                 f"the details have been added to Verified Facts.\n"
             )
         else:
@@ -1209,17 +1235,20 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self._append_history(state, "graph_tool", args, outcome_str, thought)
 
         graph_result_text = self.graph_tool.to_prompt_text(result)
-        base_prompt = self.design_first_part_prompt(state)
-        state["rewritten_prompt"] = (
-            f"{base_prompt}"
-            "### GRAPH RESULTS\n"
-            f"Action: {action}\n"
-            f"Parameters: {json.dumps(args, ensure_ascii=False)}\n\n"
-            f"{graph_result_text}\n\n"
-            "### INSTRUCTION\n"
-            "Use these structural graph results together with verified facts to answer "
-            "the question as concisely as possible."
-        )
+        if action == "search":
+            base_prompt = self.design_first_part_prompt(state)
+            state["rewritten_prompt"] = (
+                f"{base_prompt}"
+                "### GRAPH RESULTS\n"
+                f"Action: {action}\n"
+                f"Parameters: {json.dumps(args, ensure_ascii=False)}\n\n"
+                f"{graph_result_text}\n\n"
+                "### INSTRUCTION\n"
+                "Use these structural graph results together with verified facts to answer "
+                "the question as concisely as possible."
+            )
+        else:
+            state["rewritten_prompt"] = graph_result_text  # For non-search actions, just update the prompt with the new graph state for the next turn's planning
         return state
 
     def use_tree_tool(self, state: WorkflowState) -> WorkflowState:

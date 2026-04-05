@@ -169,6 +169,8 @@ class DSLQuerySystem():
                 grade=None,
                 verbose=verbose
             )
+        else:
+            input_state = GraphState(question="", reference_answer="", verbose=verbose, retry_count=0)
         
         while True:
             try:
@@ -182,9 +184,13 @@ class DSLQuerySystem():
                 
                 if verbose:
                     self.console.print("[dim]Thinking...[/dim]")
+                
+                input_state["question"] = user_input # the new question given by the user
+                
+                final_state = app.invoke(input_state)
+                raw = final_state.get('final_answer', 'No answer generated')
 
                 if is_agentic: # Check whether we use MainAgenticPipeline -> Keep the persistent AgentGraphState 
-                    input_state["question"] = user_input # the new question given by the user
                     input_state["retry_count"] = 0 # reset retry count
                     # Keep the updated fields
                     input_state["knowledge_bank"] = final_state.get("knowledge_bank", [])
@@ -192,9 +198,6 @@ class DSLQuerySystem():
                     input_state["accumulated_evidence"] = final_state.get("accumulated_evidence", {})
                 else: # Previous version of this, not using a persistent AgentGraphState
                     input_state = GraphState(question=user_input, verbose=verbose, reference_answer="", retry_count=0)
-                
-                final_state = app.invoke(input_state)
-                raw = final_state.get('final_answer', 'No answer generated')
                 
                 self.console.print(Panel(Markdown(raw), title="Copilot", border_style="blue"))
                 if self.config_manager.get("main_pipeline.token_count", False):

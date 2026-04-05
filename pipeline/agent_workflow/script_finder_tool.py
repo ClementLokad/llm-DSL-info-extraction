@@ -1,4 +1,5 @@
 import os
+import re
 from typing import List, Optional, Dict, Any
 
 from .workflow_base import BaseScriptFinderTool, _tool_desc
@@ -55,7 +56,7 @@ class PathScriptFinder(BaseScriptFinderTool):
             for file_name in script_names:
                 stripped_target = str(self.strip_extension(file_name)).strip("/")
                 original_path = str(self.strip_extension(self.mapping.get(stripped_name, "")))
-                if original_path.endswith(stripped_target):
+                if re.search(stripped_target, original_path, re.IGNORECASE):
                     results.append(file_path)
 
         return results

@@ -97,7 +97,7 @@ class GrepTool(BaseGrepTool):
         """
         
         if source_regex is not None:
-            source_regex = source_regex.strip().strip("'\"")
+            source_regex = str(source_regex).strip().strip("'\"")
             valid = False
             for f in self.mapping.values():
                 if re.search(source_regex, f, 0 if self.case_sensitive else re.IGNORECASE):

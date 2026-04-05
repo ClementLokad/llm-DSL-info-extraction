@@ -1,8 +1,10 @@
 from typing import List, Tuple, Optional
 import re
+import os
 import time
 from pipeline.agent_workflow.workflow_base import BaseDistillationTool
-from rich.console import Group
+from get_mapping import get_file_mapping
+from rich.console import Group, Console
 from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.table import Table
@@ -18,8 +20,7 @@ _DISTILLATION_SYSTEM_PROMPT = (
  
 _DISTILL_SINGLE_SYSTEM_PROMPT = (
     "You are a precise information extractor. "
-    "Given a document and a query, extract only the facts directly relevant to the query. "
-    "If the document is irrelevant, reply with exactly: IRRELEVANT. "
+    "Given a document and a query, extract the facts that help to answer the query. "
     "No preamble, no commentary."
 )
  
@@ -34,6 +35,10 @@ class LLMDistillationTool(BaseDistillationTool):
     The distillation LLM context is always reset before each call — distillation
     is stateless by design.
     """
+    
+    def __init__(self, llm_name: str = None, console: Console = Console()):
+        super().__init__(llm_name=llm_name)
+        self.mapping = get_file_mapping()
  
     def distill(self, content: str, query: str, thought: str, source: str = None, verbose=False) -> str:
         """Single-item distillation (used by script_finder_tool)."""
@@ -45,12 +50,12 @@ class LLMDistillationTool(BaseDistillationTool):
             f"### CONTENT TO ANALYZE"
         )
         if source:
-            user_message += f" FROM {source}"
+            user_message += f" FROM {self.mapping.get(os.path.splitext(os.path.basename(source))[0], source)}"
         user_message += (
             f"\n{content[:200_000]}\n\n"   # safety truncation
             f"### TASK\n"
-            f"Extract a concise summary that specifically answers the Query or Thought. "
-            f"If the content is irrelevant, return 'IRRELEVANT'."
+            f"Extract concise information that helps answer the Query or Thought. "
+            f"Include relevant context that contribute to understanding the topic."
         )
  
         if self.rate_limit_delay > 0:
