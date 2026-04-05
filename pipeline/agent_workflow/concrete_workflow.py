@@ -36,7 +36,8 @@ from pipeline.agent_workflow.workflow_base import (
     WorkflowState,
     _tool_desc,
 )
-from pipeline.langgraph_base import KnowledgeElement
+from get_mapping import get_file_mapping
+from pipeline.langgraph_base import KnowledgeElement, RetrievalResult
 from agents.prepare_agent import prepare_agent
 from agents.base import ToolCallResult
 from rag.core.base_parser import BlockType
@@ -102,7 +103,7 @@ def _build_planner_tools(tools: List[Tool], include_grade: bool = True) -> List[
 VALID_TOOLS = {
     "rag_tool",
     "grep_tool",
-    "graph_tool",
+    #"graph_tool",
     "script_finder_tool",
     "tree_tool",
     "prior_evidence_tool",
@@ -131,6 +132,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self.tree_tool = tree_tool
         self.graph_tool = graph_tool
         self.prior_evidence_tool = prior_evidence_tool_instance or prior_evidence_tool()
+        self.mapping = get_file_mapping()
         self.config_manager = config_manager.get_config()
         self.planner_llm = prepare_agent(
             self.config_manager.get(
@@ -165,14 +167,12 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "Lokad is a supply chain optimization company. Envision is their specialized "
             "programming language for quantitative supply chain logic.\n"
             "You are initiating a new investigation. Select the best FIRST tool to gather information.\n\n"
-            f"### MISSION GOAL\n{question}\n\n"
-            "### CODEBASE STRUCTURE (full hierarchy)\n"
+            "### CODEBASE STRUCTURE (from root : '/')\n"
             f"{tree_str}\n\n"
+            f"### MISSION GOAL\n{question}\n\n"
             "### PLANNING INSTRUCTIONS\n"
             "1. Identify the most critical keyword or concept in the Mission Goal.\n"
             "2. Choose the tool that matches the nature of what you are looking for:\n"
-            " - The question is structural (folder hierarchy, dependencies, read/write/import links)\n"
-            "    → graph_tool is preferred for graph-native navigation.\n"
             " - The question mentions a specific file path, function name, variable,"
             " or string literal that is unlikely to appear in unrelated contexts\n"
             "    → grep_tool is precise and fast for exact matches.\n"
@@ -226,7 +226,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             facts_str = "(Knowledge bank is empty.)"
         
         evidence_inventory_str = self._build_evidence_inventory_str(state)
-
+        tree_str = self.tree_tool.custom_tree('', 3, 3)
         return (
             self.base_instructions
             + "\n### SYSTEM ROLE\n"
@@ -235,6 +235,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "Your primary goal is EFFICIENCY. Decide whether current information is "
             "sufficient to answer the question.\n"
             "If the answer is found, call submit_answer immediately.\n\n"
+            "### CODEBASE STRUCTURE (from root : '/')\n"
+            f"{tree_str}\n\n"
             f"### MISSION GOAL\n{question}\n\n"
             "### PROPOSED SOLUTION (From Main Agent)\n"
             f"\"{previous_generation}\"\n\n"
@@ -432,6 +434,55 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             )
 
     
+    def _plan_graph_followup(self, state, planner_tools) -> "ToolCallResult":
+        """
+        Handle the graph-tool follow-up branch.
+        
+        Called when the previous tool was graph_tool with an action other than 'search'.
+        The graph output was stored in state['rewritten_prompt'] by use_graph_tool;
+        we submit it as the tool result so the model can decide what graph navigation
+        to do next based on the structure it just explored.
+        
+        Side-effect: removes the last history entry (graph navigation itself is not
+        evidence-gathering, just structural exploration).
+        """
+        # --- Step 1: Retrieve graph output and clean up history ---
+        graph_str = state["rewritten_prompt"]
+        state["pipeline_state"]["execution_history"] = (
+            state["pipeline_state"]["execution_history"][:-1]
+        )
+        
+        # --- Step 2: Submit graph result and ask for the next tool ---
+        pending = state.get("pending_tool_call", {})
+        try:
+            return self.planner_llm.submit_tool_result_and_continue(
+                tool_call_id=pending.get("tool_id", "unknown"),
+                tool_name="graph_tool",
+                result=(
+                    "Here are the structural graph results from your navigation:\n\n"
+                    f"{graph_str}"
+                ),
+                next_instruction=(
+                    "Based on these structural results, decide your next action:\n"
+                    "- Continue graph navigation with another action (tree, node, neighbors, edges)\n"
+                    "- Or switch to rag_tool/grep_tool to examine specific code\n"
+                    "- Or call submit_answer if you have enough information. "
+                    "When you're ready to conclude graph exploration, use the 'search' action."
+                ),
+                tools=planner_tools,
+                tool_choice="any",
+            )
+        except Exception as exc:
+            self.console.print(
+                f"[dim][yellow]Planner fallback (graph follow-up): {exc}[/yellow][/dim]"
+            )
+            return ToolCallResult(
+                tool_name="simple_regeneration_tool",
+                tool_id="fallback",
+                arguments={"advice": str(exc)},
+            )
+
+    
     
     def _plan_normal(self, state, planner_tools, is_continuation) -> "tuple[ToolCallResult, str, str]":
         """
@@ -568,7 +619,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         include_grade = is_continuation
     
         planner_tools = _build_planner_tools(
-            tools=[self.rag_tool, self.grep_tool, self.graph_tool, self.tree_tool, self.script_finder_tool, self.prior_evidence_tool],
+            tools=[self.rag_tool, self.grep_tool, #self.graph_tool,
+                   self.tree_tool, self.script_finder_tool, self.prior_evidence_tool],
             include_grade=include_grade,
         )
     
@@ -595,6 +647,16 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             and history[-1]["tool"] == "rag_tool"
             and state.get("rewritten_prompt")
         )
+        
+        # Graph tool follow-up: continue loop if action was NOT "search"
+        graph_followup_active = False
+        if history and history[-1]["tool"] == "graph_tool" and state.get("rewritten_prompt"):
+            # Extract the action from the last history entry to check if it was "search"
+            last_entry = history[-1]
+            args = last_entry.get("query") or {}  # query field stores the tool arguments
+            action = args.get("action") if isinstance(args, dict) else None
+            # Continue navigation loop unless action was "search"
+            graph_followup_active = action and action != "search"
     
         if grep_refinement_active:
             already_distilled = True  # grep refinement never has raw results to distil
@@ -603,6 +665,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         elif tree_followup_active:
             already_distilled = True  # tree output is not evidence, nothing to distil
             tool_call = self._plan_tree_followup(state, planner_tools)
+        
+        elif graph_followup_active:
+            already_distilled = True  # graph navigation is structural, not evidence to distil
+            tool_call = self._plan_graph_followup(state, planner_tools)
         
         elif rag_followup_active:
             already_distilled = True  # RAG follow-up is triggered by a negative result, so no distillation needed
@@ -661,6 +727,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 # Follow-up branches: show the feedback that was submitted
                 prompt_content = Text.from_markup(
                     f"[dim]Follow-up branch: {('grep refinement' if grep_refinement_active else 'tree follow-up')}[/dim]"
+                )
+            elif graph_followup_active:
+                prompt_content = Text.from_markup(
+                    f"[dim]Follow-up branch: graph navigation[/dim]"
                 )
             elif rag_followup_active:
                 prompt_content = Text.from_markup(
@@ -742,6 +812,48 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     # Tool nodes  (read clean args from pending_tool_call)
     # -----------------------------------------------------------------------
 
+    def _format_results(self, results: List[RetrievalResult]) -> str:
+        """Formats the search results by source.
+
+        Args:
+            results (List[RetrievalResult]): A list of retrieval results, each containing content and metadata.
+
+        Returns:
+            str: A formatted string grouping results by source file with line numbers.
+        """
+        results_by_source = {}
+        for result in results:
+            source = result.chunk.metadata.get('original_file_path', 'Unknown')
+            if source not in results_by_source:
+                results_by_source[source] = []
+            line_start, line_end = result.chunk.get_line_range()
+            results_by_source[source].append({
+                "content": result.chunk.content,
+                "line_start": line_start,
+                "line_end": line_end,
+            })
+
+        # Format output grouped by source with line numbers for each result
+        raw_results_parts = []
+        for source in sorted(results_by_source.keys()):
+            source_results = results_by_source[source]
+            # Only show count if there are multiple results from this file
+            if len(source_results) == 1:
+                line_start = source_results[0]["line_start"]
+                line_end = source_results[0]["line_end"]
+                raw_results_parts.append(f"=== Source: {source} [Lines {line_start}-{line_end}] ===")
+                raw_results_parts.append(source_results[0]["content"])
+                continue
+
+            raw_results_parts.append(f"=== Source: {source} [{len(source_results)} results] ===")
+            for result in source_results:
+                content = result["content"]
+                line_start = result["line_start"]
+                line_end = result["line_end"]
+                raw_results_parts.append(f"[Lines {line_start}-{line_end}]:\n{content}")
+
+        return "\n\n".join(raw_results_parts)
+    
     def use_rag_tool(self, state: "WorkflowState") -> "WorkflowState":
         """Semantic search — parameters arrive as clean JSON from the tool call."""
         self.console.print("[dim]--- SUB-NODE: RAG Tool ---[/dim]")
@@ -793,37 +905,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # Step 4: Format raw results for the Solver prompt
         # Group results by source file with line numbers
         # ------------------------------------------------------------------
-        results_by_source = {}
-        for r in results:
-            source = r.chunk.metadata.get('original_file_path', 'Unknown')
-            if source not in results_by_source:
-                results_by_source[source] = []
-            
-            # Get line range for this chunk
-            line_start, line_end = r.chunk.get_line_range()
-            results_by_source[source].append({
-                "content": r.chunk.content,
-                "line_start": line_start,
-                "line_end": line_end
-            })
-        
-        # Format output grouped by source with line numbers for each result
-        raw_results_parts = []
-        for source in sorted(results_by_source.keys()):
-            source_results = results_by_source[source]
-            # Only show count if there are multiple results from this file
-            if len(source_results) > 1:
-                raw_results_parts.append(f"=== Source: {source} [{len(source_results)} results] ===")
-            else:
-                raw_results_parts.append(f"=== Source: {source} ===")
-            
-            for result in source_results:
-                line_start = result["line_start"]
-                line_end = result["line_end"]
-                content = result["content"]
-                raw_results_parts.append(f"[Lines {line_start}-{line_end}]:\n{content}")
-        
-        raw_results_str = "\n\n".join(raw_results_parts)
+        raw_results_str = self._format_results(results)
     
         # ------------------------------------------------------------------
         # Step 5: Assemble the rewritten prompt for the Solver
@@ -904,8 +986,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # ------------------------------------------------------------------
         original_result_count = len(results)
         max_res = get_config().get("main_pipeline.grep_tool.max_results")
-        shortened_res = len(results) > max_res
-        if shortened_res:
+        res_truncated = len(results) > max_res
+        if res_truncated:
             results = results[:max_res]
             if state['pipeline_state']['verbose']:
                 self.console.print(f"Only the first {max_res} will be analysed")
@@ -932,7 +1014,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         outcome_str = (
             f"Grep found {original_result_count} matches from {len(total_sources)} distinct scripts."
         )
-        if shortened_res:
+        if res_truncated:
             outcome_str += f" Only the first {max_res} were analyzed."
         self._append_history(state, "grep_tool", pattern, outcome_str, thought, results)
     
@@ -940,37 +1022,14 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # Step 5: Compact results to fit within the context line budget
         # ------------------------------------------------------------------
         max_lines = self.config_manager.get("main_pipeline.grep_tool.max_lines")
-        compacted = self.grep_tool.shorten_results(
+        shortened_res = self.grep_tool.shorten_results(
             pattern, results, max_lines
         )
-        if len(compacted) < len(results):
+        if len(shortened_res) < len(results):
             raise Exception("Lost results during compaction")
     
-        # Group results by source file
-        results_by_source = {}
-        for i, shortened_result in enumerate(compacted):
-            source = results[i].chunk.metadata.get('original_file_path', 'Unknown')
-            if source not in results_by_source:
-                results_by_source[source] = []
-            results_by_source[source].append(shortened_result)
-        
-        # Format output grouped by source with line numbers for each result
-        raw_results_parts = []
-        for source in sorted(results_by_source.keys()):
-            source_results = results_by_source[source]
-            # Only show count if there are multiple results from this file
-            if len(source_results) > 1:
-                raw_results_parts.append(f"=== Source: {source} [{len(source_results)} results] ===")
-            else:
-                raw_results_parts.append(f"=== Source: {source} ===")
-            
-            for shortened_result in source_results:
-                line_start = shortened_result["line_start"]
-                line_end = shortened_result["line_end"]
-                content = shortened_result["content"]
-                raw_results_parts.append(f"[Lines {line_start}-{line_end}]:\n{content}")
-        
-        raw_results_str = "\n\n".join(raw_results_parts)
+        # Group results by source file with line numbers for the prompt
+        raw_results_str = self._format_results(shortened_res)
     
         # ------------------------------------------------------------------
         # Step 6: Assemble the rewritten prompt for the Solver
@@ -978,7 +1037,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         base_prompt = self.design_first_part_prompt(state)
         state['rewritten_prompt'] = f"{base_prompt}### GREP RESULTS\n"
     
-        if shortened_res:
+        if res_truncated:
             state['rewritten_prompt'] += (
                 f"WARNING: Results truncated — only the first {max_res} "
                 f"out of {original_result_count} are shown.\n"
@@ -1044,7 +1103,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         if len(found_paths) < len(script_names):
             outcome_str += (
                 f" {len(script_names) - len(found_paths)} could not be found."
-                f" Only found: {found_paths}"
+                f" Only found: {', '.join([self.mapping.get(p, p) for p in found_paths])}."
             )
         self._append_history(state, "script_finder_tool", script_names, outcome_str, thought)
 
@@ -1055,7 +1114,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         )
         if found_paths:
             state['rewritten_prompt'] += (
-                f"The scripts {found_paths} have been located and analyzed, "
+                f"The scripts {', '.join([self.mapping.get(p, p) for p in found_paths])} have been located and analyzed, "
                 f"the details have been added to Verified Facts.\n"
             )
         else:
@@ -1239,6 +1298,27 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             self.console.print("[dim]    -> Prior evidence returned 0 results, replanning.[/dim]")
             return "replan"
 
+    def should_continue_graph_navigation(self, state: WorkflowState) -> str:
+        """
+        Decide whether to continue graph navigation or end the loop.
+        
+        Returns "continue" to loop back for more navigation,
+        "end" to terminate if search action was used.
+        """
+        self.console.print("[dim]--- SUB-DECISION: Graph navigation continuation ---[/dim]")
+        # Check the pending tool call to see what action was executed
+        pending = state.get("pending_tool_call", {})
+        action = pending.get("arguments", {}).get("action")
+        
+        # If action was "search", end the loop (user found what they need)
+        if action == "search":
+            self.console.print("[dim]    -> 'search' action used, concluding graph exploration.[/dim]")
+            return "end"
+        
+        # Otherwise, continue for more graph navigation
+        self.console.print(f"[dim]    -> Action '{action}' allows continued navigation.[/dim]")
+        return "continue"
+
     # -----------------------------------------------------------------------
     # Graph assembly
     # -----------------------------------------------------------------------
@@ -1284,7 +1364,11 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             self.refine_prior_evidence,
             {"replan": "agentic_router", "validated": END}
         )
-        self.add_edge("graph_tool", END)
+        self.add_conditional_edges(
+            "graph_tool",
+            self.should_continue_graph_navigation,
+            {"continue": "agentic_router", "end": END},
+        )
         self.add_edge("script_finder_tool", END)
         self.add_edge("simple_regeneration_tool", END)
 

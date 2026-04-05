@@ -245,7 +245,10 @@ class AdvancedRAGTool(SimpleRAGTool):
                 "Use whenever the question involves a concept, a behaviour, business logic, "
                 "or any term that could appear in many different contexts. "
                 "Also use when a prior grep returned too many results or irrelevant matches — "
-                "semantic search will find the most relevant chunks regardless of exact wording."
+                "semantic search will find the most relevant chunks regardless of exact wording.\n"
+                "Use the key_words parameter generously for specific terminology, function names, "
+                "or identifiers. It safely boosts exact matches without acting as a strict filter, "
+                "ensuring you don't lose broader semantic context."
             ),
             properties={
                 "query": {

@@ -167,7 +167,7 @@ class GrepTool(BaseGrepTool):
         
         return matches
 
-    def shorten_results(self, pattern: str, retrieval_results: List[RetrievalResult], limit: int) -> List[Dict[str, Any]]:
+    def shorten_results(self, pattern: str, retrieval_results: List[RetrievalResult], limit: int) -> List[RetrievalResult]:
         """
         Shortens results by dynamically adjusting the context window (k) 
         so that the total number of lines fits within the 'limit'.
@@ -178,10 +178,7 @@ class GrepTool(BaseGrepTool):
             limit (int): The maximum allowed total number of lines across all results.
 
         Returns:
-            List[Dict[str, Any]]: Each dict contains:
-                - 'content': The shortened/formatted code string
-                - 'line_start': Starting line number in the original file (1-indexed)
-                - 'line_end': Ending line number in the original file (1-indexed)
+            List[RetrievalResult]: A list of shortened retrieval results.
         """
         
         clean_target = pattern.strip().strip("'\"").strip("/")
@@ -213,6 +210,7 @@ class GrepTool(BaseGrepTool):
                     "matches": matches,
                     "orig_line_start": orig_line_start,
                     "orig_line_end": orig_line_end,
+                    "original_file_path": result.chunk.metadata.get("original_file_path", "Unknown")
                 })
 
         # 2. Helper: Calculate total lines used for a specific context size k
@@ -273,11 +271,11 @@ class GrepTool(BaseGrepTool):
 
         # 4. Render the final output using optimal_k, tracking displayed line ranges
         final_results = []
-        for item in file_data:
+        for i, item in enumerate(file_data):
             lines = item["lines"]
             matches = item["matches"]
             orig_line_start = item["orig_line_start"]
-            
+            original_file_path = item["original_file_path"]
             indices = set()
             for m in matches:
                 start = max(0, m - optimal_k)
@@ -315,11 +313,33 @@ class GrepTool(BaseGrepTool):
             display_line_start = orig_line_start + first_displayed_idx
             display_line_end = orig_line_start + last_displayed_idx
             
-            final_results.append({
-                "content": "\n".join(chunk_lines),
-                "line_start": display_line_start,
-                "line_end": display_line_end,
-            })
+            original_block = retrieval_results[i].chunk.original_blocks[0]
+            shortened_block = CodeBlock(
+                content="\n".join(chunk_lines),
+                block_type=original_block.block_type,
+                name=original_block.name,
+                line_start=display_line_start,
+                line_end=display_line_end,
+                file_path=original_block.file_path,
+                dependencies=original_block.dependencies,
+                definitions=original_block.definitions,
+                metadata=original_block.metadata
+            )
+
+            shortened_result = RetrievalResult(
+                chunk=CodeChunk(
+                    content="\n".join(chunk_lines),
+                    chunk_type="grep_match_shortened",
+                    original_blocks=[shortened_block],
+                    context="Shortened grep match for display",
+                    size_tokens=len("\n".join(chunk_lines)) // self.config.get('chunker.chars_per_token', 4),
+                    metadata=retrieval_results[i].chunk.metadata,
+                ),
+                score=retrieval_results[i].score,
+                rank=retrieval_results[i].rank,
+                metadata=retrieval_results[i].metadata
+            )
+            final_results.append(shortened_result)
 
         return final_results
     

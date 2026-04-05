@@ -81,7 +81,7 @@ summarizer:
 
 query_transformer:
   query_transformer_model: "mistral" # Options: "qwen", "gemini", "gpt", "mistral", "groq"
-  query_transformer_type: "fusion" # Options: "fusion", "hyde", [NONE]
+  query_transformer_type: Null # Options: "fusion", "hyde", Null
   generated_instances_amount: "several" # Options: "[INTEGER_NUMBER]" i.e : "1", "144"... or "several" to let the llm decide
 
 # =============================================================================
@@ -326,6 +326,7 @@ main_pipeline:
     [2, 3],     # Level 5: Mostly architecture
     [1, 5],     # Level 6: Root folders only
   ]
+  file_tree_max_tok: 1000
 
     
 # =============================================================================

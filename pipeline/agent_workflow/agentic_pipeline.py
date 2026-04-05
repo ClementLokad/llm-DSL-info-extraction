@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import re
 import time
-from typing import Optional
 
 from langgraph.graph import END, StateGraph, START
 from config_manager import get_config
@@ -52,7 +51,7 @@ _SOLVER_SYSTEM_PROMPT = base_instructions + (
     "You are an expert technical assistant specialised in the **Lokad Envision** codebase.\n"
     "Lokad is a supply chain optimisation company. Envision is their domain-specific "
     "programming language for quantitative supply chain logic and probabilistic forecasting.\n"
-    "Answer the user's question fully and accurately, citing the relevant source files.\n"
+    "Answer the user's question fully and accurately, citing the relevant source files and the corresponding lines.\n"
     "If you do not have sufficient information to answer the question, DO NOT try to answer it."
     "Specify rather what is missing.\n"
     "Do NOT add conversational filler or repeat the question.\n\n"

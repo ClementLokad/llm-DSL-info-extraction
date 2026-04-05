@@ -444,7 +444,7 @@ EXAMPLES:
 
     parser.add_argument(
         "--querytransform", "-qt",
-        choices=["fusion", "hyde"],
+        choices=["fusion", "hyde", "None"],
         help="Override query transform mode from config"
     )
     
@@ -584,7 +584,10 @@ EXAMPLES:
 
         #Override query transform mode if specified
         if args.querytransform:
-            config_manager.get_config().config['query_transformer']['query_transformer_type'] = args.querytransform
+            if args.querytransform == "None":
+                config_manager.get_config().config['query_transformer']['query_transformer_type'] = None
+            else:
+                config_manager.get_config().config['query_transformer']['query_transformer_type'] = args.querytransform
         
         if args.token_count:
             config_manager.get_config().config['main_pipeline']['token_count'] = args.token_count

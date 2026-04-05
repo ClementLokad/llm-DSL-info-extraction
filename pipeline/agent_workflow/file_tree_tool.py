@@ -188,15 +188,17 @@ class FileTreeTool(BaseTreeTool):
             name="tree_tool",
             description=(
                 "Get a condensed summary of the file tree starting from a specific path. "
-                "The structure of the codebase is semantically crucial so do not hesitate to use this tool."
+                "Since you already have the root tree, use this tool to 'zoom in' and expand "
+                "specific subfolders when their names suggest they might contain relevant "
+                "files. The codebase structure is highly semantic, so exploring subdirectories "
+                "is crucial before guessing file paths."
             ),
             properties={
                 "root_path": {
                     "type": "string",
                     "description": (
                         "The path from which to start the file tree traversal. "
-                        "Use '/' or '' for the repository root. "
-                        "E.g. '/' or '/1. utilities/Modules'."
+                        "E.g. '/1. utilities/Modules'."
                     ),
                 },
             },

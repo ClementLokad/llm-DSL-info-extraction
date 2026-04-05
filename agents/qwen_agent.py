@@ -254,7 +254,7 @@ class QwenAgent(LLMAgent):
         self,
         user_message: str,
         tools: List[Dict[str, Any]],
-        system_prompt: Optional[str] = None,
+        system_prompt: str = "",
         tool_choice: str = "any",
     ) -> ToolCallResult:
         """
@@ -278,8 +278,11 @@ class QwenAgent(LLMAgent):
         Returns:
             ToolCallResult
         """
-        if system_prompt:
-            self.context = self._inject_system_prompt(self.context, system_prompt)
+        completed_sys_prompt = system_prompt + (
+            '\nFor every tool call you make, you must fill in the "thought" field explaining '
+            'your reasoning before filling in the other parameters.'
+        )
+        self.context = self._inject_system_prompt(self.context, completed_sys_prompt)
 
         self.context.append({"role": "user", "content": user_message})
 

@@ -80,50 +80,60 @@ class EnvisionGraphTool(Tool):
         return _tool_desc(
             name="graph_tool",
             description=(
-                "Navigate Envision code structure through the dependency graph "
-                "(tree, node, neighbors, edges, search)."
+                "Navigate Envision code structure through the dependency graph. "
+                "NAVIGATION PATTERN: Start with 'tree' to explore folder structure, "
+                "then 'neighbors' or 'edges' to find relationships, and 'search' to conclude. "
+                "Each non-'search' action loops back to allow continued exploration. "
+                "Use 'search' to end navigation once target information is found."
             ),
             properties={
                 "action": {
                     "type": "string",
                     "enum": ["tree", "node", "neighbors", "edges", "search"],
-                    "description": "Graph action to execute.",
+                    "description": (
+                        "Graph action to execute. "
+                        "'tree': Explore folder hierarchy/dependencies. "
+                        "'node': Inspect a specific node's properties. "
+                        "'neighbors': Find incoming/outgoing edges for navigation. "
+                        "'edges': List all edges between nodes/types. "
+                        "'search': Search nodes by name/path (ends navigation)."
+                    ),
                 },
                 "path": {
                     "type": "string",
-                    "description": "[tree] Folder path to inspect (default '/').",
+                    "description": "[tree] Folder path to inspect; default is root '/'.",
                 },
                 "domain": {
                     "type": "string",
                     "enum": ["scripts", "data", "both"],
-                    "description": "[tree] Graph domain.",
+                    "description": "[tree] Graph domain to explore ('scripts' or 'data'); default is 'both'.",
                 },
                 "max_depth": {
                     "type": "integer",
-                    "description": "[tree] Maximum recursion depth (omit for default).",
+                    "description": "[tree] Maximum folder recursion depth; omit for auto-limit.",
                 },
                 "node_id": {
                     "type": "string",
-                    "description": "[node, neighbors] Graph node identifier.",
+                    "description": "[node, neighbors, edges] Graph node identifier as returned by tree/search.",
                 },
                 "direction": {
                     "type": "string",
                     "enum": ["incoming", "outgoing", "all", "siblings"],
-                    "description": "[neighbors] Edge direction perspective.",
+                    "description": "[neighbors] Edge direction: 'incoming' (who calls this), 'outgoing' (what it calls), 'all', or 'siblings'.",
                 },
                 "relation_type": {
                     "type": "string",
                     "enum": ["reads", "writes", "imports", "defines", "contains", "sibling"],
-                    "description": "[neighbors, edges] Optional edge type filter.",
+                    "description": "[neighbors, edges] Optional edge type filter (e.g., 'imports', 'defines'). Default shows all types.",
                 },
                 "query": {
                     "type": "string",
-                    "description": "[search] Search query on node names/paths.",
+                    "description": "[search] Search query on node names or paths (regex or literal string).",
                 },
                 "node_types": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "[search] Optional node type filters.",
+                    "description": "[search] Optional node type filters if search supports type filtering.",
                 },
             },
             required=["action"],
