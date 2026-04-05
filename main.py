@@ -29,7 +29,7 @@ from pipeline.agent_workflow.rag_tool import SimpleRAGTool, AdvancedRAGTool
 from pipeline.agent_workflow.file_tree_tool import FileTreeTool
 from pipeline.agent_workflow.graph_tool import EnvisionGraphTool
 from pipeline.agent_workflow.agentic_pipeline import AgenticPipeline
-from pipeline.langgraph_base import BasePipeline, GraphState, BenchmarkState, APIError
+from pipeline.langgraph_base import BasePipeline, GraphState, AgentGraphState, BenchmarkState, APIError
 
 class MainAgenticPipeline(AgenticPipeline):
     def __init__(self, console: Console, verbose=True):
@@ -152,6 +152,24 @@ class DSLQuerySystem():
         
         self.console.print(Panel("Envision Copilot (Ctrl+C to exit)", title="Interactive", border_style="purple"))
         
+        # Simple check in case we use MainLinearPipeline (even tho it's kinda outdated)
+        is_agentic = isinstance(self.pipeline, MainAgenticPipeline)
+        if is_agentic:
+            input_state = AgentGraphState( # Initialize the AgentGraphState to be kept throughout the session
+                question="",
+                reference_answer="",
+                knowledge_bank=[],
+                execution_history=[],
+                accumulated_evidence={},
+                prompt="",
+                generation="",
+                final_answer=None,
+                regenerate_needed=False,
+                retry_count=0,
+                grade=None,
+                verbose=verbose
+            )
+        
         while True:
             try:
                 if self.config_manager.get("main_pipeline.token_count", False):
@@ -165,7 +183,16 @@ class DSLQuerySystem():
                 if verbose:
                     self.console.print("[dim]Thinking...[/dim]")
 
-                input_state = GraphState(question=user_input, verbose=verbose, reference_answer="", retry_count=0)
+                if is_agentic: # Check whether we use MainAgenticPipeline -> Keep the persistent AgentGraphState 
+                    input_state["question"] = user_input # the new question given by the user
+                    input_state["retry_count"] = 0 # reset retry count
+                    # Keep the updated fields
+                    input_state["knowledge_bank"] = final_state.get("knowledge_bank", [])
+                    input_state["execution_history"] = final_state.get("execution_history", [])
+                    input_state["accumulated_evidence"] = final_state.get("accumulated_evidence", {})
+                else: # Previous version of this, not using a persistent AgentGraphState
+                    input_state = GraphState(question=user_input, verbose=verbose, reference_answer="", retry_count=0)
+                
                 final_state = app.invoke(input_state)
                 raw = final_state.get('final_answer', 'No answer generated')
                 
