@@ -41,6 +41,7 @@ from agents.prepare_agent import prepare_agent
 from agents.base import ToolCallResult
 from rag.core.base_parser import BlockType
 from pipeline.agent_workflow.rag_tool import AdvancedRAGTool
+from pipeline.agent_workflow.prior_evidence_tool import prior_evidence_tool
 from config_manager import get_config
 from langgraph.graph import END, StateGraph, START
 
@@ -104,6 +105,7 @@ VALID_TOOLS = {
     "graph_tool",
     "script_finder_tool",
     "tree_tool",
+    "prior_evidence_tool",
     "submit_answer",
 }
 
@@ -121,12 +123,14 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         script_finder_tool: BaseScriptFinderTool,
         distillation_tool: BaseDistillationTool,
         tree_tool: BaseTreeTool,
+        prior_evidence_tool_instance: prior_evidence_tool = None,
         console: Console = Console(),
     ):
         super().__init__(rag_tool, grep_tool, script_finder_tool,
                          distillation_tool, console)
         self.tree_tool = tree_tool
         self.graph_tool = graph_tool
+        self.prior_evidence_tool = prior_evidence_tool_instance or prior_evidence_tool()
         self.config_manager = config_manager.get_config()
         self.planner_llm = prepare_agent(
             self.config_manager.get(
@@ -142,7 +146,17 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
 
     def _kickoff_system_prompt(self, state: WorkflowState) -> str:
         question = state['pipeline_state']['question']
-        tree_str = self.tree_tool.custom_tree('', 3, 3)
+        kickoff_tree_max_depth = self.config_manager.get(
+            "main_pipeline.kickoff_tree_max_depth", 50
+        )
+        kickoff_tree_max_children = self.config_manager.get(
+            "main_pipeline.kickoff_tree_max_children", 1000
+        )
+        tree_str = self.tree_tool.custom_tree(
+            '',
+            kickoff_tree_max_depth,
+            kickoff_tree_max_children,
+        )
         return (
             self.base_instructions
             + "\n### SYSTEM ROLE\n"
@@ -152,7 +166,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "programming language for quantitative supply chain logic.\n"
             "You are initiating a new investigation. Select the best FIRST tool to gather information.\n\n"
             f"### MISSION GOAL\n{question}\n\n"
-            "### CODEBASE STRUCTURE (top 3 levels)\n"
+            "### CODEBASE STRUCTURE (full hierarchy)\n"
             f"{tree_str}\n\n"
             "### PLANNING INSTRUCTIONS\n"
             "1. Identify the most critical keyword or concept in the Mission Goal.\n"
@@ -165,10 +179,39 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             " - The question asks about a concept, a behaviour, business logic,"
             " or uses broad terms that could appear in many different contexts\n"
             "    → rag_tool finds semantically relevant chunks regardless of exact wording.\n"
+            " - For grep_tool sources, ONLY use real codebase path patterns (from mapping/tree).\n"
+            "   Never use memory/context headings such as ENVISION Hot Memory, LIVE SESSION, or RECENT TURNS as sources.\n"
             " - When genuinely uncertain, consider what a first result would look like: "
             "if a grep would likely return hundreds of unrelated matches, use rag_tool.\n"
             "3. Call exactly ONE tool. Fill in all RELEVANT optional fields for precision.\n"
         )
+
+    def _build_evidence_inventory_str(self, state: WorkflowState) -> str:
+        """Build a string showing available evidence IDs and their sources."""
+        history = self._get_history(state)
+        accumulated_evidence = state['pipeline_state'].get("accumulated_evidence", {})
+        
+        if not accumulated_evidence:
+            return "(No accumulated evidence available yet.)"
+        
+        inventory_lines = []
+        for evidence_id in sorted(accumulated_evidence.keys(), key=lambda x: int(x)):
+            # Find the corresponding history entry
+            step_num = int(evidence_id) + 1  # Step numbers are 1-indexed
+            if step_num <= len(history):
+                log = history[int(evidence_id)]
+                tool_name = log.get("tool", "unknown_tool")
+                param = log.get("parameter", "")
+                outcome = log.get("outcome_summary", "")
+                inventory_lines.append(
+                    f"- Evidence ID '{evidence_id}': {tool_name} with '{param}' → {outcome}"
+                )
+            else:
+                inventory_lines.append(
+                    f"- Evidence ID '{evidence_id}': (retrieved results)"
+                )
+        
+        return "\n".join(inventory_lines)
 
     def _continuation_system_prompt(self, state: WorkflowState) -> str:
         question = state['pipeline_state']['question']
@@ -181,6 +224,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             facts_str = "\n".join(f"{i}. {f['fact']}" for i, f in enumerate(knowledge_bank))
         else:
             facts_str = "(Knowledge bank is empty.)"
+        
+        evidence_inventory_str = self._build_evidence_inventory_str(state)
 
         return (
             self.base_instructions
@@ -199,6 +244,12 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             f"### VERIFIED FACTS\n{facts_str}\n\n"
             "### HISTORY (Previous Steps)\n"
             f"{self._get_optimized_history_str(history)}\n\n"
+            f"### ACCUMULATED EVIDENCE INVENTORY\n"
+            f"The following evidence batches are available via prior_evidence_tool:\n"
+            f"{evidence_inventory_str}\n\n"
+            "Use prior_evidence_tool to retrieve any of these evidence IDs without re-running "
+            "the original search. Example: prior_evidence_tool(['0', '1']) to combine the "
+            "first two searches.\n\n"
             "### DECISION LOGIC\n\n"
             "1. COMPLETION CHECK: Answer these two questions independently:\n"
             "a. Does the Proposed Solution address the Mission Goal? (form)\n"
@@ -212,12 +263,14 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "- Did I try both rag_tool AND grep_tool?\n"
             "- Did I try boosting rag results with sources and/or kewords ?\n"
             "- Did I vary the query language (e.g. synonyms, related concepts)?\n"
+            "- Can I combine multiple prior evidence batches to strengthen the answer?\n"
             "If any answer is NO → proceed to step 3.\n\n"
             "3. GAP ANALYSIS: What specific information is missing? Choose the most targeted tool.\n"
             "Check History: if grep returned 0 or too many results, switch to rag_tool — "
             "semantic search handles broad concepts far better than exact matching. "
             "If rag_tool returned weak results, then try grep with a more specific identifier "
-            "extracted from those results.\n"
+            "extracted from those results. Or consider combining multiple prior searches with "
+            "prior_evidence_tool.\n"
         )
 
     # -----------------------------------------------------------------------
@@ -515,7 +568,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         include_grade = is_continuation
     
         planner_tools = _build_planner_tools(
-            tools=[self.rag_tool, self.grep_tool, self.graph_tool, self.tree_tool, self.script_finder_tool],
+            tools=[self.rag_tool, self.grep_tool, self.graph_tool, self.tree_tool, self.script_finder_tool, self.prior_evidence_tool],
             include_grade=include_grade,
         )
     
@@ -1015,6 +1068,67 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         )
         return state
 
+    def use_prior_evidence_tool(self, state: WorkflowState) -> WorkflowState:
+        """Retrieve prior evidence from accumulated evidence collected in previous tool calls."""
+        self.console.print("[dim]--- SUB-NODE: Prior Evidence Tool ---[/dim]")
+        
+        # Step 1: Unpack arguments
+        args = state.get("pending_tool_call", {}).get("arguments", {})
+        evidence_ids = args.get("evidence_ids", [])
+        thought = state.get("current_thought", "No reasoning provided.")
+        
+        if state['pipeline_state']['verbose']:
+            self.console.print(
+                f"[dim]Evidence IDs requested: [bright_magenta]{escape(str(evidence_ids))}[/bright_magenta][/dim]"
+            )
+        
+        # Step 2: Retrieve prior evidence using the tool's method
+        accumulated_evidence = state['pipeline_state'].get("accumulated_evidence", {})
+        results_by_id = self.prior_evidence_tool.retrieve_prior_evidence(
+            evidence_ids=evidence_ids,
+            accumulated_evidence=accumulated_evidence
+        )
+        
+        # Count total results and track which IDs failed
+        total_results = sum(len(batch) for batch in results_by_id.values())
+        missing_ids = [eid for eid, batch in results_by_id.items() if not batch]
+        
+        if state['pipeline_state']['verbose']:
+            self.console.print(f"[dim]Retrieved {total_results} prior evidence items[/dim]")
+            if missing_ids:
+                self.console.print(f"[dim]Missing IDs: {missing_ids}[/dim]")
+        
+        # Step 3: Record in execution history
+        outcome_str = f"Retrieved {total_results} prior evidence items from {len(evidence_ids)} requested IDs"
+        if missing_ids:
+            outcome_str += f" (IDs not found: {missing_ids})"
+        self._append_history(state, "prior_evidence_tool", evidence_ids, outcome_str, thought, list(results_by_id.values()))
+        
+        # Step 4: Format results using the tool's method
+        _, raw_results_str = self.prior_evidence_tool.format_results_by_source(results_by_id)
+        
+        # Step 5: Assemble the rewritten prompt for the Solver
+        base_prompt = self.design_first_part_prompt(state)
+        state['rewritten_prompt'] = f"{base_prompt}### PRIOR EVIDENCE RESULTS\n"
+        
+        if total_results == 0:
+            state['rewritten_prompt'] += (
+                f"WARNING: No evidence found for requested IDs: {evidence_ids}\n"
+            )
+        else:
+            state['rewritten_prompt'] += (
+                f"Retrieved {total_results} chunks from prior investigations "
+                f"(Evidence IDs: {', '.join(evidence_ids)}).\n"
+            )
+        
+        state['rewritten_prompt'] += (
+            f"\n\n{raw_results_str}\n\n"
+            "### INSTRUCTION\n"
+            "Using the prior evidence results above and all previous knowledge, answer the "
+            "question as concisely as possible."
+        )
+        return state
+
     def use_graph_tool(self, state: WorkflowState) -> WorkflowState:
         """Use the structural graph tool for dependency navigation."""
         self.console.print("[dim]--- SUB-NODE: Graph Tool ---[/dim]")
@@ -1108,6 +1222,22 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         else:
             self.console.print("[dim]    -> RAG returned 0 results, replanning.[/dim]")
             return "replan"
+    
+    def refine_prior_evidence(self, state: WorkflowState) -> str:
+        """Decide whether prior evidence results are satisfactory or need replanning."""
+        self.console.print("[dim]--- SUB-DECISION: Prior evidence results validation ---[/dim]")
+        exec_history = state["pipeline_state"].get("execution_history", [])
+        if not exec_history or exec_history[-1]["tool"] != "prior_evidence_tool":
+            self.console.print("[dim]    -> No recent prior evidence call found. Validated by default.[/dim]")
+            return "validated"
+
+        last_results = exec_history[-1].get("results_to_analyse", [])
+        if last_results:
+            self.console.print(f"[dim]    -> Prior evidence returned {len(last_results)} results, validated.[/dim]")
+            return "validated"
+        else:
+            self.console.print("[dim]    -> Prior evidence returned 0 results, replanning.[/dim]")
+            return "replan"
 
     # -----------------------------------------------------------------------
     # Graph assembly
@@ -1120,6 +1250,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self.add_node("graph_tool", self.use_graph_tool)
         self.add_node("tree_tool", self.use_tree_tool)
         self.add_node("script_finder_tool", self.use_script_finder_tool)
+        self.add_node("prior_evidence_tool", self.use_prior_evidence_tool)
         self.add_node("simple_regeneration_tool", self.use_simple_regeneration_tool)
 
         self.add_edge(START, "agentic_router")
@@ -1132,6 +1263,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 "graph_tool": "graph_tool",
                 "tree_tool": "tree_tool",
                 "script_finder_tool": "script_finder_tool",
+                "prior_evidence_tool": "prior_evidence_tool",
                 "simple_regeneration_tool": "simple_regeneration_tool",
                 "submit_answer": END,
             },
@@ -1145,6 +1277,11 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self.add_conditional_edges(
             "rag_tool",
             self.refine_rag,
+            {"replan": "agentic_router", "validated": END}
+        )
+        self.add_conditional_edges(
+            "prior_evidence_tool",
+            self.refine_prior_evidence,
             {"replan": "agentic_router", "validated": END}
         )
         self.add_edge("graph_tool", END)
