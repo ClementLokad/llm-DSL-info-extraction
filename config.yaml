@@ -299,7 +299,7 @@ main_pipeline:
     index_path: "./data/grep_index"
     case_sensitive: false
     max_lines: 150
-    max_grep_retries: 3
+    max_grep_retries: 4
   
   rag_tool:
     advanced: true # requires qdrant embedder and retriever
@@ -314,6 +314,7 @@ main_pipeline:
     auto_build: true
     default_domain: "scripts"
     response_max_chars: 12000
+    max_retries: 6
 
   # Define "Detail Levels" from most detailed to least detailed.
   # Format: (max_depth, max_children)
@@ -326,6 +327,8 @@ main_pipeline:
     [2, 3],     # Level 5: Mostly architecture
     [1, 5],     # Level 6: Root folders only
   ]
+  kickoff_tree_max_depth: 5 # Max depth for the initial tree view at kickoff
+  kickoff_tree_max_children: 20 # Max children for the initial tree view at kickoff
   file_tree_max_tok: 1000
 
     

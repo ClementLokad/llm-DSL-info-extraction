@@ -150,16 +150,19 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     def _kickoff_system_prompt(self, state: WorkflowState) -> str:
         question = state['pipeline_state']['question']
         kickoff_tree_max_depth = self.config_manager.get(
-            "main_pipeline.kickoff_tree_max_depth", 50
+            "main_pipeline.kickoff_tree_max_depth", 5
         )
         kickoff_tree_max_children = self.config_manager.get(
-            "main_pipeline.kickoff_tree_max_children", 1000
+            "main_pipeline.kickoff_tree_max_children", 20
         )
         tree_str = self.tree_tool.custom_tree(
             '',
             kickoff_tree_max_depth,
             kickoff_tree_max_children,
         )
+        facts_str = ""
+        if state.get("pipeline_state", {}).get("knowledge_bank"):
+            facts_str = f"### VERIFIED FACTS (from previous queries)\n{self._get_knowledge_bank_str(state)}"
         return (
             self.base_instructions
             + "\n### SYSTEM ROLE\n"
@@ -171,6 +174,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             f"### MISSION GOAL\n{question}\n\n"
             "### CODEBASE STRUCTURE (from root : '/')\n"
             f"{tree_str}\n\n"
+            f"{facts_str}"
             "### PLANNING INSTRUCTIONS\n"
             "1. Identify the most critical keyword or concept in the Mission Goal.\n"
             "2. Choose the tool that matches the nature of what you are looking for:\n"
@@ -217,14 +221,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     def _continuation_system_prompt(self, state: WorkflowState) -> str:
         question = state['pipeline_state']['question']
         history = self._get_history(state)
-        knowledge_bank = state['pipeline_state'].get("knowledge_bank", [])
         previous_generation = state['pipeline_state'].get('generation') or "(No generation yet)"
 
-        facts_str = ""
-        if knowledge_bank:
-            facts_str = "\n".join(f"{i}. {f['fact']}" for i, f in enumerate(knowledge_bank))
-        else:
-            facts_str = "(Knowledge bank is empty.)"
+        facts_str = self._get_knowledge_bank_str(state)
         
         evidence_inventory_str = self._build_evidence_inventory_str(state)
         tree_str = self.tree_tool.custom_tree('', 3, 3)
@@ -480,11 +479,14 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "Here are the structural graph results from your navigation:\n\n"
             f"{graph_str}"
         )
+        warning_str = ""
+        if state.get("graph_count", 0) >= get_config().get("main_pipeline.graph_tool.max_retries", 5)-3:
+            warning_str = f". But beware, you only have {state.get('graph_count', 0)} attempts left for graph navigation !"
         graph_instruction = (
             "Based on these structural results, decide your next action:\n"
-            "- Continue graph navigation with another action (tree, node, neighbors, edges)\n"
+            f"- Continue graph navigation with another action (tree, node, neighbors, edges){warning_str}\n"
             "- Or switch to rag_tool/grep_tool to examine specific code\n"
-            "- Or call submit_answer if you have enough information. "
+            "- Or call submit_answer if you have enough information.\n"
             "When you're ready to conclude graph exploration, use the 'search' action."
         )
         state["follow_up_prompt"] = (
@@ -650,8 +652,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         include_grade = is_continuation
     
         planner_tools = _build_planner_tools(
+            # TODO:
             tools=[self.rag_tool, self.grep_tool, self.graph_tool,
-                   self.tree_tool, self.script_finder_tool, self.prior_evidence_tool],
+                   self.tree_tool, self.script_finder_tool], #self.prior_evidence_tool],
             include_grade=include_grade,
         )
     
@@ -682,11 +685,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # Graph tool follow-up: continue loop if action was NOT "search"
         graph_followup_active = False
         if history and history[-1]["tool"] == "graph_tool" and state.get("rewritten_prompt"):
-            # Extract the action from the last history entry to check if it was "search"
-            last_entry = history[-1]
-            args = last_entry.get("parameter", {})  # query field stores the tool arguments
+            # Extract the action from the pending tool call to check if it was "search"
+            args = state.get("pending_tool_call", {}).get("arguments", {})
             action = args.get("action") if isinstance(args, dict) else None
-            # Continue navigation loop unless action was "search"
             graph_followup_active = action and action != "search"
     
         if grep_refinement_active:
@@ -814,7 +815,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                         fact=fact,
                         tool=exec_history[-1]["tool"],
                         query=state['pipeline_state']["question"],
-                        retrieval_results=prev_results
+                        evidence_ids=[] # TODO: fill adequately
                     ) for fact in new_facts
                 ]
                 state['pipeline_state'].setdefault("knowledge_bank", []).extend(knowledge_elements)
@@ -936,7 +937,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # ------------------------------------------------------------------
         # Step 5: Assemble the rewritten prompt for the Solver
         # ------------------------------------------------------------------
-        base_prompt = self.design_first_part_prompt(state)
+        base_prompt = self._design_first_part_prompt(state)
         state['rewritten_prompt'] = (
             f"{base_prompt}"
             f"### RAG RESULTS\n"
@@ -1028,7 +1029,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                     + (f" in sources matching '{source_regex}'." if source_regex else "."),
                     tool="grep_tool",
                     query=state['pipeline_state']["question"],
-                    retrieval_results=[]
+                    evidence_ids=[]
                 )
             )
     
@@ -1060,7 +1061,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # ------------------------------------------------------------------
         # Step 6: Assemble the rewritten prompt for the Solver
         # ------------------------------------------------------------------
-        base_prompt = self.design_first_part_prompt(state)
+        base_prompt = self._design_first_part_prompt(state)
         state['rewritten_prompt'] = f"{base_prompt}### GREP RESULTS\n"
     
         if res_truncated:
@@ -1088,7 +1089,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         state['rewritten_prompt'] += (
             f"\n\n{raw_results_str}\n\n"
             "### INSTRUCTION\n"
-            "Using the grep results above and all previous knowledge, answer the "
+            f"Using the {len(results)} grep results (from {len(total_sources)} distinct scripts) above and all previous knowledge, answer the "
             "question as concisely as possible."
         )
         return state
@@ -1133,7 +1134,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             )
         self._append_history(state, "script_finder_tool", script_names, outcome_str, thought)
 
-        base_prompt = self.design_first_part_prompt(state)
+        base_prompt = self._design_first_part_prompt(state)
         state['rewritten_prompt'] = (
             f"{base_prompt}"
             f"### INSTRUCTION\n"
@@ -1193,7 +1194,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         _, raw_results_str = self.prior_evidence_tool.format_results_by_source(results_by_id)
         
         # Step 5: Assemble the rewritten prompt for the Solver
-        base_prompt = self.design_first_part_prompt(state)
+        base_prompt = self._design_first_part_prompt(state)
         state['rewritten_prompt'] = f"{base_prompt}### PRIOR EVIDENCE RESULTS\n"
         
         if total_results == 0:
@@ -1219,6 +1220,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self.console.print("[dim]--- SUB-NODE: Graph Tool ---[/dim]")
         args = state.get("pending_tool_call", {}).get("arguments", {})
         action = args.get("action")
+        graph_count = state.get("graph_count", 0)
         thought = state.get("current_thought", "No reasoning provided.")
 
         if not action:
@@ -1235,8 +1237,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self._append_history(state, "graph_tool", args, outcome_str, thought)
 
         graph_result_text = self.graph_tool.to_prompt_text(result)
+        state["graph_count"] = graph_count + 1
         if action == "search":
-            base_prompt = self.design_first_part_prompt(state)
+            base_prompt = self._design_first_part_prompt(state)
             state["rewritten_prompt"] = (
                 f"{base_prompt}"
                 "### GRAPH RESULTS\n"
@@ -1342,6 +1345,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # If action was "search", end the loop (user found what they need)
         if action == "search":
             self.console.print("[dim]    -> 'search' action used, concluding graph exploration.[/dim]")
+            return "end"
+        
+        if  state.get("graph_count", 0) >= self.config_manager.get("main_pipeline.graph_tool.max_graph_iterations", 5):
+            self.console.print("[dim]    -> Max graph iterations reached, concluding graph exploration.[/dim]")
             return "end"
         
         # Otherwise, continue for more graph navigation

@@ -194,7 +194,6 @@ class DSLQuerySystem():
                     input_state["retry_count"] = 0 # reset retry count
                     # Keep the updated fields
                     input_state["knowledge_bank"] = final_state.get("knowledge_bank", [])
-                    input_state["execution_history"] = final_state.get("execution_history", [])
                     input_state["accumulated_evidence"] = final_state.get("accumulated_evidence", {})
                 else: # Previous version of this, not using a persistent AgentGraphState
                     input_state = GraphState(question=user_input, verbose=verbose, reference_answer="", retry_count=0)

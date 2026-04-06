@@ -114,7 +114,7 @@ class AgenticPipeline(BasePipeline):
             "pending_tool_call": None,
         }
 
-        final_sub_state = self.agent.invoke(sub_input)
+        final_sub_state = self.agent.invoke(sub_input, {"recursion_limit": 50})
         updated_pipeline_state = final_sub_state["pipeline_state"]
 
         new_prompt = final_sub_state.get("rewritten_prompt")

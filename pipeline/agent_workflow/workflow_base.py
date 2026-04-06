@@ -2,7 +2,7 @@ import re
 from abc import abstractmethod
 from typing import TypedDict, List, Optional, Dict, Any, Tuple
 from langgraph.graph import END, StateGraph, START
-from pipeline.langgraph_base import AgentGraphState, ActionLog
+from pipeline.langgraph_base import AgentGraphState, ActionLog, KnowledgeElement
 from rag.core.base_retriever import RetrievalResult, BaseRetriever
 from rag.core.base_embedder import BaseEmbedder
 from agents.prepare_agent import *
@@ -243,7 +243,38 @@ class BaseAgentWorkflow(StateGraph):
     # Prompt builders
     # -----------------------------------------------------------------------
 
-    def design_first_part_prompt(self, state: WorkflowState) -> str:
+    def _get_knowledge_bank_str(self, state: WorkflowState) -> str:
+        """Format the knowledge bank for prompt inclusion."""
+        knowledge_bank = state['pipeline_state'].get("knowledge_bank", [])
+        if not knowledge_bank:
+            return "(No relevant facts have been gathered yet.)\n"
+
+        kb_str = ""
+        elems_by_query: Dict[str, List[KnowledgeElement]] = {}
+        for elem in knowledge_bank:
+            query = elem.get("query", "General")
+            if query not in elems_by_query:
+                elems_by_query[query] = []
+            elems_by_query[query].append(elem)
+
+        if len(elems_by_query) == 1 and \
+        state.get("pipeline_state", {}).get("question") in elems_by_query: # If all facts relate to the same query, we can omit the query headers for brevity
+            for query, elems in elems_by_query.items():
+                for i, elem in enumerate(elems):
+                    kb_str += f"{i+1}.\n{elem}\n"
+            return kb_str
+
+        for query, elems in elems_by_query.items():
+            if query == state.get("pipeline_state", {}).get("question"):
+                kb_str += f"## Facts related to the current query:\n"
+            kb_str += f"## Query: {query}\n"
+            for i, elem in enumerate(elems):
+                kb_str += f"{i+1}.\n{elem}\n"
+            kb_str += "\n"
+
+        return kb_str
+
+    def _design_first_part_prompt(self, state: WorkflowState) -> str:
         """
         Constructs the 'World State' section that precedes every Solver prompt.
         Contains: question, knowledge bank, current thought.
@@ -255,9 +286,7 @@ class BaseAgentWorkflow(StateGraph):
         user_prompt = f"### QUESTION\n{question}\n\n"
         if knowledge_bank:
             user_prompt += "### VERIFIED FACTS (Accumulated Knowledge)\n"
-            for i, knowledge_elem in enumerate(knowledge_bank):
-                user_prompt += f"{i+1}. {knowledge_elem['fact']}\n"
-            user_prompt += "\n"
+            user_prompt += self._get_knowledge_bank_str(state)
         else:
             user_prompt += "### VERIFIED FACTS\n(No relevant facts have been gathered yet.)\n\n"
 
@@ -266,7 +295,7 @@ class BaseAgentWorkflow(StateGraph):
 
         return user_prompt
 
-    def _get_optimized_history_str(self, history: List["ActionLog"]) -> str:
+    def _get_optimized_history_str(self, history: List[ActionLog]) -> str:
         """Compact history string – full for ≤5 steps, compressed otherwise."""
         if not history:
             return "(No previous actions taken.)"
@@ -355,7 +384,7 @@ class BaseAgentWorkflow(StateGraph):
         self._append_history(state, "regeneration", "N/A",
                              "Refined the reasoning prompt.", state["current_thought"])
         additional_advice = state["pending_tool_call"].get("arguments", {}).get("advice", "")
-        base_prompt = self.design_first_part_prompt(state)
+        base_prompt = self._design_first_part_prompt(state)
         state['rewritten_prompt'] = (
             f"{base_prompt}"
             f"### INSTRUCTION\n"

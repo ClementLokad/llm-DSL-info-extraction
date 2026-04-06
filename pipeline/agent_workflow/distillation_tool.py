@@ -14,7 +14,7 @@ _DISTILLATION_SYSTEM_PROMPT = (
     "You are the Memory Manager of a complex RAG Agent. "
     "Your sole responsibility is to extract and preserve key facts from raw documents "
     "so that the agent can answer its query without re-reading those documents. "
-    "Be concise but never discard important information. "
+    "Be concise but never discard key information regarding the query. "
     "Output only XML <fact> tags — no preamble, no commentary."
 )
  
@@ -127,8 +127,9 @@ class LLMDistillationTool(BaseDistillationTool):
             "Analyze the items above. Extract concise but sufficient key facts that help "
             "answer the Query or the Thought.\n"
             "The Agent is moving to the next step and will lose access to these raw documents, "
-            "so do not discard any important information found here.\n"
+            "so do not discard key information about the query found here.\n"
             "Discard only irrelevant text. Combine duplicate information.\n"
+            "One fact shoult not be too long — 25 words maximum.\n"
             "\n"
             "### OUTPUT FORMAT\n"
             "Output strictly in XML. Wrap each distinct fact in a <fact> tag.\n"

@@ -43,7 +43,6 @@ class GraphState(TypedDict):
 class ActionLog(TypedDict):
     """Represents a single step in the agent's history."""
     step: int
-    query: str
     thought: str
     tool: str
     parameter: str
@@ -54,7 +53,13 @@ class KnowledgeElement(TypedDict):
     fact: str
     tool: str
     query: str
-    retrieval_results: List[RetrievalResult]
+    evidence_ids: List[str] # IDs of retrieval results that support this fact
+    
+    def __str__(self) -> str:
+        res = f"Fact: {self.fact}\nFrom tool: {self.tool}\n"
+        if self.evidence_ids:
+            res += f"Corresponding evidence: {self.evidence_ids}\n"
+        return res
 
 
 class AgentGraphState(GraphState):
