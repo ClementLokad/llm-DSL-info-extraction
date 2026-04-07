@@ -43,6 +43,7 @@ class GraphState(TypedDict):
 class ActionLog(TypedDict):
     """Represents a single step in the agent's history."""
     step: int
+    query: str
     thought: str
     tool: str
     parameter: str
@@ -55,11 +56,12 @@ class KnowledgeElement(TypedDict):
     query: str
     evidence_ids: List[str] # IDs of retrieval results that support this fact
     
-    def __str__(self) -> str:
-        res = f"Fact: {self.fact}\nFrom tool: {self.tool}\n"
-        if self.evidence_ids:
-            res += f"Corresponding evidence: {self.evidence_ids}\n"
-        return res
+
+def format_knowledge_element(knowledge_element: KnowledgeElement) -> str:
+    res = f"Fact: {knowledge_element['fact']}\nFrom tool: {knowledge_element['tool']}\n"
+    if knowledge_element['evidence_ids']:
+        res += f"Corresponding evidence: {knowledge_element['evidence_ids']}\n"
+    return res
 
 
 class AgentGraphState(GraphState):
@@ -92,6 +94,8 @@ class AgentGraphState(GraphState):
     retry_count: int
     grade: Optional[Dict[str, Any]]
     verbose: bool
+    previous_qa: List[Tuple[str, str]]
+    undistilled_log: Optional[ActionLog] # Keep track of retrieved documents that were not distilled into facts
 
 class BenchmarkState(TypedDict):
     """
@@ -256,12 +260,12 @@ class BasePipeline:
                     "\n[bold yellow]⚠ Benchmark interrupted by user.[/bold yellow]"
                 )
                 interrupted = True
-            except Exception as exc:
+            """except Exception as exc:
                 self.console.print(
                     f"\n[bold red]⚠ Benchmark stopped on question "
                     f"{len(grades)+1}/{len(qa_pairs)} due to error:[/bold red]\n{exc}"
                 )
-                interrupted = True
+                interrupted = True""" #TODO:
             
             if interrupted:
                 state["grades"] = grades

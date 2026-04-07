@@ -38,7 +38,7 @@ from pipeline.agent_workflow.workflow_base import (
     _tool_desc,
 )
 from get_mapping import get_file_mapping
-from pipeline.langgraph_base import KnowledgeElement, RetrievalResult
+from pipeline.langgraph_base import KnowledgeElement, RetrievalResult, ActionLog
 from agents.prepare_agent import prepare_agent
 from agents.base import ToolCallResult
 from rag.core.base_parser import BlockType
@@ -108,6 +108,7 @@ VALID_TOOLS = {
     "script_finder_tool",
     "tree_tool",
     "prior_evidence_tool",
+    "simple_regeneration_tool",
     "submit_answer",
 }
 
@@ -163,6 +164,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         facts_str = ""
         if state.get("pipeline_state", {}).get("knowledge_bank"):
             facts_str = f"### VERIFIED FACTS (from previous queries)\n{self._get_knowledge_bank_str(state)}"
+        
+        previous_qa_str = self._show_previous_qa(state)
+        
         return (
             self.base_instructions
             + "\n### SYSTEM ROLE\n"
@@ -171,12 +175,13 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "Lokad is a supply chain optimization company. Envision is their specialized "
             "programming language for quantitative supply chain logic.\n"
             "You are initiating a new investigation. Select the best FIRST tool to gather information.\n\n"
-            f"### MISSION GOAL\n{question}\n\n"
+            f"{previous_qa_str}"
+            f"### CURRENT QUESTION\n{question}\n\n"
             "### CODEBASE STRUCTURE (from root : '/')\n"
             f"{tree_str}\n\n"
             f"{facts_str}"
             "### PLANNING INSTRUCTIONS\n"
-            "1. Identify the most critical keyword or concept in the Mission Goal.\n"
+            "1. Identify the most critical keyword or concept in the current question.\n"
             "2. Choose the tool that matches the nature of what you are looking for:\n"
             " - The question mentions a specific file path, function name, variable,"
             " or string literal that is unlikely to appear in unrelated contexts\n"
@@ -191,41 +196,14 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "3. Call exactly ONE tool. Fill in all RELEVANT optional fields for precision.\n"
         )
 
-    def _build_evidence_inventory_str(self, state: WorkflowState) -> str:
-        """Build a string showing available evidence IDs and their sources."""
-        history = self._get_history(state)
-        accumulated_evidence = state['pipeline_state'].get("accumulated_evidence", {})
-        
-        if not accumulated_evidence:
-            return "(No accumulated evidence available yet.)"
-        
-        inventory_lines = []
-        for evidence_id in sorted(accumulated_evidence.keys(), key=lambda x: int(x)):
-            # Find the corresponding history entry
-            step_num = int(evidence_id) + 1  # Step numbers are 1-indexed
-            if step_num <= len(history):
-                log = history[int(evidence_id)]
-                tool_name = log.get("tool", "unknown_tool")
-                param = log.get("parameter", "")
-                outcome = log.get("outcome_summary", "")
-                inventory_lines.append(
-                    f"- Evidence ID '{evidence_id}': {tool_name} with '{param}' → {outcome}"
-                )
-            else:
-                inventory_lines.append(
-                    f"- Evidence ID '{evidence_id}': (retrieved results)"
-                )
-        
-        return "\n".join(inventory_lines)
-
     def _continuation_system_prompt(self, state: WorkflowState) -> str:
         question = state['pipeline_state']['question']
         history = self._get_history(state)
         previous_generation = state['pipeline_state'].get('generation') or "(No generation yet)"
 
         facts_str = self._get_knowledge_bank_str(state)
-        
-        evidence_inventory_str = self._build_evidence_inventory_str(state)
+        previous_qa_str = self._show_previous_qa(state)
+
         tree_str = self.tree_tool.custom_tree('', 3, 3)
         return (
             self.base_instructions
@@ -235,44 +213,33 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "Your primary goal is EFFICIENCY. Decide whether current information is "
             "sufficient to answer the question.\n"
             "If the answer is found, call submit_answer immediately.\n\n"
-            f"### MISSION GOAL\n{question}\n\n"
+            f"{previous_qa_str}"
+            f"### CURRENT QUESTION\n{question}\n\n"
             "### CODEBASE STRUCTURE (from root : '/')\n"
             f"{tree_str}\n\n"
             "### PROPOSED SOLUTION (From Main Agent)\n"
             f"\"{previous_generation}\"\n\n"
             "**CRITICAL CHECK**: Does the proposed solution directly and fully answer the "
-            "Mission Goal? If YES, call submit_answer. "
+            "Current Question? If YES, call submit_answer. "
             "Vague answers or 'I don't know' should be treated as NOT ANSWERED.\n\n"
             f"### VERIFIED FACTS\n{facts_str}\n\n"
-            "### HISTORY (Previous Steps)\n"
+            "### HISTORY (Previous Steps for the current question)\n"
             f"{self._get_optimized_history_str(history)}\n\n"
-            f"### ACCUMULATED EVIDENCE INVENTORY\n"
-            f"The following evidence batches are available via prior_evidence_tool:\n"
-            f"{evidence_inventory_str}\n\n"
-            "Use prior_evidence_tool to retrieve any of these evidence IDs without re-running "
-            "the original search. Example: prior_evidence_tool(['0', '1']) to combine the "
-            "first two searches.\n\n"
             "### DECISION LOGIC\n\n"
-            "1. COMPLETION CHECK: Answer these two questions independently:\n"
-            "a. Does the Proposed Solution address the Mission Goal? (form)\n"
-            "b. Is it grounded in specific facts retrieved from the codebase ? (evidence)\n"
-            "Only call submit_answer if BOTH are YES.\n"
-            "A negative conclusion (\"this is not done\", \"I found nothing\") answers (a) "
-            "but FAILS (b) unless search results explicitly confirmed the absence. "
-            "In that case, proceed to the Exhaustiveness Check.\n\n"
-            "2. EXHAUSTIVENESS CHECK: If the answer is negative or uncertain, ask yourself:\n"
-            "- Did I try graph_tool for structural relationships?\n"
-            "- Did I try both rag_tool AND grep_tool?\n"
-            "- Did I try boosting rag results with sources and/or kewords ?\n"
-            "- Did I vary the query language (e.g. synonyms, related concepts)?\n"
-            "- Can I combine multiple prior evidence batches to strengthen the answer?\n"
-            "If any answer is NO → proceed to step 3.\n\n"
-            "3. GAP ANALYSIS: What specific information is missing? Choose the most targeted tool.\n"
-            "Check History: if grep returned 0 or too many results, switch to rag_tool — "
-            "semantic search handles broad concepts far better than exact matching. "
-            "If rag_tool returned weak results, then try grep with a more specific identifier "
-            "extracted from those results. Or consider combining multiple prior searches with "
-            "prior_evidence_tool.\n"
+            "Read the Proposed Solution. Ask yourself one question:\n"
+            "**Does it directly and specifically answer the Current Question, "
+            "using at least one concrete piece of evidence (a file path, a property or a tool call from the HISTORY)?**\n\n"
+            "→ YES: call submit_answer immediately. Do not search further.\n"
+            "→ NO (vague, uncertain, 'I don't know', or negative without proof): "
+            "search for what is missing.\n\n"
+            "The proposed solution does not need to explicitly *cite* evidence as long as it aligns with results "
+            "from the HISTORY or facts from VERIFIED FACTS. The answer must still be grounded in concrete evidence.\n"
+            "If you need to search further, here are useful angles to consider:\n"
+            "- If the answer is negative or uncertain, have you tried both rag_tool and grep_tool?\n"
+            "- If grep returned too many or 0 results, try rag_tool with the core concept instead.\n"
+            "- If rag results were weak, try grep with a specific identifier extracted from those results.\n"
+            "- Synonyms or rephrased queries often surface what a direct query missed.\n"
+            "- prior_evidence_tool can combine documents from earlier searches without re-running them.\n"
         )
 
     # -----------------------------------------------------------------------
@@ -409,8 +376,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         """Handle the RAG-tool follow-up branch.
         
         Called when the previous tool was rag_tool but no results were found. 
-        The model can use the RAG output (stored in state['rewritten_prompt']) 
-        as context to decide how to proceed — whether to try grep_tool with specific 
+        The model can decide how to proceed — whether to try grep_tool with specific 
         keywords/sources, or to reformulate the query and try RAG again."""
         # --- Step 1: Retrieve RAG output and clean up history ---
         parameters = state.get("pending_tool_call", {}).get("arguments", {})
@@ -454,7 +420,50 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 tool_id="fallback",
                 arguments={"advice": str(exc)},
             )
-
+    
+    def _plan_prior_evidence_followup(self, state, planner_tools) -> ToolCallResult:
+        """Handle the prior evidence-tool follow-up branch.
+        Called when the previous tool was prior_evidence_tool but no results were found."""
+        # --- Step 1: Retrieve prior evidence output and clean up history ---
+        parameters = state.get("pending_tool_call", {}).get("arguments", {})
+        state["pipeline_state"]["execution_history"] = (
+            state["pipeline_state"]["execution_history"][:-1]
+        )
+        
+        # --- Step 2: Construct and store the follow-up prompt ---
+        prior_evidence_result = (
+            "The prior evidence search did not return any relevant results. "
+            "Here are the parameters that were used for the search:\n"
+            f"{parameters}\n\n"
+        )
+        prior_evidence_instruction = (
+            "Based on this information, select the next tool to call."
+        )
+        state["follow_up_prompt"] = (
+            f"Result:\n{prior_evidence_result}\n"
+            f"Instruction:\n{prior_evidence_instruction}"
+        )
+        
+        # --- Step 3: Submit prior evidence result and ask for the next tool ---
+        pending = state.get("pending_tool_call", {})
+        try:
+            return self.planner_llm.submit_tool_result_and_continue(
+                tool_call_id=pending.get("tool_id", "unknown"),
+                tool_name="prior_evidence_tool",
+                result=prior_evidence_result,
+                next_instruction=prior_evidence_instruction,
+                tools=planner_tools,
+                tool_choice="any",
+            )
+        except Exception as exc:
+            self.console.print(
+                f"[dim][yellow]Planner fallback (prior evidence follow-up): {exc}[/yellow][/dim]"
+            )
+            return ToolCallResult(
+                tool_name="simple_regeneration_tool",
+                tool_id="fallback",
+                arguments={"advice": str(exc)},
+            )
     
     def _plan_graph_followup(self, state, planner_tools) -> ToolCallResult:
         """
@@ -486,7 +495,6 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "Based on these structural results, decide your next action:\n"
             f"- Continue graph navigation with another action (tree, node, neighbors, edges){warning_str}\n"
             "- Or switch to rag_tool/grep_tool to examine specific code\n"
-            "- Or call submit_answer if you have enough information.\n"
             "When you're ready to conclude graph exploration, use the 'search' action."
         )
         state["follow_up_prompt"] = (
@@ -583,7 +591,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 f"[dim][yellow]Planner fallback (continuation reasoning): {exc}[/yellow][/dim]"
             )
             return ToolCallResult(
-                tool_name="grade_answer",
+                tool_name="submit_answer",
                 tool_id="fallback",
                 arguments={
                     "thought": (
@@ -608,7 +616,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 f"[dim][yellow]Planner fallback (continuation): {exc}[/yellow][/dim]"
             )
             tool_call = ToolCallResult(
-                tool_name="grade_answer",
+                tool_name="submit_answer",
                 tool_id="fallback",
                 arguments={
                     "thought": (
@@ -619,8 +627,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             )
     
         return tool_call, system_prompt, reasoning
-    
-    
+
     def agentic_router(self, state: WorkflowState) -> WorkflowState:
         """
         Planner node — decides which tool to call next.
@@ -641,20 +648,30 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)
+            
+        # If in interactive mode we must distill the last results
+        if state["pipeline_state"].get("undistilled_log"):
+            self.console.print("[dim]Distilling last query results...[/dim]")
+            new_facts = self._distill_results(state, state["pipeline_state"].get("undistilled_log"))
+            state["pipeline_state"]["undistilled_log"] = None  # Clear after distillation
+            if state["pipeline_state"]["verbose"]:
+                self.console.print(f"[dim]Extracted {len(new_facts)} facts.[/dim]")
     
         # ------------------------------------------------------------------
         # Step 1: Determine context and build the tool schema list
         # ------------------------------------------------------------------
         history = self._get_history(state)
-        is_continuation = bool(history)
+        is_continuation = state.get("continuation")
+        if is_continuation is None:
+            is_continuation = len(history) > 0
+        state["continuation"] = is_continuation
+
         # submit_answer is only offered after at least one search step so the
         # model cannot exit on the very first turn without gathering any evidence.
         include_grade = is_continuation
-    
         planner_tools = _build_planner_tools(
-            # TODO:
             tools=[self.rag_tool, self.grep_tool, self.graph_tool,
-                   self.tree_tool, self.script_finder_tool], #self.prior_evidence_tool],
+                   self.tree_tool, self.script_finder_tool, self.prior_evidence_tool],
             include_grade=include_grade,
         )
     
@@ -662,8 +679,6 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # Step 2: Dispatch to the appropriate planning sub-method
         # ------------------------------------------------------------------
         already_distilled = False  # True for grep/tree branches which handle their own cleanup
-        system_prompt = ""
-        reasoning = ""
     
         grep_refinement_active = (
             "local_grep_retries" in state
@@ -681,14 +696,22 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             and history[-1]["tool"] == "rag_tool"
             and state.get("rewritten_prompt")
         )
+        prior_evidence_followup_active = (
+            history
+            and history[-1]["tool"] == "prior_evidence_tool"
+            and state.get("rewritten_prompt")
+        )
         
         # Graph tool follow-up: continue loop if action was NOT "search"
-        graph_followup_active = False
-        if history and history[-1]["tool"] == "graph_tool" and state.get("rewritten_prompt"):
-            # Extract the action from the pending tool call to check if it was "search"
-            args = state.get("pending_tool_call", {}).get("arguments", {})
-            action = args.get("action") if isinstance(args, dict) else None
-            graph_followup_active = action and action != "search"
+        graph_followup_active = (
+            history
+            and history[-1]["tool"] == "graph_tool"
+            and state.get("rewritten_prompt")
+            and state.get("pending_tool_call", {}).get("arguments", {}).get("action") != "search"
+        )
+        
+        system_prompt = ""
+        reasoning = ""
     
         if grep_refinement_active:
             already_distilled = True  # grep refinement never has raw results to distil
@@ -705,6 +728,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         elif rag_followup_active:
             already_distilled = True  # RAG follow-up is triggered by a negative result, so no distillation needed
             tool_call = self._plan_rag_followup(state, planner_tools)
+
+        elif prior_evidence_followup_active:
+            already_distilled = True  # prior evidence follow-up is triggered by a negative result, so no distillation needed
+            tool_call = self._plan_prior_evidence_followup(state, planner_tools)
     
         else:
             tool_call, system_prompt, reasoning = self._plan_normal(
@@ -799,31 +826,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             if prev_results and chosen_tool != "submit_answer":
                 self.console.print("[dim]Distilling previous tool results...[/dim]")
                 
-                # Complete accumulated_evidence with the distilled retrieval results (key = number of elements)
-                items_to_distill = []
-                accumulated_evidence = state['pipeline_state'].setdefault("accumulated_evidence", {})
-                for result in prev_results:
-                    id= str(len(accumulated_evidence))
-                    items_to_distill.append((result.chunk.content, id, result.chunk.metadata.get('original_file_path', 'Unknown Source')))
-                    accumulated_evidence[id] = result
-    
-                new_facts = self.distillation_tool.distill_batch(
-                    items=items_to_distill,
-                    query=state['pipeline_state']["question"],
-                    thought=exec_history[-1]["thought"],
-                    previous_generation=state["pipeline_state"].get("generation", ""),
-                    verbose=state['pipeline_state']['verbose'],
-                )
-                knowledge_elements = [
-                    KnowledgeElement(
-                        fact=fact,
-                        tool=exec_history[-1]["tool"],
-                        query=state['pipeline_state']["question"],
-                        evidence_ids=ids
-                    ) for (fact, ids) in new_facts
-                ]
-                state['pipeline_state'].setdefault("knowledge_bank", []).extend(knowledge_elements)
-                
+                new_facts = self._distill_results(state, exec_history[-1])
                 
                 exec_history[-1]["outcome_summary"] += (
                     f" Extracted {len(new_facts)} relevant facts."
@@ -840,48 +843,6 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     # -----------------------------------------------------------------------
     # Tool nodes  (read clean args from pending_tool_call)
     # -----------------------------------------------------------------------
-
-    def _format_results(self, results: List[RetrievalResult]) -> str:
-        """Formats the search results by source.
-
-        Args:
-            results (List[RetrievalResult]): A list of retrieval results, each containing content and metadata.
-
-        Returns:
-            str: A formatted string grouping results by source file with line numbers.
-        """
-        results_by_source = {}
-        for result in results:
-            source = result.chunk.metadata.get('original_file_path', 'Unknown')
-            if source not in results_by_source:
-                results_by_source[source] = []
-            line_start, line_end = result.chunk.get_line_range()
-            results_by_source[source].append({
-                "content": result.chunk.content,
-                "line_start": line_start,
-                "line_end": line_end,
-            })
-
-        # Format output grouped by source with line numbers for each result
-        raw_results_parts = []
-        for source in sorted(results_by_source.keys()):
-            source_results = results_by_source[source]
-            # Only show count if there are multiple results from this file
-            if len(source_results) == 1:
-                line_start = source_results[0]["line_start"]
-                line_end = source_results[0]["line_end"]
-                raw_results_parts.append(f"=== Source: {source} [Lines {line_start}-{line_end}] ===")
-                raw_results_parts.append(source_results[0]["content"])
-                continue
-
-            raw_results_parts.append(f"=== Source: {source} [{len(source_results)} results] ===")
-            for result in source_results:
-                content = result["content"]
-                line_start = result["line_start"]
-                line_end = result["line_end"]
-                raw_results_parts.append(f"[Lines {line_start}-{line_end}]:\n{content}")
-
-        return "\n\n".join(raw_results_parts)
     
     def use_rag_tool(self, state: WorkflowState) -> WorkflowState:
         """Semantic search — parameters arrive as clean JSON from the tool call."""
@@ -1123,7 +1084,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 fact=summary,
                 tool="script_finder_tool",
                 query=state["pipeline_state"]["question"],
-                retrieval_results=[]
+                evidence_ids=[]
             ) for summary in new_facts
         ]
         state['pipeline_state'].setdefault("knowledge_bank", []).extend(knowledge_elements)
@@ -1190,7 +1151,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         outcome_str = f"Retrieved {total_results} prior evidence items from {len(evidence_ids)} requested IDs"
         if missing_ids:
             outcome_str += f" (IDs not found: {missing_ids})"
-        self._append_history(state, "prior_evidence_tool", evidence_ids, outcome_str, thought, list(results_by_id.values()))
+        self._append_history(state, "prior_evidence_tool", evidence_ids, outcome_str, thought)
         
         # Step 4: Format results using the tool's method
         _, raw_results_str = self.prior_evidence_tool.format_results_by_source(results_by_id)

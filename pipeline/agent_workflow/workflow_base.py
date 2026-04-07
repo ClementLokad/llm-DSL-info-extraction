@@ -2,7 +2,7 @@ import re
 from abc import abstractmethod
 from typing import TypedDict, List, Optional, Dict, Any, Tuple
 from langgraph.graph import END, StateGraph, START
-from pipeline.langgraph_base import AgentGraphState, ActionLog, KnowledgeElement
+from pipeline.langgraph_base import AgentGraphState, ActionLog, KnowledgeElement, format_knowledge_element
 from rag.core.base_retriever import RetrievalResult, BaseRetriever
 from rag.core.base_embedder import BaseEmbedder
 from agents.prepare_agent import *
@@ -63,9 +63,20 @@ class BaseDistillationTool(Tool):
     def distill(self, content: str, query: str, thought: str, source: str = None, verbose=False) -> str:
         """Single item distillation (Legacy/Fallback)."""
         return f"Distilled Fact: Content relevant to '{query}' found."
+    
+    def get_result_id(self, content: str) -> str:
+        """Compute a stable ID for a given content string, used to track evidence across distillation.
+
+        Args:
+            content (str): The content string for which to compute the ID.
+
+        Returns:
+            str: A stable ID string derived from the content.
+        """
+        return f"ev_{hash(content) & 0xFFFFFF:06x}"
 
     def distill_batch(self, items: List[Tuple[str, str]], query: str, thought: str,
-                      llm_response: str = "", verbose=False) -> List[str]:
+                      llm_response: str = "", verbose=False) -> List[Tuple[str, List[int]]]:
         """
         Summarize multiple content items in one go.
 
@@ -76,34 +87,9 @@ class BaseDistillationTool(Tool):
             llm_response: The main LLM's response when given the raw tool results.
 
         Returns:
-            List of fact summary strings.
+            List of fact summary strings and their supporting evidence IDs.
         """
-        if not items:
-            return []
-
-        prompt_text = (
-            f"### CONTEXT\nQuery: {query}\nCurrent Thought: {thought}\n\n"
-            f"### DOCUMENTS TO ANALYZE\n"
-        )
-        indexed_sources = {}
-        for i, (content, source) in enumerate(items):
-            snippet = content[:2000]
-            prompt_text += f"--- ITEM {i} (Source: {source}) ---\n{snippet}\n\n"
-            indexed_sources[i] = source
-
-        prompt_text += (
-            "### INSTRUCTION\n"
-            "Analyze the items above. Extract key facts that help answer the Query.\n"
-            "Discard irrelevant text. Combine duplicate information.\n"
-            "Return the output as a list where each line is: 'Fact [Source: ITEM X]'"
-        )
-
-        distilled_results = []
-        for i, source in indexed_sources.items():
-            fact = f"Distilled info regarding '{query}' extracted from {source.split('/')[-1]}..."
-            distilled_results.append(fact)
-
-        return distilled_results
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +173,7 @@ class WorkflowState(TypedDict):
     local_grep_retries: Optional[Tuple[int, int]] # Contains (number of retries, last number of grep results)
     # tool-calling round-trip state
     pending_tool_call: Optional[Dict[str, Any]]  # {tool_id, tool_name, arguments}
+    continuation: Optional[bool]  # Whether this is a continuation of a previous attempt (used for planner context)
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +211,7 @@ class BaseAgentWorkflow(StateGraph):
         history = self._get_history(state)
         new_log: ActionLog = {
             "step": len(history) + 1,
+            "query": state['pipeline_state'].get("question", ""),
             "thought": thought,
             "tool": tool,
             "parameter": str(param),
@@ -246,44 +234,152 @@ class BaseAgentWorkflow(StateGraph):
     def _get_knowledge_bank_str(self, state: WorkflowState) -> str:
         """Format the knowledge bank for prompt inclusion."""
         knowledge_bank = state['pipeline_state'].get("knowledge_bank", [])
+        question = state['pipeline_state'].get("question")
         if not knowledge_bank:
             return "(No relevant facts have been gathered yet.)\n"
 
-        kb_str = ""
         elems_by_query: Dict[str, List[KnowledgeElement]] = {}
+        current_elems: List[KnowledgeElement] = []
         for elem in knowledge_bank:
             query = elem.get("query", "General")
+            if query == question:
+                current_elems.append(elem)
+                continue
+
             if query not in elems_by_query:
                 elems_by_query[query] = []
             elems_by_query[query].append(elem)
-
-        if len(elems_by_query) == 1 and \
-        state.get("pipeline_state", {}).get("question") in elems_by_query: # If all facts relate to the same query, we can omit the query headers for brevity
-            for query, elems in elems_by_query.items():
-                for i, elem in enumerate(elems):
-                    kb_str += f"{i+1}.\n{elem}\n"
-            return kb_str
-
+        
+        kb_str = ""
+        if len(elems_by_query) > 0:
+            kb_str += "## Facts related to previous queries:\n"
+        
         for query, elems in elems_by_query.items():
-            if query == state.get("pipeline_state", {}).get("question"):
-                kb_str += f"## Facts related to the current query:\n"
-            kb_str += f"## Query: {query}\n"
+            kb_str += f"# Query: {query}\n"
             for i, elem in enumerate(elems):
-                kb_str += f"{i+1}.\n{elem}\n"
+                kb_str += f"{i+1}.\n{format_knowledge_element(elem)}\n"
             kb_str += "\n"
 
-        return kb_str
+        if len(elems_by_query) > 0:
+            kb_str += f"## Facts related to the current query:\n"
+            if not current_elems:
+                kb_str += "(No facts have been gathered yet for the current question.)\n"
+
+        for i, elem in enumerate(current_elems):
+            kb_str += f"{i+1}.\n{format_knowledge_element(elem)}\n"
+
+        return kb_str+"\n"
+
+    def _show_previous_qa(self, state: WorkflowState) -> str:
+        """
+        Formats previous Q&A pairs from the conversation history.
+        Provides context for multi-turn conversations.
+        
+        Returns an empty string if no previous Q&A pairs exist.
+        """
+        previous_qa = state['pipeline_state'].get("previous_qa", [])
+        
+        qa_str = "### CONVERSATION HISTORY\n"
+        if not previous_qa:
+            qa_str += "(No previous questions or answers.)\n"
+
+        for i, (question, answer) in enumerate(previous_qa, 1):
+            qa_str += f"\n**Previous Question {i}:**\n{question}\n\n"
+            qa_str += f"**Previous Answer {i}:**\n{answer}\n"
+        
+        return qa_str + "\n"
+    
+    def _distill_results(self, state: WorkflowState, log: ActionLog) -> List[KnowledgeElement]:
+        # Complete accumulated_evidence with the distilled retrieval results (key = number of elements)
+        items_to_distill = []
+        for result in log["results_to_analyse"]:
+            items_to_distill.append((result.chunk.content, result.chunk.metadata.get('original_file_path', 'Unknown Source')))
+
+        new_facts = self.distillation_tool.distill_batch(
+            items=items_to_distill,
+            query=log["query"],
+            thought=log["thought"],
+            previous_generation=state["pipeline_state"].get("generation", ""),
+            verbose=state['pipeline_state']['verbose'],
+        )
+        knowledge_elements = [
+            KnowledgeElement(
+                fact=fact,
+                tool=log["tool"],
+                query=log["query"],
+                evidence_ids=[self.distillation_tool.get_result_id(items_to_distill[i][0]) for i in ids]
+            ) for (fact, ids) in new_facts
+        ]
+        state['pipeline_state'].setdefault("knowledge_bank", []).extend(knowledge_elements)
+        
+        accumulated_evidence = state['pipeline_state'].setdefault("accumulated_evidence", {})
+        for _, indices in new_facts:
+            for i in indices:
+                id = self.distillation_tool.get_result_id(items_to_distill[i][0])
+                if id not in accumulated_evidence:
+                    accumulated_evidence[id] = log["results_to_analyse"][i]
+
+        return knowledge_elements
+    
+    def _format_results(self, results: List[RetrievalResult]) -> str:
+        """Formats the search results by source.
+
+        Args:
+            results (List[RetrievalResult]): A list of retrieval results, each containing content and metadata.
+
+        Returns:
+            str: A formatted string grouping results by source file with line numbers.
+        """
+        results_by_source = {}
+        for result in results:
+            source = result.chunk.metadata.get('original_file_path', 'Unknown')
+            if source not in results_by_source:
+                results_by_source[source] = []
+            line_start, line_end = result.chunk.get_line_range()
+            results_by_source[source].append({
+                "content": result.chunk.content,
+                "line_start": line_start,
+                "line_end": line_end,
+            })
+
+        # Format output grouped by source with line numbers for each result
+        raw_results_parts = []
+        for source in sorted(results_by_source.keys()):
+            source_results = results_by_source[source]
+            # Only show count if there are multiple results from this file
+            if len(source_results) == 1:
+                line_start = source_results[0]["line_start"]
+                line_end = source_results[0]["line_end"]
+                raw_results_parts.append(f"=== Source: {source} [Lines {line_start}-{line_end}] ===")
+                raw_results_parts.append(source_results[0]["content"])
+                continue
+
+            raw_results_parts.append(f"=== Source: {source} [{len(source_results)} results] ===")
+            for result in source_results:
+                content = result["content"]
+                line_start = result["line_start"]
+                line_end = result["line_end"]
+                raw_results_parts.append(f"[Lines {line_start}-{line_end}]:\n{content}")
+
+        return "\n\n".join(raw_results_parts)
 
     def _design_first_part_prompt(self, state: WorkflowState) -> str:
         """
         Constructs the 'World State' section that precedes every Solver prompt.
-        Contains: question, knowledge bank, current thought.
+        Contains: question, conversation history, knowledge bank, current thought.
         """
         question = state['pipeline_state']['question']
         knowledge_bank = state['pipeline_state'].get("knowledge_bank", [])
         thought = state.get('current_thought', None)
 
-        user_prompt = f"### QUESTION\n{question}\n\n"
+        user_prompt = ""
+        
+        # Add conversation history if available
+        previous_qa_str = self._show_previous_qa(state)
+        user_prompt += previous_qa_str + "\n"
+
+        user_prompt += f"### CURRENT QUESTION\n{question}\n\n"
+        
         if knowledge_bank:
             user_prompt += "### VERIFIED FACTS (Accumulated Knowledge)\n"
             user_prompt += self._get_knowledge_bank_str(state)

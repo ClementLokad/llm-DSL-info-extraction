@@ -119,8 +119,9 @@ class PriorEvidenceTool(Tool):
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "List of evidence IDs to retrieve (e.g., ['uuid1', 'uuid2']). "
-                        "Each ID corresponds to a specific retrieval result from previous tool calls."
+                        "List of evidence IDs to retrieve (e.g., ['ev_uuid1', 'ev_uuid2']). "
+                        "Each ID corresponds to a specific retrieval result from previous tool calls.\n"
+                        "These IDs can be found in the VERIFIED FACTS section."
                     ),
                 },
             },

@@ -16,7 +16,7 @@ _DISTILLATION_SYSTEM_PROMPT = (
     "Your sole responsibility is to extract and preserve key facts from raw documents "
     "so that the agent can answer its query without re-reading those documents. "
     "Be concise but never discard key information regarding the query. "
-    "Output only XML <fact> tags — no preamble, no commentary."
+    "Output only a valid json string — no preamble, no commentary."
 )
  
 _DISTILL_SINGLE_SYSTEM_PROMPT = (
@@ -79,12 +79,12 @@ class LLMDistillationTool(BaseDistillationTool):
  
     def distill_batch(
         self,
-        items: List[Tuple[str, str, str]],
+        items: List[Tuple[str, str]],
         query: str,
         thought: str,
         previous_generation: Optional[str] = None,
         verbose=False,
-    ) -> List[Tuple[str, List[str]]]:
+    ) -> List[Tuple[str, List[int]]]:
         """
         Distil multiple content items in one LLM call.
  
@@ -96,7 +96,7 @@ class LLMDistillationTool(BaseDistillationTool):
         if not items:
             return []
  
-        total_sources = {source for _, _, source in items}
+        total_sources = {source for _, source in items}
  
         # --- User message: all dynamic content ---
         user_message = (
@@ -119,9 +119,9 @@ class LLMDistillationTool(BaseDistillationTool):
             f"from {len(total_sources)} distinct scripts:\n\n"
         )
  
-        for i, (content, id, source) in enumerate(items):
+        for i, (content, source) in enumerate(items):
             snippet = content[:2000]
-            user_message += f"--- ITEM {i+1} (ID: {id}) FROM {source} ---\n{snippet}\n\n"
+            user_message += f"--- ITEM {i} FROM {source} ---\n{snippet}\n\n"
  
         user_message += (
             "### TASK\n"
@@ -136,12 +136,12 @@ class LLMDistillationTool(BaseDistillationTool):
             "### OUTPUT FORMAT\n"
             "Output strictly valid JSON: a list of dictionaries, each with:\n"
             "- \"response\": the extracted fact (string)\n"
-            "- \"evidence_ids\": list of item IDs (strings) that support this fact\n"
+            "- \"evidence_ids\": list of item IDs (integers) that support this fact\n"
             "\n"
             "Example:\n"
             "[\n"
-            "  {\"response\": \"Overall, 9 files read \\\"Data.ion\\\"\", \"evidence_ids\": [\"0\", \"1\"]},\n"
-            "  {\"response\": \"The script /4. Optimization workflow/03.b. Forecasting predicts future demand.\", \"evidence_ids\": [\"2\"]}\n"
+            "  {\"response\": \"Overall, 9 files read 'Data.ion'\", \"evidence_ids\": [0, 1]},\n"
+            "  {\"response\": \"The script /4. Optimization workflow/03.b. Forecasting predicts future demand.\", \"evidence_ids\": [2]}\n"
             "]\n"
             "\n"
             "Begin JSON output:"
@@ -166,8 +166,8 @@ class LLMDistillationTool(BaseDistillationTool):
             for item in parsed:
                 if isinstance(item, dict) and "response" in item and "evidence_ids" in item:
                     fact = item["response"]
-                    evidence_ids = item["evidence_ids"] if isinstance(item["evidence_ids"], list) else []
-                    distilled_results.append((fact, evidence_ids))
+                    evidence_indices = item["evidence_ids"] if isinstance(item["evidence_ids"], list) else []
+                    distilled_results.append((fact, evidence_indices))
                 else:
                     # Skip invalid items
                     continue
@@ -177,7 +177,9 @@ class LLMDistillationTool(BaseDistillationTool):
             if json_match:
                 try:
                     parsed = json.loads(json_match.group(0))
-                    distilled_results = [(item.get("response", ""), item.get("evidence_ids", [])) for item in parsed if isinstance(item, dict)]
+                    evidence_indices = item.get("evidence_ids", [])
+                    distilled_results = [(item.get("response", ""), evidence_indices) 
+                                         for item in parsed if isinstance(item, dict)]
                 except:
                     distilled_results = []
             else:

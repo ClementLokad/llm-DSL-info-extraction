@@ -124,9 +124,11 @@ class AgenticPipeline(BasePipeline):
         return {
             "knowledge_bank": updated_pipeline_state.get("knowledge_bank", []),
             "execution_history": updated_pipeline_state.get("execution_history", []),
+            "accumulated_evidence": updated_pipeline_state.get("accumulated_evidence", {}),
             "prompt": new_prompt,
             "regenerate_needed": final_sub_state["regenerate"],
             "retry_count": state["retry_count"],
+            "undistilled_log": updated_pipeline_state.get("undistilled_log", []),
         }
 
     # -----------------------------------------------------------------------
@@ -199,7 +201,7 @@ class AgenticPipeline(BasePipeline):
         """
         self.console.print("[dim]--- NODE: Generate Answer (Main LLM) ---[/dim]")
         prompt = state["prompt"]
-        prompt += "\n### LOKAD ASSISTANT ANSWER:\n"
+        prompt += "\n\n### LOKAD ASSISTANT ANSWER:\n"
 
         if state["verbose"]:
             prompt_panel = Panel(escape(prompt), title="Main LLM Prompt", border_style="purple")
