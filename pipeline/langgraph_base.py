@@ -84,7 +84,7 @@ class AgentGraphState(GraphState):
     reference_answer: str
     knowledge_bank: List[KnowledgeElement]
     execution_history: List[ActionLog]
-    accumulated_evidence: Dict[str, list[RetrievalResult]]
+    accumulated_evidence: Dict[str, RetrievalResult]
     prompt: str
     generation: str
     final_answer: Optional[str]

@@ -8,21 +8,21 @@ class PriorEvidenceTool(Tool):
     Tool to retrieve prior evidence/facts from accumulated evidence collected in previous tool calls.
     
     The accumulated_evidence is a dictionary where:
-    - Keys: numeric IDs as strings ("0", "1", "2", etc.)
-    - Values: List of RetrievalResult objects from previous tool calls
+    - Keys: unique IDs as strings (UUIDs)
+    - Values: RetrievalResult objects from previous tool calls
     """
     
     def retrieve_prior_evidence(
         self, 
         evidence_ids: List[str], 
-        accumulated_evidence: Dict[str, List[RetrievalResult]]
+        accumulated_evidence: Dict[str, RetrievalResult]
     ) -> Dict[str, List[RetrievalResult]]:
         """
         Retrieve prior evidence items based on their IDs, tracking which IDs yield results.
         
         Args:
-            evidence_ids: List of evidence IDs to retrieve (e.g., ["0", "1", "2"])
-            accumulated_evidence: Dictionary mapping IDs to lists of RetrievalResult objects
+            evidence_ids: List of evidence IDs to retrieve (e.g., ["uuid1", "uuid2"])
+            accumulated_evidence: Dictionary mapping IDs to RetrievalResult objects
             
         Returns:
             Dict mapping each requested evidence_id to its list of RetrievalResult objects.
@@ -32,11 +32,8 @@ class PriorEvidenceTool(Tool):
         
         for evidence_id in evidence_ids:
             if evidence_id in accumulated_evidence:
-                evidence_batch = accumulated_evidence[evidence_id]
-                if isinstance(evidence_batch, list):
-                    retrieved_results[evidence_id] = evidence_batch
-                else:
-                    retrieved_results[evidence_id] = [evidence_batch]
+                result = accumulated_evidence[evidence_id]
+                retrieved_results[evidence_id] = [result]  # List with single item
             else:
                 # Explicitly mark missing IDs with empty list
                 retrieved_results[evidence_id] = []
@@ -122,8 +119,8 @@ class PriorEvidenceTool(Tool):
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "List of evidence IDs to retrieve (e.g., ['0', '1', '2']). "
-                        "Each ID corresponds to a batch of retrieval results from previous tool calls."
+                        "List of evidence IDs to retrieve (e.g., ['uuid1', 'uuid2']). "
+                        "Each ID corresponds to a specific retrieval result from previous tool calls."
                     ),
                 },
             },

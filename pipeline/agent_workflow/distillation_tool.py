@@ -2,6 +2,7 @@ from typing import List, Tuple, Optional
 import re
 import os
 import time
+import json
 from pipeline.agent_workflow.workflow_base import BaseDistillationTool
 from get_mapping import get_file_mapping
 from rich.console import Group, Console
@@ -78,12 +79,12 @@ class LLMDistillationTool(BaseDistillationTool):
  
     def distill_batch(
         self,
-        items: List[Tuple[str, str]],
+        items: List[Tuple[str, str, str]],
         query: str,
         thought: str,
         previous_generation: Optional[str] = None,
         verbose=False,
-    ) -> List[str]:
+    ) -> List[Tuple[str, List[str]]]:
         """
         Distil multiple content items in one LLM call.
  
@@ -95,7 +96,7 @@ class LLMDistillationTool(BaseDistillationTool):
         if not items:
             return []
  
-        total_sources = {source for _, source in items}
+        total_sources = {source for _, _, source in items}
  
         # --- User message: all dynamic content ---
         user_message = (
@@ -118,9 +119,9 @@ class LLMDistillationTool(BaseDistillationTool):
             f"from {len(total_sources)} distinct scripts:\n\n"
         )
  
-        for i, (content, source) in enumerate(items):
+        for i, (content, id, source) in enumerate(items):
             snippet = content[:2000]
-            user_message += f"--- ITEM {i+1} FROM {source} ---\n{snippet}\n\n"
+            user_message += f"--- ITEM {i+1} (ID: {id}) FROM {source} ---\n{snippet}\n\n"
  
         user_message += (
             "### TASK\n"
@@ -129,16 +130,21 @@ class LLMDistillationTool(BaseDistillationTool):
             "The Agent is moving to the next step and will lose access to these raw documents, "
             "so do not discard key information about the query found here.\n"
             "Discard only irrelevant text. Combine duplicate information.\n"
-            "One fact shoult not be too long — 25 words maximum.\n"
+            "One fact should not be too long — 25 words maximum.\n"
+            "For each fact, specify which item IDs (from the --- ITEM headers) contributed to it.\n"
             "\n"
             "### OUTPUT FORMAT\n"
-            "Output strictly in XML. Wrap each distinct fact in a <fact> tag.\n"
+            "Output strictly valid JSON: a list of dictionaries, each with:\n"
+            "- \"response\": the extracted fact (string)\n"
+            "- \"evidence_ids\": list of item IDs (strings) that support this fact\n"
             "\n"
             "Example:\n"
-            "<fact>Overall, 9 files read \"Data.ion\"</fact>\n"
-            "<fact>The script /4. Optimization workflow/03.b. Forecasting predicts future demand.</fact>\n"
+            "[\n"
+            "  {\"response\": \"Overall, 9 files read \\\"Data.ion\\\"\", \"evidence_ids\": [\"0\", \"1\"]},\n"
+            "  {\"response\": \"The script /4. Optimization workflow/03.b. Forecasting predicts future demand.\", \"evidence_ids\": [\"2\"]}\n"
+            "]\n"
             "\n"
-            "Begin XML output:"
+            "Begin JSON output:"
         )
  
         if self.rate_limit_delay > 0:
@@ -151,22 +157,44 @@ class LLMDistillationTool(BaseDistillationTool):
             temperature=0.15
         )
  
-        # Parse <fact> tags
-        distilled_results = re.findall(
-            r"<fact>(.*?)</fact>", response, re.IGNORECASE | re.DOTALL
-        )
+        # Parse JSON response
+        try:
+            parsed = json.loads(response)
+            if not isinstance(parsed, list):
+                raise ValueError("Response is not a list")
+            distilled_results = []
+            for item in parsed:
+                if isinstance(item, dict) and "response" in item and "evidence_ids" in item:
+                    fact = item["response"]
+                    evidence_ids = item["evidence_ids"] if isinstance(item["evidence_ids"], list) else []
+                    distilled_results.append((fact, evidence_ids))
+                else:
+                    # Skip invalid items
+                    continue
+        except (json.JSONDecodeError, ValueError) as e:
+            # Fallback: try to extract JSON from markdown or other formats
+            json_match = re.search(r'\[.*\]', response, re.DOTALL)
+            if json_match:
+                try:
+                    parsed = json.loads(json_match.group(0))
+                    distilled_results = [(item.get("response", ""), item.get("evidence_ids", [])) for item in parsed if isinstance(item, dict)]
+                except:
+                    distilled_results = []
+            else:
+                distilled_results = []
  
         if verbose:
             prompt_content = Panel(escape(user_message), title="Distillation Prompt", border_style="purple")
             display_response = response.strip()
             if not display_response.startswith("```"):
-                display_response = f"```xml\n{display_response}\n```"
+                display_response = f"```json\n{display_response}\n```"
             response_content = Panel(Markdown(escape(display_response)),
                                      title="Distillation Response", border_style="blue")
             results_table = Table(title="Parsed Facts", border_style="bold bright_yellow", show_lines=True)
             results_table.add_column("Facts", style="cyan", no_wrap=False)
-            for fact in distilled_results:
-                results_table.add_row(escape(fact))
+            results_table.add_column("Evidence IDs", style="yellow", no_wrap=False)
+            for fact, ids in distilled_results:
+                results_table.add_row(escape(fact), escape(str(ids)))
             self.console.print(Panel(Group(prompt_content, response_content, results_table),
                                      title="Distillation Tool", border_style="yellow"))
  

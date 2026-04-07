@@ -798,11 +798,15 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             prev_results = exec_history[-1].get("results_to_analyse")
             if prev_results and chosen_tool != "submit_answer":
                 self.console.print("[dim]Distilling previous tool results...[/dim]")
+                
+                # Complete accumulated_evidence with the distilled retrieval results (key = number of elements)
+                items_to_distill = []
+                accumulated_evidence = state['pipeline_state'].setdefault("accumulated_evidence", {})
+                for result in prev_results:
+                    id= str(len(accumulated_evidence))
+                    items_to_distill.append((result.chunk.content, id, result.chunk.metadata.get('original_file_path', 'Unknown Source')))
+                    accumulated_evidence[id] = result
     
-                items_to_distill = [
-                    (r.chunk.content, r.chunk.metadata.get('original_file_path', 'Unknown Source'))
-                    for r in prev_results
-                ]
                 new_facts = self.distillation_tool.distill_batch(
                     items=items_to_distill,
                     query=state['pipeline_state']["question"],
@@ -815,13 +819,11 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                         fact=fact,
                         tool=exec_history[-1]["tool"],
                         query=state['pipeline_state']["question"],
-                        evidence_ids=[] # TODO: fill adequately
-                    ) for fact in new_facts
+                        evidence_ids=ids
+                    ) for (fact, ids) in new_facts
                 ]
                 state['pipeline_state'].setdefault("knowledge_bank", []).extend(knowledge_elements)
                 
-                # Complete accumulated_evidence with the distilled retrieval results (key = number of elements)
-                state['pipeline_state'].setdefault("accumulated_evidence", {})[str(len(state['pipeline_state'].get("accumulated_evidence", {})))] = prev_results
                 
                 exec_history[-1]["outcome_summary"] += (
                     f" Extracted {len(new_facts)} relevant facts."
