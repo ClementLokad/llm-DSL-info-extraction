@@ -489,8 +489,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             f"{graph_str}"
         )
         warning_str = ""
-        if state.get("graph_count", 0) >= get_config().get("main_pipeline.graph_tool.max_retries", 5)-3:
-            warning_str = f". But beware, you only have {state.get('graph_count', 0)} attempts left for graph navigation !"
+        if state.get("local_graph_retries", 0) >= get_config().get("main_pipeline.graph_tool.max_retries", 5)-3:
+            warning_str = f". But beware, you only have {state.get('local_graph_retries', 0)} attempts left for graph navigation !"
         graph_instruction = (
             "Based on these structural results, decide your next action:\n"
             f"- Continue graph navigation with another action (tree, node, neighbors, edges){warning_str}\n"
@@ -889,7 +889,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # available as additional context at that point).
         # ------------------------------------------------------------------
         outcome_str = f"Retrieved {len(results)} chunks."
-        self._append_history(state, "rag_tool", query, outcome_str, thought, results)
+        self._append_history(state, "rag_tool", args, outcome_str, thought, results)
     
         # ------------------------------------------------------------------
         # Step 4: Format raw results for the Solver prompt
@@ -1006,7 +1006,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         )
         if res_truncated:
             outcome_str += f" Only the first {max_res} were analyzed."
-        self._append_history(state, "grep_tool", pattern, outcome_str, thought, results)
+        self._append_history(state, "grep_tool", args, outcome_str, thought, results)
     
         # ------------------------------------------------------------------
         # Step 5: Compact results to fit within the context line budget
@@ -1183,7 +1183,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self.console.print("[dim]--- SUB-NODE: Graph Tool ---[/dim]")
         args = state.get("pending_tool_call", {}).get("arguments", {})
         action = args.get("action")
-        graph_count = state.get("graph_count", 0)
+        graph_retries = state.get("local_graph_retries", 0)
         thought = state.get("current_thought", "No reasoning provided.")
 
         if not action:
@@ -1200,7 +1200,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self._append_history(state, "graph_tool", args, outcome_str, thought)
 
         graph_result_text = self.graph_tool.to_prompt_text(result)
-        state["graph_count"] = graph_count + 1
+        state["local_graph_retries"] = graph_retries + 1
         if action == "search":
             base_prompt = self._design_first_part_prompt(state)
             state["rewritten_prompt"] = (
@@ -1310,7 +1310,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             self.console.print("[dim]    -> 'search' action used, concluding graph exploration.[/dim]")
             return "end"
         
-        if  state.get("graph_count", 0) >= self.config_manager.get("main_pipeline.graph_tool.max_graph_iterations", 5):
+        if  state.get("local_graph_retries", 0) >= self.config_manager.get("main_pipeline.graph_tool.max_graph_iterations", 5):
             self.console.print("[dim]    -> Max graph iterations reached, concluding graph exploration.[/dim]")
             return "end"
         

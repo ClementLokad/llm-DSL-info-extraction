@@ -171,6 +171,7 @@ class WorkflowState(TypedDict):
     current_thought: Optional[str]
     rewritten_prompt: Optional[str]
     local_grep_retries: Optional[Tuple[int, int]] # Contains (number of retries, last number of grep results)
+    local_graph_retries: Optional[int] # Number of graph retries
     # tool-calling round-trip state
     pending_tool_call: Optional[Dict[str, Any]]  # {tool_id, tool_name, arguments}
     continuation: Optional[bool]  # Whether this is a continuation of a previous attempt (used for planner context)

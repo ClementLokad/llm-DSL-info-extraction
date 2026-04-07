@@ -212,8 +212,8 @@ class DSLQuerySystem():
                                        f", {self.config_manager.get('tokens_out')} [red]tokens out[/red]")
             except KeyboardInterrupt:
                 break
-            """except Exception as e:
-                self.console.print(f"[bold red]Error:[/bold red] {e}")""" # TODO:
+            except Exception as e:
+                self.console.print(f"[bold red]Error:[/bold red] {e}")
         if isinstance(self.pipeline.rag["retriever"], QdrantRetriever):
             self.pipeline.rag["retriever"].close()  # Ensure Qdrant client is properly closed on exit
         self.console.print("\n[bold]👋 Goodbye![/bold]")

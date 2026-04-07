@@ -260,12 +260,12 @@ class BasePipeline:
                     "\n[bold yellow]⚠ Benchmark interrupted by user.[/bold yellow]"
                 )
                 interrupted = True
-            """except Exception as exc:
+            except Exception as exc:
                 self.console.print(
                     f"\n[bold red]⚠ Benchmark stopped on question "
                     f"{len(grades)+1}/{len(qa_pairs)} due to error:[/bold red]\n{exc}"
                 )
-                interrupted = True""" #TODO:
+                interrupted = True
             
             if interrupted:
                 state["grades"] = grades
