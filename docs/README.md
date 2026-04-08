@@ -53,42 +53,17 @@ L'implementation a progresse au-dela du rapport intermediaire et inclut desormai
 
 ## Illustration
 
-```
-                     +---------------------+
-                     |  Question utilisateur|
-                     +----------+----------+
-                                |
-                         +------v------+
-                         |   Routeur   |
-                         +--+-------+--+
-                            |       |
-                  Conceptuel|       |Exact
-                            |       |
-                   +--------v--+ +--v--------+
-                   | Recherche | | Recherche  |
-                   | vectorielle| |   GREP    |
-                   +--------+--+ +--+--------+
-                            |       |
-                         +--v-------v--+
-                         | Orchestrateur|
-                         |  agentique  |
-                         +------+------+
-                                |
-                     +----------v----------+
-                     | Agregation contexte |
-                     +----------+----------+
-                                |
-                       +--------v--------+
-                       | Synthese LLM    |
-                       +--------+--------+
-                                |
-                     +----------v----------+
-                     | Controle qualite    |
-                     +----------+----------+
-                                |
-                       +--------v--------+
-                       | Reponse finale  |
-                       +-----------------+
+```mermaid
+graph TD
+  U["Question utilisateur"] --> R{"Routeur"}
+  R -->|Conceptuel| V["Recherche vectorielle"]
+  R -->|Exact| G["Recherche GREP"]
+  V --> O["Orchestrateur agentique"]
+  G --> O
+  O --> C["Agregation contexte"]
+  C --> L["Synthese LLM"]
+  L --> Q["Controle qualite"]
+  Q --> F["Reponse finale"]
 ```
 
 ## Dates cles
