@@ -4,6 +4,7 @@
 [![FAISS](https://img.shields.io/badge/FAISS-Vector_Search-green.svg)](https://faiss.ai)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Workflow-blueviolet.svg)](https://langchain-ai.github.io/langgraph/)
 [![AI](https://img.shields.io/badge/AI-GPT%20%7C%20Gemini%20%7C%20Mistral%20%7C%20Groq-orange.svg)](https://groq.com)
+[![PSC Presentation](https://img.shields.io/badge/PSC-Presentation%20Page-2ea44f.svg)](https://kpihx.github.io/envision-copilot-presentation/)
 
 > *Un système sophistiqué d'analyse et d'interrogation de code DSL utilisant l'IA sémantique et des workflows graphiques*
 
