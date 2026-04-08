@@ -1,24 +1,24 @@
 # References
 
-## PSC Administrative Sources
+## Sources administratives PSC
 
-- `source/Livret_PSCX24.pdf`
-- `source/PSC_Rapport_Intermediaire_X24.pdf`
+- `Livret_PSCX24.pdf`
+- `PSC_Rapport_Intermediaire_X24.pdf`
 
-## Project Internal Sources
+## Sources internes au projet
 
-- `README.md` (project overview)
-- `main.py` (main entrypoint and runtime modes)
-- `pipeline/agent_workflow/agentic_pipeline.py` (agentic orchestration)
-- `pipeline/agent_workflow/concrete_workflow.py` (planner and tool-call workflow)
-- `pipeline/agent_workflow/rag_tool.py` (semantic and hybrid retrieval logic)
-- `pipeline/agent_workflow/grep_tool.py` (exact lexical retrieval logic)
-- `config.yaml` (reproducible system configuration)
+- `README.md` (vue d'ensemble du projet)
+- `main.py` (point d'entree principal et modes d'execution)
+- `pipeline/agent_workflow/agentic_pipeline.py` (orchestration agentique)
+- `pipeline/agent_workflow/concrete_workflow.py` (planificateur et workflow d'appels d'outils)
+- `pipeline/agent_workflow/rag_tool.py` (logique de recherche semantique et hybride)
+- `pipeline/agent_workflow/grep_tool.py` (logique de recherche lexicale exacte)
+- `config.yaml` (configuration reproductible du systeme)
 
-## Scientific Reference Backbone (from intermediate report)
+## Socle de references scientifiques (issu du rapport intermediaire)
 
-- Transformer architecture foundations.
-- Retrieval-Augmented Generation literature.
-- LLM hallucination analysis.
-- LLM-as-a-Judge evaluation methodology.
-- Domain-specific language generation and RAG engineering references.
+- Fondements de l'architecture Transformer.
+- Litterature sur la Generation Augmentee par Recherche (RAG).
+- Analyse des hallucinations des LLM.
+- Methodologie d'evaluation LLM-as-a-Judge.
+- References sur la generation de DSL et l'ingenierie RAG.

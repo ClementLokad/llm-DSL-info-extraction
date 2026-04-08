@@ -1,17 +1,17 @@
 - **Envision - PSC X24**
 
-- **Public Page**
-  - [Home](README.md)
-  - [Project Title](README.md#project-title)
-  - [Team Composition](README.md#team-composition)
+- **Page publique**
+  - [Accueil](README.md)
+  - [Titre du projet](README.md#titre-du-projet)
+  - [Composition du groupe](README.md#composition-du-groupe)
   - [Illustration](README.md#illustration)
 
-- **Academic Content**
-  - [State of the Art](state-of-the-art.md)
-  - [Methodology](methodology.md)
-  - [Progress Since Intermediate Report](progress-since-intermediate.md)
-  - [Finalization Plan](finalization-plan.md)
+- **Contenu academique**
+  - [Etat de l'art](etat-de-lart.md)
+  - [Methodologie](methodologie.md)
+  - [Progres depuis le rapport intermediaire](progres-depuis-rapport-intermediaire.md)
+  - [Plan de finalisation](plan-de-finalisation.md)
   - [References](references.md)
 
-- **Project Source**
-  - [Main Repository README](../README.md)
+- **Source du projet**
+  - [README du depot principal](../README.md)
