@@ -72,6 +72,12 @@ graph TD
 - Final presentation period: **May 2026**
 - Scheduled soutenance (TickTick): **2026-05-19 15:00** (Europe/Paris)
 
+## Project Links
+
+- Main project repository (Clement): [https://github.com/ClementLokad/llm-DSL-info-extraction](https://github.com/ClementLokad/llm-DSL-info-extraction)
+- Presentation repository: [https://github.com/KpihX/envision-copilot-presentation](https://github.com/KpihX/envision-copilot-presentation)
+- Published presentation page: [https://kpihx.github.io/envision-copilot-presentation/](https://kpihx.github.io/envision-copilot-presentation/)
+
 ## Source Documents
 
 - `source/Livret_PSCX24.pdf`

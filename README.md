@@ -7,6 +7,11 @@
 
 > *Un système sophistiqué d'analyse et d'interrogation de code DSL utilisant l'IA sémantique et des workflows graphiques*
 
+## 🔗 PSC presentation page
+
+- Presentation repository: [https://github.com/KpihX/envision-copilot-presentation](https://github.com/KpihX/envision-copilot-presentation)
+- Published page: [https://kpihx.github.io/envision-copilot-presentation/](https://kpihx.github.io/envision-copilot-presentation/)
+
 ---
 
 ## 🎯 Vue d'ensemble du projet
