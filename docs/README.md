@@ -92,4 +92,5 @@ L'implementation finale inclut :
 
 ## Depot du projet
 
-[github.com/ClementLokad/llm-DSL-info-extraction](https://github.com/ClementLokad/llm-DSL-info-extraction)
+- Code source : [github.com/ClementLokad/llm-DSL-info-extraction](https://github.com/ClementLokad/llm-DSL-info-extraction)
+- Page publique : [kpihx.github.io/envision-copilot-presentation](https://kpihx.github.io/envision-copilot-presentation/)

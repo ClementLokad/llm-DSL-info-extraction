@@ -248,6 +248,7 @@ retriever:
 1. **Architecture** : Respectez la séparation `rag/` vs `agents/`.
 2. **LangGraph** : Ajoutez de nouveaux nœuds dans `langgraph_base.py`.
 3. **Tests** : Utilisez `test.py` pour valider les composants de base.
+4. **Page publique (`docs/`)** : Le dossier `docs/` contient le site Docsify de présentation PSC, hébergé sur [kpihx.github.io/envision-copilot-presentation](https://kpihx.github.io/envision-copilot-presentation/). Un hook `pre-push` synchronise automatiquement `docs/` vers le repo de présentation à chaque `git push`. Pour désactiver ponctuellement : `SKIP_DOCS_PUSH=1 git push`.
 
 ---
 
