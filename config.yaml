@@ -89,7 +89,7 @@ query_transformer:
 # =============================================================================
 embedder:
   # Default embedder type
-  default_type: "qdrant" # Options: "qdrant", "sentence_transformer", "openai", "gemini"
+  default_type: "sentence_transformer" # Options: "qdrant", "sentence_transformer", "openai", "gemini"
 
   # Index type
   index_type: "summary"  # Options: summary, full_chunk, raptor
