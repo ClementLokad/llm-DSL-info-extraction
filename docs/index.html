@@ -36,31 +36,11 @@
       },
       darklightTheme: {
         defaultTheme: 'dark'
-      },
-      markdown: {
-        renderer: {
-          code: function(code, lang) {
-            if (lang === 'mermaid') {
-              return '<div class="mermaid">' + code + '</div>';
-            }
-            return this.origin.code.apply(this, arguments);
-          }
-        }
       }
     }
   </script>
   <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
   <script src="//cdn.jsdelivr.net/npm/docsify-darklight-theme@latest/dist/index.min.js" type="text/javascript"></script>
   <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
-  <script src="//cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-  <script>
-    mermaid.initialize({ startOnLoad: false, theme: 'dark' });
-    document.addEventListener('DOMContentLoaded', function() {
-      var observer = new MutationObserver(function() {
-        mermaid.run({ querySelector: '.mermaid' });
-      });
-      observer.observe(document.getElementById('app'), { childList: true, subtree: true });
-    });
-  </script>
 </body>
 </html>
