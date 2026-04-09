@@ -6,6 +6,7 @@ Contains the various benchmarks as well.
 
 from .benchmarks.cosine_sim_benchmark import CosineSimBenchmark
 from .benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark
+from .benchmarks.dual_cross_encoder_benchmark import DualBenchmark
 from .agent_workflow.agentic_pipeline import AgenticPipeline
 from .agent_workflow.concrete_workflow import ConcreteAgentWorkflow
 from .agent_workflow.grep_tool import GrepTool
@@ -16,6 +17,7 @@ from .agent_workflow.script_finder_tool import PathScriptFinder
 __all__ = [
     "CosineSimBenchmark",
     "LLMAsAJudgeBenchmark",
+    "HybridBenchmark",
     "AgenticPipeline",
     "ConcreteAgentWorkflow",
     "GrepTool",

@@ -128,6 +128,28 @@ class MainAgenticPipeline(AgenticPipeline):
                 self.console.print(f"[dim]→ LLM ({benchmark.agent.model_name}) Judge score with reference: {grade['score']}[/dim]")
             
             return {"grade": grade}
+        
+        elif self.config_manager.get_benchmark_type() == "hybrid":
+            from pipeline.benchmarks.hybrid_benchmark import HybridBenchmark
+            self.console.print("[dim]--- NODE: Hybrid Grade Answer ---[/dim]")
+            
+            benchmark = HybridBenchmark()
+            benchmark.initialize()
+
+            #delay to avoid too many requests
+            if rate_limit_delay > 0:
+                time.sleep(rate_limit_delay)
+            qa_pair = {
+                "question": state["question"],
+                "llm_response": state["final_answer"],
+                "reference": state["reference_answer"],
+                "deterministic": state.get("deterministic", False)
+            }
+            grade = benchmark.run([qa_pair])["results"][0]
+            if state["verbose"]:
+                self.console.print(f"[dim]→ Hybrid benchmark score with reference: {grade['score']}[/dim]")
+            
+            return {"grade": grade}
 
 class DSLQuerySystem():
     def __init__(self, pipeline: BasePipeline, console: Console):
@@ -317,6 +339,14 @@ class DSLQuerySystem():
             for q in questions['answered']
         ]
         
+        # Build metadata mapping for each question (deterministic flag, etc)
+        qa_metadata = {
+            q["question"]: {
+                "deterministic": q.get("deterministic", False)
+            }
+            for q in questions['answered']
+        }
+        
         total = len(qa_pairs)
         
         # Validate start_from
@@ -335,6 +365,7 @@ class DSLQuerySystem():
             
         input_state = BenchmarkState(
             qa_pairs=qa_pairs[start_from-1:],
+            qa_metadata=qa_metadata,
             verbose=verbose,
             sub_rag_system=sub_rag_system
         )

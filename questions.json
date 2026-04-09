@@ -105,7 +105,7 @@
             "question": "Le client veut ajouter une nouvelle localisation pour le dispatch. Où paramétrer le champ ReDispatchCycle propre à cette localisation ?",
             "deterministic": true,
             "answers": [
-                "Dans /1. utilities/2. preprocess/[2] - Business Preprocessing"
+                "/1. utilities/2. preprocess/[2] - Business Preprocessing"
             ]
         },
         {
@@ -160,7 +160,7 @@
         },
         {
             "question": "Comment sont définies les cibles de fill rate à respecter selon les produits du catalogue ?",
-            "deterministic": true,
+            "deterministic": false,
             "answers": [
                 "Elles sont calculées selon la formule suivante : Items.CategoryFRTarget = (86 + Items.AgressivenessFactor * 12) / 100, où AgressivenessFactor est le coefficient d’agressivité."
             ]

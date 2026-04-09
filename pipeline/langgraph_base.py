@@ -39,6 +39,7 @@ class GraphState(TypedDict):
     retry_count: int
     grade: Optional[Dict[str, Any]]
     verbose: bool
+    deterministic: bool
 
 class ActionLog(TypedDict):
     """Represents a single step in the agent's history."""
@@ -103,12 +104,14 @@ class BenchmarkState(TypedDict):
 
     Attributes:
         qa_pairs: List of (question, reference_answer) pairs.
+        qa_metadata: Dict mapping question to metadata (deterministic flag, etc).
         grades: List of grading results for each Q/A pair.
         benchmark_results: Aggregated results from the benchmark.
         sub_rag_system: The sub-graph handling individual Q/A processing.
         verbose: Whether to print verbose output during processing.
     """
     qa_pairs: List[Tuple[str, str]]
+    qa_metadata: Dict[str, Dict[str, Any]]
     grades: List[Dict[str, Any]]
     benchmark_results: Dict[str, Any]
     sub_rag_system: StateGraph
@@ -227,6 +230,7 @@ class BasePipeline:
         """
         self.console.print("[dim]--- NODE: Run Q/A Pairs ---[/dim]")
         qa_pairs = state["qa_pairs"]
+        qa_metadata = state["qa_metadata"]
         sub_rag_system = state["sub_rag_system"]
         
         grades = []
@@ -245,7 +249,8 @@ class BasePipeline:
                 "regenerate_needed": False,
                 "retry_count": 0,
                 "grade": None,
-                "verbose": state["verbose"]
+                "verbose": state["verbose"],
+                "deterministic": qa_metadata.get(question, {}).get("deterministic", False)
             }
             
             app = sub_rag_system.compile()
@@ -271,8 +276,10 @@ class BasePipeline:
                 state["grades"] = grades
                 raise APIError("Stopped due to API Error", state)
 
-            # Collect the grade
-            grades.append(final_state["grade"])
+            # Collect the grade with deterministic flag from metadata
+            grade = final_state["grade"]
+            grade["deterministic"] = qa_metadata.get(question, {}).get("deterministic", False)
+            grades.append(grade)
         
         return {"grades": grades}
 
