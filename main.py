@@ -601,22 +601,37 @@ EXAMPLES:
                 console.print(f"[bold red]❌ Configuration error:[/bold red] {e}")
                 return
                 
-            # Check index status
+            # Check index/retriever status
             try:
                 import os
                 
-            # Determine index type from flags and config
+                retriever_type = config_manager.get_config().get("retriever.type", "faiss")
                 index_type = config_manager.get_config().get("embedder.index_type")
-                if index_type == "full_chunk":
-                    index_path = Path("data/faiss_index")
-                if index_type == "summaries": 
-                    index_path = Path("data/faiss_summary_index")
 
-                if os.path.exists(index_path):
-                    files = os.listdir(index_path)
-                    console.print(f"✅ Index found: {len(files)} files")
+                if retriever_type == "qdrant":
+                    index_path = Path(config_manager.get_config().get("retriever.qdrant.qdrant_path", "./data/qdrant"))
+                    if os.path.exists(index_path):
+                        files = os.listdir(index_path)
+                        console.print(f"✅ Qdrant storage found: {len(files)} entries")
+                    else:
+                        console.print("[yellow]⚠️ No Qdrant storage found - build the retrieval data first[/yellow]")
+                elif retriever_type == "faiss":
+                    if index_type == "full_chunk":
+                        index_path = Path("data/faiss_index")
+                    elif index_type == "summary":
+                        index_path = Path("data/faiss_summary_index")
+                    elif index_type == "raptor":
+                        index_path = Path("data/raptor_summary_index")
+                    else:
+                        raise ValueError(f"Unsupported index type: {index_type}")
+
+                    if os.path.exists(index_path):
+                        files = os.listdir(index_path)
+                        console.print(f"✅ FAISS index found: {len(files)} files")
+                    else:
+                        console.print("[yellow]⚠️ No FAISS index found - run build_index.py first[/yellow]")
                 else:
-                    console.print("[yellow]⚠️ No index found - run build_index.py first[/yellow]")
+                    console.print(f"[yellow]⚠️ Unknown retriever type: {retriever_type}[/yellow]")
             except Exception as e:
                 console.print(f"[bold red]❌ Index check failed:[/bold red] {e}")
                 

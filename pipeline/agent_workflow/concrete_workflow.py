@@ -166,6 +166,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             facts_str = f"### VERIFIED FACTS (from previous queries)\n{self._get_knowledge_bank_str(state)}"
         
         previous_qa_str = self._show_previous_qa(state)
+        anti_repetition = self._get_anti_repetition_str(
+            state.get("pipeline_state", {}).get("execution_history", [])
+        )
         
         return (
             self.base_instructions
@@ -180,6 +183,11 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "### CODEBASE STRUCTURE (from root : '/')\n"
             f"{tree_str}\n\n"
             f"{facts_str}"
+            "### BOOTSTRAP RULE\n"
+            "The root tree above already provides the structural half of the investigation bootstrap.\n"
+            "If the target is still uncertain after reading the tree, prefer rag_tool as the FIRST active tool so that structure and semantics are combined immediately.\n\n"
+            "### ANTI-REPETITION\n"
+            f"{anti_repetition}\n\n"
             "### PLANNING INSTRUCTIONS\n"
             "1. Identify the most critical keyword or concept in the current question.\n"
             "2. Choose the tool that matches the nature of what you are looking for:\n"
@@ -189,10 +197,12 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             " - The question asks about a concept, a behaviour, business logic,"
             " or uses broad terms that could appear in many different contexts\n"
             "    → rag_tool finds semantically relevant chunks regardless of exact wording.\n"
+            " - If the question asks who reads/writes/imports something, graph_tool is usually the structural truth source.\n"
             " - For grep_tool sources, ONLY use real codebase path patterns (from tree_tool or question).\n"
             " - When genuinely uncertain, consider what a first result would look like: "
             "if a grep would likely return hundreds of unrelated matches, use rag_tool.\n"
             "3. Call exactly ONE tool. Fill in all RELEVANT optional fields for precision.\n"
+            "4. Think evidence-first: you are not trying to sound plausible, you are trying to collect proof.\n"
         )
 
     def _continuation_system_prompt(self, state: WorkflowState) -> str:
@@ -202,6 +212,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
 
         facts_str = self._get_knowledge_bank_str(state)
         previous_qa_str = self._show_previous_qa(state)
+        recent_results_digest = self._get_recent_results_digest(history)
+        anti_repetition = self._get_anti_repetition_str(history)
 
         tree_str = self.tree_tool.custom_tree('', 3, 3)
         return (
@@ -216,6 +228,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             f"### CURRENT QUESTION\n{question}\n\n"
             "### CODEBASE STRUCTURE (from root : '/')\n"
             f"{tree_str}\n\n"
+            "### RECENT RESULTS DIGEST\n"
+            f"{recent_results_digest}\n\n"
+            "### ANTI-REPETITION\n"
+            f"{anti_repetition}\n\n"
             "### PROPOSED SOLUTION (From Main Agent)\n"
             f"\"{previous_generation}\"\n\n"
             "**CRITICAL CHECK**: Does the proposed solution directly and fully answer the "
@@ -231,6 +247,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "→ YES: call submit_answer immediately. Do not search further.\n"
             "→ NO (vague, uncertain, 'I don't know', or negative without proof): "
             "search for what is missing.\n\n"
+            "Never conclude on intuition alone. A final answer must be grounded in concrete evidence gathered during the investigation.\n\n"
             "The proposed solution does not need to explicitly *cite* evidence as long as it aligns with results "
             "from the HISTORY or facts from VERIFIED FACTS.\n"
             "If you need to search further, here are useful angles to consider:\n"
@@ -239,6 +256,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "- If rag results were weak, try grep with a specific identifier extracted from those results.\n"
             "- Synonyms or rephrased queries often surface what a direct query missed.\n"
             "- prior_evidence_tool can combine documents from earlier searches without re-running them.\n"
+            "- Avoid repeating the same failed call; change the query, the source scope, or the tool family.\n"
         )
 
     # -----------------------------------------------------------------------

@@ -80,60 +80,71 @@ class EnvisionGraphTool(Tool):
         return _tool_desc(
             name="graph_tool",
             description=(
-                "Navigate Envision code structure through the dependency graph. "
-                "NAVIGATION PATTERN: Start with 'tree' to explore folder structure, "
-                "then 'neighbors' or 'edges' to find relationships, and 'search' to conclude. "
-                "Each non-'search' action loops back to allow continued exploration. "
-                "Use 'search' to end navigation once target information is found."
+                "Navigate and explore the Envision dependency graph across scripts, data files, "
+                "tables, functions, and folders. ALWAYS start with action='tree' on the 'scripts' "
+                "domain to understand project structure before deeper navigation. Use execution_order "
+                "from folder/file prefixes to reason about pipeline chronology. Then use 'neighbors' "
+                "or 'edges' for relationships, 'node' for details, and 'search' to conclude once the "
+                "target is identified."
             ),
             properties={
                 "action": {
                     "type": "string",
                     "enum": ["tree", "node", "neighbors", "edges", "search"],
                     "description": (
-                        "Graph action to execute. "
-                        "'tree': Explore folder hierarchy/dependencies. "
-                        "'node': Inspect a specific node's properties. "
-                        "'neighbors': Find incoming/outgoing edges for navigation. "
-                        "'edges': List all edges between nodes/types. "
-                        "'search': Search nodes by name/path (ends navigation)."
+                        "Graph action to execute. 'tree' explores folder hierarchy and should be the "
+                        "default first move. 'node' inspects one node. 'neighbors' navigates incoming/"
+                        "outgoing/sibling relationships. 'edges' lists relationships by type. 'search' "
+                        "finds nodes by name/path and is a good way to conclude graph exploration."
                     ),
                 },
                 "path": {
                     "type": "string",
-                    "description": "[tree] Folder path to inspect; default is root '/'.",
+                    "description": "[tree] Folder path to inspect; default is root '/'. Start at '/' unless you already know the relevant branch.",
                 },
                 "domain": {
                     "type": "string",
                     "enum": ["scripts", "data", "both"],
-                    "description": "[tree] Graph domain to explore ('scripts' or 'data'); default is 'both'.",
+                    "description": "[tree] Graph domain to explore. Prefer 'scripts' first; 'data' is useful once you already know the relevant files.",
                 },
                 "max_depth": {
                     "type": "integer",
-                    "description": "[tree] Maximum folder recursion depth; omit for auto-limit.",
+                    "description": "[tree] Maximum folder recursion depth; omit for auto-limit. Small values are useful for a quick architectural overview.",
                 },
                 "node_id": {
                     "type": "string",
-                    "description": "[node, neighbors, edges] Graph node identifier as returned by tree/search.",
+                    "description": "[node, neighbors] Graph node identifier as returned by tree/search. Can be a script id, function id, table id, or data-file path.",
                 },
                 "direction": {
                     "type": "string",
                     "enum": ["incoming", "outgoing", "all", "siblings"],
-                    "description": "[neighbors] Edge direction: 'incoming' (who calls this), 'outgoing' (what it calls), 'all', or 'siblings'.",
+                    "description": (
+                        "[neighbors] Think from the perspective of node_id: "
+                        "'incoming' = who/what targets this node, "
+                        "'outgoing' = what this node targets, "
+                        "'all' = both directions, "
+                        "'siblings' = same-folder peers with no direction semantics."
+                    ),
                 },
                 "relation_type": {
                     "type": "string",
                     "enum": ["reads", "writes", "imports", "defines", "contains", "sibling"],
-                    "description": "[neighbors, edges] Optional edge type filter (e.g., 'imports', 'defines'). Default shows all types.",
+                    "description": (
+                        "[neighbors, edges] Optional edge type filter. Common patterns: "
+                        "scripts that READ a file = node_id is the file + direction='incoming' + relation_type='reads'; "
+                        "files that a script READS = node_id is the script + direction='outgoing' + relation_type='reads'; "
+                        "scripts that WRITE a file = file + incoming + writes; "
+                        "scripts that IMPORT a module = module + incoming + imports."
+                    ),
                 },
                 "query": {
                     "type": "string",
-                    "description": "[search] Search query on node names or paths (regex or literal string).",
+                    "description": "[search] Search query on node names or paths. Use this when you know a name fragment but not the exact node id.",
                 },
                 "node_types": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "[search] Optional node type filters if search supports type filtering.",
+                    "description": "[search] Optional node type filters such as script, data_file, table, function, or folder.",
                 },
             },
             required=["action"],

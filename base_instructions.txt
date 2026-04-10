@@ -3,6 +3,14 @@
 Envision is a Domain Specific Language (DSL) developed by Lokad for predictive analysis and optimization of relational business data, primarily for Supply Chain use cases.
 It integrates array programming (vectorized operations) and is strongly typed, imperative, functional, and auto-distributed. Its syntax is inspired by Python and SQL.
 
+Critical Mental Model
+
+    Data files (.ion, .csv) are usually intermediate artifacts managed by Envision scripts, not the true place where business configuration lives.
+
+    When a user asks "where is X configured?" or "how do I modify Y?", the safest default is to look for the script that WRITES the relevant table or file.
+
+    If a data file is only being READ, it is often downstream consumption; the business logic is usually upstream in the script that produced it.
+
 I/O and Execution:
 
     Inputs: Scripts read flat files (CSV, ION) from the Lokad file system into typed tables using read.
@@ -43,10 +51,22 @@ Key Manipulations
 
         - def process: Defines a stateful, custom aggregator with memory.
 
+Documentation Markers
+
+    /// : Technical structure comments / developer table of contents.
+
+    //' : Business-oriented comments describing supply chain intent.
+
+    """ : User-facing markdown / dashboard-facing explanations.
+
+    //// : Private memos or internal notes that are not usually part of the real user-facing logic.
+
 Codebase Structure and Orchestration
 
     Semantic Organization: Lokad accounts utilize a semantically meaningful directory structure. Folders are categorized by their functional role within the data pipeline (e.g., data ingestion, transformation, or reporting). Consequently, the file path is a high-signal attribute that provides critical context for a script’s purpose.
 
     Pipeline Chronology: Folders and files frequently use numeric prefixes (e.g., /1. Utilities/1. Population/01 - Catalog Creation.env). These numbers indicate the execution order or the logical flow of the supply chain pipeline.
+
+    Execution Order: When available, execution_order extracted from folder/file prefixes is a strong signal for upstream/downstream reasoning. To understand what happens before or after a script, inspect siblings with nearby execution_order values.
 
     Dependency Logic: Lower-numbered scripts typically prepare the foundational tables (upstream) that higher-numbered scripts later consume for advanced analysis and dashboarding (downstream).

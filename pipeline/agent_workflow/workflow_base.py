@@ -430,6 +430,49 @@ class BaseAgentWorkflow(StateGraph):
             )
         return history_str
 
+    def _get_recent_results_digest(self, history: List[ActionLog], limit: int = 3) -> str:
+        """Return a factual digest of the most recent tool results."""
+        if not history:
+            return "(No tool results available yet.)"
+
+        digest_lines = []
+        for log in history[-limit:]:
+            digest_lines.append(
+                f"- Step {log['step']} [{log['tool']}]: {log['outcome_summary']}"
+            )
+        return "\n".join(digest_lines)
+
+    def _get_anti_repetition_str(self, history: List[ActionLog], limit: int = 6) -> str:
+        """Summarize recent attempts so the planner can avoid repeating itself."""
+        if not history:
+            return (
+                "- No previous attempts yet.\n"
+                "- Bootstrap rule: use the provided root tree as structural context and prefer rag_tool as the first active search when the target is still unclear."
+            )
+
+        recent = history[-limit:]
+        recent_tools = [log["tool"] for log in recent]
+        repetition_notes = [
+            "- Do not repeat the exact same tool call with the same arguments unless new evidence justifies it.",
+            "- If grep_tool already returned too many matches or zero matches, change the pattern or switch tool.",
+            "- If graph_tool explored one branch repeatedly without evidence, switch to rag_tool or grep_tool with a concrete identifier.",
+            "- If rag_tool results were weak, reformulate the query or extract a precise term for grep_tool.",
+        ]
+
+        if recent_tools.count("graph_tool") >= 2:
+            repetition_notes.append("- graph_tool was used multiple times recently; avoid another structural-only loop unless you are exploring a genuinely new branch.")
+        if recent_tools.count("grep_tool") >= 2:
+            repetition_notes.append("- grep_tool was used multiple times recently; avoid retrying the same literal or source filter.")
+        if recent_tools.count("rag_tool") >= 2:
+            repetition_notes.append("- rag_tool was used multiple times recently; prefer a genuinely reformulated query or pivot to a structural tool.")
+
+        for log in recent[-3:]:
+            repetition_notes.append(
+                f"- Recent attempt: {log['tool']} with {log['parameter']} -> {log['outcome_summary']}"
+            )
+
+        return "\n".join(repetition_notes)
+
     @abstractmethod
     def design_planner_prompt(self, state: WorkflowState) -> str:
         """Override in subclasses to return the planner's system-role string."""
