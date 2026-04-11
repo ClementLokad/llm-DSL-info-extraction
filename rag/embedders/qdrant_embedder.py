@@ -21,6 +21,7 @@ class QdrantEmbedder(BaseEmbedder):
         # Fixed the typo here to grab the correct dense model fallback
         self.dense_model_name = self.config.get("dense_model_name", "sentence-transformers/all-MiniLM-L6-v2")
         self.sparse_model_name = self.config.get("sparse_model_name", "Qdrant/bm25")
+        self.disable_stemmer = self.config.get("disable_stemmer", True)
         
         # Default dimension for all-MiniLM-L6-v2 if not specified
         self._embedding_dimension = self.config.get("embedding_dimension", 384)
@@ -39,8 +40,8 @@ class QdrantEmbedder(BaseEmbedder):
         self.logger.info(f"Initializing Dense Model: {self.dense_model_name}")
         self.dense_model = TextEmbedding(model_name=self.dense_model_name)
         
-        self.logger.info(f"Initializing Sparse Model: {self.sparse_model_name}")
-        self.sparse_model = SparseTextEmbedding(model_name=self.sparse_model_name)
+        self.logger.info(f"Initializing Sparse Model: {self.sparse_model_name} (disable_stemmer={self.disable_stemmer})")
+        self.sparse_model = SparseTextEmbedding(model_name=self.sparse_model_name, disable_stemmer=self.disable_stemmer)
         
         self._is_initialized = True
         self.logger.info("QdrantEmbedder initialized successfully.")

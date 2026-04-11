@@ -636,7 +636,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                         "proceeding with current answer."
                     )
                 },
-            ), system_prompt, reasoning
+            ), (system_prompt, user_message), reasoning
     
         # Step 2 — Forced tool call.
         # The model's own reasoning from step 1 is now in self.context; it cannot
