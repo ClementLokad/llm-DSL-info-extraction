@@ -705,7 +705,6 @@ class NetworkBuilder:
             file_path: Path to the .nvn script file
         """
         logical_path = ConfigLoader.get_logical_path(file_path.name, self.file_mapping, self.script_ext)
-        real_id = file_path.name.replace(f".{self.script_ext}", "")
         
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -732,7 +731,7 @@ class NetworkBuilder:
         # Create Script Node with FULL CONTENT
         # Note: name=logical_path (full path) for easier identification in lite mode
         script_node = Node(
-            id=real_id, 
+            id=logical_path, 
             type=NodeType.SCRIPT,
             name=logical_path,
             path=logical_path, 
@@ -818,23 +817,19 @@ class NetworkBuilder:
             
             clean_path = self._normalize_path(raw_path)
             
-            # Try to resolve to known script
-            target_id = self.reverse_mapping.get(clean_path)
-            if not target_id:
-                target_id = self.reverse_mapping.get(clean_path.lstrip('/'))
-            
-            if target_id:
-                key = (target_id, EdgeType.IMPORTS)
-                if key not in edges_found:
-                    edges_found[key] = []
-                edges_found[key].append(raw)
-                target_types[target_id] = NodeType.SCRIPT
+            # Script nodes now use the logical path as ID
+            if clean_path in self.reverse_mapping:
+                target_id = clean_path
+            elif clean_path.lstrip('/') in self.reverse_mapping:
+                target_id = clean_path.lstrip('/')
             else:
-                key = (clean_path, EdgeType.IMPORTS)
-                if key not in edges_found:
-                    edges_found[key] = []
-                edges_found[key].append(raw)
-                target_types[clean_path] = NodeType.SCRIPT
+                target_id = clean_path
+            
+            key = (target_id, EdgeType.IMPORTS)
+            if key not in edges_found:
+                edges_found[key] = []
+            edges_found[key].append(raw)
+            target_types[target_id] = NodeType.SCRIPT
 
         # Create edges and target nodes
         for (target_id, edge_type), occurrences in edges_found.items():

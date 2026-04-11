@@ -80,85 +80,62 @@ class EnvisionGraphTool(Tool):
         return _tool_desc(
             name="graph_tool",
             description=(
-                "Navigate and explore the Envision dependency graph across scripts, data files, "
-                "tables, functions, and folders. ALWAYS start with action='tree' on the 'scripts' "
-                "domain to understand project structure before deeper navigation. Use execution_order "
-                "from folder/file prefixes to reason about pipeline chronology. Then use 'neighbors' "
-                "or 'edges' for relationships, 'node' for details, and 'search' ONLY to locate a node "
-                "by name/path before switching to a structural action. CRITICAL: search does NOT search "
-                "relationship names or code content. It only searches node id, node name, and node path.\n"
+                "Navigate the Envision dependency graph (scripts, data files, tables, functions, folders). "
+                "Nodes are identified by their logical paths (e.g., '/1. utilities/Modules/Functions.nvn').\n\n"
+                "MANDATORY WORKFLOW:\n"
+                "1. Start with action='tree' to grasp the folder/file hierarchy.\n"
+                "2. (Optional) Use 'search' or 'node' to locate specific targets by name or ID.\n"
+                "3. Conclude with 'neighbors' or 'edges' to extract relationships.\n\n"
+                "CONTROL FLOW:\n"
+                "- Actions 'tree', 'node', and 'search' return control to the PLANNER for further reasoning.\n"
+                "- Actions 'neighbors' and 'edges' immediately send their results to the SOLVER to answer the user's question.\n"
                 "Typical graph_tool patterns:\n"
                 "  • Which scripts import module X? → search X if needed, then neighbors(node_id=X, direction='incoming', relation_type='imports').\n"
                 "  • What modules does script X import? → neighbors(node_id=X, direction='outgoing', relation_type='imports').\n"
                 "  • What files does script X read/write? → neighbors with relation_type='reads' or 'writes'.\n"
-                "  • Global overview of imports/reads/writes → edges(relation_type='imports'|'reads'|'writes').\n"
+                "  • Global overview of imports/reads/writes → edges(relation_type='imports'|'reads'|'writes')."
             ),
             properties={
                 "action": {
                     "type": "string",
-                    "enum": ["tree", "node", "neighbors", "edges", "search"],
-                    "description": (
-                        "Graph action to execute. 'tree' explores folder hierarchy and should be the "
-                        "default first move. 'node' inspects one node. 'neighbors' navigates incoming/"
-                        "outgoing/sibling relationships. 'edges' lists relationships by type. 'search' "
-                        "finds nodes by name/path only. DO NOT use search for verbs such as 'import', "
-                        "'read', 'write', or 'define' because those are edge relations, not node names."
-                    ),
+                    "enum": ["tree", "node", "search", "neighbors", "edges"],
+                    "description": "The graph operation to perform. See the MANDATORY WORKFLOW for usage order."
                 },
                 "path": {
                     "type": "string",
-                    "description": "[tree] Folder path to inspect; default is root '/'. Start at '/' unless you already know the relevant branch.",
+                    "description": "[tree] Folder path to inspect. Default is '/'."
                 },
                 "domain": {
                     "type": "string",
                     "enum": ["scripts", "data", "both"],
-                    "description": "[tree] Graph domain to explore. Prefer 'scripts' first; 'data' is useful once you already know the relevant files.",
+                    "description": "[tree] Graph domain to explore. Start with 'scripts'."
                 },
                 "max_depth": {
                     "type": "integer",
-                    "description": "[tree] Maximum folder recursion depth; omit for auto-limit. Small values are useful for a quick architectural overview.",
+                    "description": "[tree] Max recursion depth. Use 1 or 2 for a quick overview."
                 },
                 "node_id": {
                     "type": "string",
-                    "description": "[node, neighbors] Graph node identifier as returned by tree/search. Can be a script id, function id, table id, or data-file path.",
+                    "description": "[node, neighbors] The exact logical path of the node (e.g., '/Clean/Orders.ion')."
                 },
                 "direction": {
                     "type": "string",
                     "enum": ["incoming", "outgoing", "all", "siblings"],
-                    "description": (
-                        "[neighbors] Think from the perspective of node_id: "
-                        "'incoming' = who/what targets this node, "
-                        "'outgoing' = what this node targets, "
-                        "'all' = both directions, "
-                        "'siblings' = same-folder peers with no direction semantics."
-                    ),
+                    "description": "[neighbors] Think from perspective of node_id: 'incoming' = what targets this node; 'outgoing' = what this node targets."
                 },
                 "relation_type": {
                     "type": "string",
                     "enum": ["reads", "writes", "imports", "defines", "contains", "sibling"],
-                    "description": (
-                        "[neighbors, edges] Optional edge type filter. Common patterns: "
-                        "scripts that READ a file = node_id is the file + direction='incoming' + relation_type='reads'; "
-                        "files that a script READS = node_id is the script + direction='outgoing' + relation_type='reads'; "
-                        "scripts that WRITE a file = file + incoming + writes; "
-                        "scripts that IMPORT a module = module + incoming + imports; "
-                        "modules imported by a script = script + outgoing + imports; "
-                        "global import overview = action='edges' with relation_type='imports'."
-                    ),
+                    "description": "[neighbors, edges] Filter by edge type. E.g., 'imports' to find module dependencies."
                 },
                 "query": {
                     "type": "string",
-                    "description": (
-                        "[search] Search query on node names or paths ONLY. Good examples: "
-                        "'Functions', 'Global Parameters', 'PathSchemas', '/1. utilities/Modules'. "
-                        "Bad examples: 'import', 'imports', 'read', 'write' because those are relations "
-                        "or code terms, not node names."
-                    ),
+                    "description": "[search] Node name or path to search. NEVER use this for verbs like 'import' or 'read'."
                 },
                 "node_types": {
                     "type": "array",
-                    "items": {"type": "string"},
-                    "description": "[search] Optional node type filters such as script, data_file, table, function, or folder.",
+                    "items": {"type": "string", "enum": ["script", "data_file", "table", "function", "folder"]},
+                    "description": "[search] Filter by node type."
                 },
             },
             required=["action"],
