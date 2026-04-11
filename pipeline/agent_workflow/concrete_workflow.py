@@ -739,12 +739,12 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             and state.get("rewritten_prompt")
         )
         
-        # Graph tool follow-up: continue loop if action was NOT "search"
+        # Graph tool follow-up: continue loop if action was NOT "neighbors" or "edges"
         graph_followup_active = (
             history
             and history[-1]["tool"] == "graph_tool"
             and state.get("rewritten_prompt")
-            and state.get("pending_tool_call", {}).get("arguments", {}).get("action") != "search"
+            and state.get("pending_tool_call", {}).get("arguments", {}).get("action") in ["search", "tree", "node"]  # action might be missing in older history entries, default to no follow-up in that case
         )
         
         user_message = ""
@@ -1372,7 +1372,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             self.console.print(f"[dim]    -> '{action}' action used, concluding graph exploration.[/dim]")
             return "end"
         
-        if  state.get("local_graph_retries", 0) >= self.config_manager.get("main_pipeline.graph_tool.max_graph_iterations", 5):
+        if  state.get("local_graph_retries", 0) >= self.config_manager.get("main_pipeline.graph_tool.max_retries", 5):
             self.console.print("[dim]    -> Max graph iterations reached, concluding graph exploration.[/dim]")
             return "end"
         

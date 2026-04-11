@@ -318,7 +318,7 @@ main_pipeline:
   agent_logic:
     max_retries: 3
     distillation_llm: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
-    main_llm: "deepseek-r1" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
+    main_llm: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
     planner_llm: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
     cleaning_llm: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
 
