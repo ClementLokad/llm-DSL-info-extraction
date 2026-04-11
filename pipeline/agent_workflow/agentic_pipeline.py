@@ -211,6 +211,7 @@ class AgenticPipeline(BasePipeline):
 
         # Reset context so each Solver call is a clean system+user exchange
         self.main_llm.reset_context()
+        self.main_llm.append_conversation_history(state.get("previous_qa", []))
         generation = self.main_llm.generate_response(
             user_message=prompt,
             system_prompt=_SOLVER_SYSTEM_PROMPT,

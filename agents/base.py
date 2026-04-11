@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Tuple
 from config_manager import get_config
 from rag.utils.handle_tokens import get_token_count
 from dataclasses import dataclass
@@ -46,6 +46,8 @@ def rate_limited(max_retries: int = 3, initial_delay: float = 1.0):
 
 class LLMAgent(ABC):
     """Abstract interface for LLM agents."""
+    def __init__(self):
+        self.context: List[Dict[str, Any]] = []  # Conversation history and system prompts
 
     @staticmethod
     def count_tokens(func):
@@ -125,6 +127,20 @@ class LLMAgent(ABC):
             return res
 
         return wrapper
+    
+    def append_conversation_history(self, previous_qa: List[Tuple[str, str]]) -> List[Dict[str, Any]]:
+        """Append the conversation history in a structured format.
+        
+        Args:
+            previous_qa: List of (user_message, assistant_message) tuples representing the conversation history.
+
+        Returns:
+            List[Dict[str, Any]]: The updated conversation history.
+        """
+        for user_msg, assistant_msg in previous_qa:
+            self.context.append({"role": "user", "content": user_msg})
+            self.context.append({"role": "assistant", "content": assistant_msg})
+        return self.context
 
     @abstractmethod
     def initialize(self) -> None:

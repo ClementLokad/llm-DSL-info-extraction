@@ -157,7 +157,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     # Planner system prompts
     # -----------------------------------------------------------------------
 
-    def _kickoff_system_prompt(self, state: WorkflowState) -> str:
+    def _kickoff_prompts(self, state: WorkflowState) -> Tuple[str, str]:
+        """Return the system prompt and initial user message for the planner's kickoff call."""
         question = state['pipeline_state']['question']
         kickoff_tree_max_depth = self.config_manager.get(
             "main_pipeline.kickoff_tree_max_depth", 5
@@ -173,25 +174,23 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         facts_str = ""
         if state.get("pipeline_state", {}).get("knowledge_bank"):
             facts_str = f"### VERIFIED FACTS (from previous queries)\n{self._get_knowledge_bank_str(state)}"
-        
-        previous_qa_str = self._show_previous_qa(state)
+
         anti_repetition = self._get_anti_repetition_str(
             state.get("pipeline_state", {}).get("execution_history", [])
         )
         
-        return (
+        return ((
             self.base_instructions
             + "\n### SYSTEM ROLE\n"
             "You are the **Strategic Planner** for an advanced RAG agent working on a "
             "**Lokad Envision** codebase.\n"
             "Lokad is a supply chain optimization company. Envision is their specialized "
             "programming language for quantitative supply chain logic.\n"
-            "You are initiating a new investigation. Select the best FIRST tool to gather information.\n\n"
-            f"{previous_qa_str}"
-            f"### CURRENT QUESTION\n{question}\n\n"
+            "You are initiating the investigation for a new question. Select the best FIRST tool to gather information.\n\n"),
+            (f"### CURRENT QUESTION\n{question}\n\n"
+            f"{facts_str}"
             "### CODEBASE STRUCTURE (from root : '/')\n"
             f"{tree_str}\n\n"
-            f"{facts_str}"
             "### BOOTSTRAP RULE\n"
             "The root tree above already provides the structural half of the investigation bootstrap.\n"
             "If the target is still uncertain after reading the tree, prefer rag_tool as the FIRST active tool so that structure and semantics are combined immediately.\n\n"
@@ -212,19 +211,18 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "if a grep would likely return hundreds of unrelated matches, use rag_tool.\n"
             "3. Call exactly ONE tool. Fill in all RELEVANT optional fields for precision.\n"
             "4. Think evidence-first: you are not trying to sound plausible, you are trying to collect proof.\n"
-        )
+        ))
 
-    def _continuation_system_prompt(self, state: WorkflowState) -> str:
+    def _continuation_prompts(self, state: WorkflowState) -> Tuple[str, str]:
         question = state['pipeline_state']['question']
         history = self._get_history(state)
         previous_generation = state['pipeline_state'].get('generation') or "(No generation yet)"
 
         facts_str = self._get_knowledge_bank_str(state)
-        previous_qa_str = self._show_previous_qa(state)
         anti_repetition = self._get_anti_repetition_str(history)
 
         tree_str = self.tree_tool.custom_tree('', 3, 3)
-        return (
+        return ((
             self.base_instructions
             + "\n### SYSTEM ROLE\n"
             "You are the **Investigation Supervisor** for an advanced RAG agent on a "
@@ -232,7 +230,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "Your primary goal is EFFICIENCY. Decide whether current information is "
             "sufficient to answer the question.\n"
             "If the answer is found, call submit_answer immediately.\n\n"
-            f"{previous_qa_str}"
+            ), (
             f"### CURRENT QUESTION\n{question}\n\n"
             "### CODEBASE STRUCTURE (from root : '/')\n"
             f"{tree_str}\n\n"
@@ -263,7 +261,11 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "- Synonyms or rephrased queries often surface what a direct query missed.\n"
             "- prior_evidence_tool can combine documents from earlier searches without re-running them.\n"
             "- Avoid repeating the same failed call; change the query, the source scope, or the tool family.\n"
-        )
+            "### INSTRUCTIONS\n"
+            "Follow the DECISION LOGIC flowchart step by step. "
+            "Write out your reasoning for each step explicitly, "
+            "then state which tool you will call and why.\n"
+        ))
 
     # -----------------------------------------------------------------------
     # Planner node  (uses Mistral tool-calling)
@@ -563,7 +565,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
 
     
     
-    def _plan_normal(self, state, planner_tools, is_continuation) -> Tuple[ToolCallResult, str, str]:
+    def _plan_normal(self, state: WorkflowState, planner_tools, is_continuation) -> Tuple[ToolCallResult, Tuple[str, str], str]:
         """
         Handle the normal planning branch (kickoff or continuation).
     
@@ -579,14 +581,15 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                                     reasoning already in its context window
         """
         reasoning = ""
+        self.planner_llm.reset_context()
+        self.planner_llm.append_conversation_history(state["pipeline_state"].get("previous_qa", []))
     
         if not is_continuation:
             # --- Kickoff: no prior context, single tool-calling call ---
-            system_prompt = self._kickoff_system_prompt(state)
-            self.planner_llm.reset_context()
+            system_prompt, user_message = self._kickoff_prompts(state)
             try:
                 tool_call = self.planner_llm.generate_with_tools(
-                    user_message="Begin the investigation. Select the best first tool to use.",
+                    user_message=user_message,
                     tools=planner_tools,
                     system_prompt=system_prompt,
                     tool_choice="any",
@@ -603,10 +606,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                         "Please re-examine the question and select the most appropriate tool."
                     )},
                 )
-            return tool_call, system_prompt, reasoning
+            return tool_call, (system_prompt, user_message), reasoning
     
         # --- Continuation: two-step chain-of-thought ---
-        system_prompt = self._continuation_system_prompt(state)
+        system_prompt, user_message = self._continuation_prompts(state)
         self.planner_llm.reset_context()
     
         # Step 1 — Free-text reasoning.
@@ -616,11 +619,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # becomes prior context that constrains the tool selection in step 2.
         try:
             reasoning = self.planner_llm.generate_response(
-                user_message=(
-                    "Follow the flowchart in your instructions step by step. "
-                    "Write out your reasoning for each step explicitly, "
-                    "then state which tool you will call and why."
-                ),
+                user_message=user_message,
                 system_prompt=system_prompt,
                 temperature=0.2,
             )
@@ -664,7 +663,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 },
             )
     
-        return tool_call, system_prompt, reasoning
+        return tool_call, (system_prompt, user_message), reasoning
 
     def agentic_router(self, state: WorkflowState) -> WorkflowState:
         """
@@ -748,7 +747,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             and state.get("pending_tool_call", {}).get("arguments", {}).get("action") != "search"
         )
         
-        system_prompt = ""
+        user_message = ""
         reasoning = ""
     
         if grep_refinement_active:
@@ -772,9 +771,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             tool_call = self._plan_prior_evidence_followup(state, planner_tools)
     
         else:
-            tool_call, system_prompt, reasoning = self._plan_normal(
+            tool_call, prompts, reasoning = self._plan_normal(
                 state, planner_tools, is_continuation
             )
+            _, user_message = prompts # unpack for verbose display
     
         # ------------------------------------------------------------------
         # Step 3: Validate the chosen tool
@@ -826,8 +826,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                     escape(state["follow_up_prompt"]), title="Follow-up Prompt", border_style="bright_green"
                 )
             else:
+                # The system prompt is not shown as it's long and always the same
                 prompt_content = Panel(
-                    escape(system_prompt), title="Planner Prompt", border_style="purple"
+                    escape(user_message), title="Planner Prompt", border_style="purple"
                 )
     
             panels = [prompt_content]

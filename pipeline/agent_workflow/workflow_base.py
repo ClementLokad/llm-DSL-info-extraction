@@ -273,25 +273,6 @@ class BaseAgentWorkflow(StateGraph):
 
         return kb_str+"\n"
 
-    def _show_previous_qa(self, state: WorkflowState) -> str:
-        """
-        Formats previous Q&A pairs from the conversation history.
-        Provides context for multi-turn conversations.
-        
-        Returns an empty string if no previous Q&A pairs exist.
-        """
-        previous_qa = state['pipeline_state'].get("previous_qa", [])
-        
-        qa_str = "### CONVERSATION HISTORY\n"
-        if not previous_qa:
-            qa_str += "(No previous questions or answers.)\n"
-
-        for i, (question, answer) in enumerate(previous_qa, 1):
-            qa_str += f"\n**Previous Question {i}:**\n{question}\n\n"
-            qa_str += f"**Previous Answer {i}:**\n{answer}\n"
-        
-        return qa_str + "\n"
-    
     def _distill_results(self, state: WorkflowState, log: ActionLog) -> List[KnowledgeElement]:
         # Complete accumulated_evidence with the distilled retrieval results (key = number of elements)
         items_to_distill = []
@@ -375,13 +356,7 @@ class BaseAgentWorkflow(StateGraph):
         knowledge_bank = state['pipeline_state'].get("knowledge_bank", [])
         thought = state.get('current_thought', None)
 
-        user_prompt = ""
-        
-        # Add conversation history if available
-        previous_qa_str = self._show_previous_qa(state)
-        user_prompt += previous_qa_str + "\n"
-
-        user_prompt += f"### CURRENT QUESTION\n{question}\n\n"
+        user_prompt = f"### CURRENT QUESTION\n{question}\n\n"
         
         if knowledge_bank:
             user_prompt += "### VERIFIED FACTS (Accumulated Knowledge)\n"
