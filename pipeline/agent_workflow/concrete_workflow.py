@@ -143,6 +143,15 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             )
         )
         self.rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
+    
+    def _design_first_part_prompt(self, state: WorkflowState) -> str:
+        base = super()._design_first_part_prompt(state)
+        if state.get("accumulated_prior_evidence"):
+            base += f"\n### RETRIEVED EVIDENCE FROM PREVIOUS TOOL CALLS\n"
+            _, raw_results_str = self.prior_evidence_tool.format_results_by_source(state.get("accumulated_prior_evidence"))
+            base += raw_results_str + "\n\n"
+        return base
+        
 
     # -----------------------------------------------------------------------
     # Planner system prompts
@@ -197,15 +206,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             " - The question asks about a concept, a behaviour, business logic,"
             " or uses broad terms that could appear in many different contexts\n"
             "    → rag_tool finds semantically relevant chunks regardless of exact wording.\n"
-            " - If the question asks who reads/writes/imports something, graph_tool is usually the structural truth source.\n"
-            " - Inside graph_tool, use search ONLY to locate a node by name/path/id such as 'Functions' or '/1. utilities/Modules'.\n"
-            " - NEVER use graph_tool search for relation words like 'import', 'imports', 'read', 'write', or 'define'. "
-            "Those are edge relations, so prefer graph_tool with relation_type and direction, or grep_tool if you truly need code text.\n"
-            " - Typical graph_tool patterns:\n"
-            "    • Which scripts import module X? → search X if needed, then neighbors(node_id=X, direction='incoming', relation_type='imports').\n"
-            "    • What modules does script X import? → neighbors(node_id=X, direction='outgoing', relation_type='imports').\n"
-            "    • What files does script X read/write? → neighbors with relation_type='reads' or 'writes'.\n"
-            "    • Global overview of imports/reads/writes → edges(relation_type='imports'|'reads'|'writes').\n"
+            " - If the question asks who imports something, graph_tool is usually the structural truth source.\n"
             " - For grep_tool sources, ONLY use real codebase path patterns (from tree_tool or question).\n"
             " - When genuinely uncertain, consider what a first result would look like: "
             "if a grep would likely return hundreds of unrelated matches, use rag_tool.\n"
@@ -305,7 +306,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 f"limit of {get_config().get('main_pipeline.grep_tool.max_results_to_refine')}."
             )
             instructions = (
-                "Please narrow the search pattern or switch to a different tool. "
+                "Please narrow the search or switch to a different tool. You can narrow the search by: using a stricter "
+                "search pattern or searching only in some subfolders.\n"
                 "Respond by calling one of the available tools."
             )
         else:
@@ -530,7 +532,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "Based on these structural results, decide your next action:\n"
             f"- Continue graph navigation with another action (tree, node, neighbors, edges){warning_str}\n"
             "- Or switch to rag_tool/grep_tool to examine specific code\n"
-            "When you're ready to conclude graph exploration, use the 'search' action."
+            "When you're ready to conclude graph exploration, use the 'neighbors', 'edges' or 'search' action (only the results "
+            "from the last action will be shown to the main LLM)."
         )
         state["follow_up_prompt"] = (
             f"Result:\n{graph_result}\n\n"
@@ -1195,25 +1198,19 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # Step 4: Store end_investigation flag in state for refine_prior_evidence decision
         state["prior_evidence_end_investigation"] = (end_investigation, total_results)
         
-        # Step 5: Format results using the tool's method
-        _, raw_results_str = self.prior_evidence_tool.format_results_by_source(results_by_id)
+        # Step 5: Add the retrieved evidence to the state
+        state.setdefault("accumulated_prior_evidence", {}).update(results_by_id)
         
         # Step 6: Assemble the rewritten prompt for the Solver
         base_prompt = self._design_first_part_prompt(state)
-        state['rewritten_prompt'] = f"{base_prompt}### PRIOR EVIDENCE RESULTS\n"
+        state['rewritten_prompt'] = f"{base_prompt}" # The prompt already contains the retrieved evidence
         
         if total_results == 0:
             state['rewritten_prompt'] += (
                 f"WARNING: No evidence found for requested IDs: {evidence_ids}\n"
             )
-        else:
-            state['rewritten_prompt'] += (
-                f"Retrieved {total_results} chunks from prior investigations "
-                f"(Evidence IDs: {', '.join(evidence_ids)}).\n"
-            )
         
         state['rewritten_prompt'] += (
-            f"\n\n{raw_results_str}\n\n"
             "### INSTRUCTION\n"
             "Using the prior evidence results above and all previous knowledge, answer the "
             "question as concisely as possible."
@@ -1344,9 +1341,6 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             )
             return "replan"
         
-        # Results exist → check end_investigation flag
-        end_investigation = state.get("prior_evidence_end_investigation", True)
-        
         if end_investigation:
             self.console.print(
                 f"[dim]    -> Prior evidence returned {len_results} results and "
@@ -1373,8 +1367,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         action = pending.get("arguments", {}).get("action")
         
         # If action was "search", end the loop (user found what they need)
-        if action == "search":
-            self.console.print("[dim]    -> 'search' action used, concluding graph exploration.[/dim]")
+        if action in ["search", "edges", "neighbors"]:
+            self.console.print(f"[dim]    -> '{action}' action used, concluding graph exploration.[/dim]")
             return "end"
         
         if  state.get("local_graph_retries", 0) >= self.config_manager.get("main_pipeline.graph_tool.max_graph_iterations", 5):

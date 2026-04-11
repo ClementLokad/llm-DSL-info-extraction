@@ -101,7 +101,8 @@ class PriorEvidenceTool(Tool):
         if not raw_results_parts:
             raw_results_str = "(No prior evidence found for any of the requested IDs.)"
         else:
-            raw_results_str = "\n\n".join(raw_results_parts)
+            raw_results_str = f"{total_results} total results retrieved from {len(results_by_source)} distinct scripts:\n"
+            raw_results_str += "\n\n".join(raw_results_parts)
         
         return results_by_source, raw_results_str
     

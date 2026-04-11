@@ -173,6 +173,7 @@ class WorkflowState(TypedDict):
     local_grep_retries: Optional[Tuple[int, int]] # Contains (number of retries, last number of grep results)
     local_graph_retries: Optional[int] # Number of graph retries
     prior_evidence_end_investigation: Optional[Tuple[bool, int]]  # Contains (end_investigation, last number of retrieved evidence)
+    accumulated_prior_evidence: Dict[str, List[RetrievalResult]]  # Key = evidence_id, Value = RetrievalResults
     # tool-calling round-trip state
     pending_tool_call: Optional[Dict[str, Any]]  # {tool_id, tool_name, arguments}
     continuation: Optional[bool]  # Whether this is a continuation of a previous attempt (used for planner context)

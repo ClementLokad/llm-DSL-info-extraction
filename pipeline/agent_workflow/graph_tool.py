@@ -86,7 +86,12 @@ class EnvisionGraphTool(Tool):
                 "from folder/file prefixes to reason about pipeline chronology. Then use 'neighbors' "
                 "or 'edges' for relationships, 'node' for details, and 'search' ONLY to locate a node "
                 "by name/path before switching to a structural action. CRITICAL: search does NOT search "
-                "relationship names or code content. It only searches node id, node name, and node path."
+                "relationship names or code content. It only searches node id, node name, and node path.\n"
+                "Typical graph_tool patterns:\n"
+                "  • Which scripts import module X? → search X if needed, then neighbors(node_id=X, direction='incoming', relation_type='imports').\n"
+                "  • What modules does script X import? → neighbors(node_id=X, direction='outgoing', relation_type='imports').\n"
+                "  • What files does script X read/write? → neighbors with relation_type='reads' or 'writes'.\n"
+                "  • Global overview of imports/reads/writes → edges(relation_type='imports'|'reads'|'writes').\n"
             ),
             properties={
                 "action": {
