@@ -112,16 +112,35 @@ class PriorEvidenceTool(Tool):
             description=(
                 "Retrieve previously accumulated evidence from earlier retrieval operations. "
                 "Use this to access facts that were discovered in earlier investigation steps "
-                "without re-invoking retrieval tools."
+                "without re-invoking retrieval tools.\n"
+                "This tool has 2 main use-cases:\n"
+                " 1. This is a multi-turn conversation and you think that some evidence retrieved "
+                "for previous question could be relevant for the current question.\n"
+                " 2. To combine multiple previously retrieved results and pass them to the main model simultaneously."
             ),
             properties={
                 "evidence_ids": {
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "List of evidence IDs to retrieve (e.g., ['ev_uuid1', 'ev_uuid2']). "
+                        "List of evidence IDs to retrieve (e.g., ['ev_7ac924', 'ev_d627a3']). "
                         "Each ID corresponds to a specific retrieval result from previous tool calls.\n"
-                        "These IDs can be found in the VERIFIED FACTS section."
+                        "These IDs can be found in the VERIFIED FACTS section, you must not try to guess them."
+                    ),
+                },
+                "end_investigation": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": (
+                        "Controls whether the investigation ends after retrieving this evidence.\n"
+                        "- Set to True (default) to end the investigation loop and hand over to the main model. "
+                        "This is appropriate when the retrieved evidence is sufficient to answer the question or at "
+                        "least gain new information.\n"
+                        "- Set to False to continue the investigation with a follow-up tool call. "
+                        "This is useful when the retrieved evidence gives you a clearer picture but you need one more targeted search.\n"
+                        "Warning: Accumulating raw evidence consumes massive context memory for the main model. Only set this to False "
+                        "if you are missing one highly specific piece of information that strictly requires a follow-up search. "
+                        "Otherwise, set it to True to prevent context overflow."
                     ),
                 },
             },

@@ -2,6 +2,7 @@ from agents.mistral_agent import MistralAgent
 from agents.groq_agent import GroqAgent
 from agents.qwen_agent import QwenAgent
 from agents.qwen_ssh_agent import QwenSSHAgent
+from agents.deepseek_agent import DeepSeekAgent
 from agents.base import LLMAgent
 from config_manager import get_config
 
@@ -16,6 +17,10 @@ def prepare_agent(agent_name: str) -> LLMAgent:
             agent = QwenSSHAgent()
         elif agent_name == 'groq':
             agent = GroqAgent()
+        elif agent_name == 'deepseek-v3':
+            agent = DeepSeekAgent(model="deepseek-chat")
+        elif agent_name == 'deepseek-r1':
+            agent = DeepSeekAgent(model="deepseek-reasoner")
         else:
             raise ValueError(f"Unsupported agent: {agent_name}")
         agent.initialize()

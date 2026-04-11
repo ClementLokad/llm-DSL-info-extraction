@@ -101,8 +101,11 @@ class LLMAgent(ABC):
             next_instruction = bound.get("next_instruction", "")
             if isinstance(next_instruction, str) and next_instruction:
                 tokens_in += get_token_count(next_instruction)
-
-            get_config().config["tokens_in"] += tokens_in
+            
+            try:
+                get_config().config["tokens_in"] += tokens_in
+            except KeyError:
+                get_config().config["tokens_in"] = tokens_in
 
             # --- Call the actual method ---
             res = func(agent, *args, **kwargs)
@@ -110,6 +113,7 @@ class LLMAgent(ABC):
             # --- Count output tokens ---
             # generate_response returns a str
             # generate_with_tools and submit_tool_result_and_continue return ToolCallResult
+            get_config().config.setdefault("tokens_out", 0)
             if isinstance(res, str):
                 get_config().config["tokens_out"] += get_token_count(res)
             elif isinstance(res, ToolCallResult):

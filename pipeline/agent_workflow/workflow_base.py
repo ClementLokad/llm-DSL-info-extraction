@@ -172,6 +172,7 @@ class WorkflowState(TypedDict):
     rewritten_prompt: Optional[str]
     local_grep_retries: Optional[Tuple[int, int]] # Contains (number of retries, last number of grep results)
     local_graph_retries: Optional[int] # Number of graph retries
+    prior_evidence_end_investigation: Optional[Tuple[bool, int]]  # Contains (end_investigation, last number of retrieved evidence)
     # tool-calling round-trip state
     pending_tool_call: Optional[Dict[str, Any]]  # {tool_id, tool_name, arguments}
     continuation: Optional[bool]  # Whether this is a continuation of a previous attempt (used for planner context)
@@ -429,18 +430,6 @@ class BaseAgentWorkflow(StateGraph):
                 f"  * Outcome: {log['outcome_summary']}\n"
             )
         return history_str
-
-    def _get_recent_results_digest(self, history: List[ActionLog], limit: int = 3) -> str:
-        """Return a factual digest of the most recent tool results."""
-        if not history:
-            return "(No tool results available yet.)"
-
-        digest_lines = []
-        for log in history[-limit:]:
-            digest_lines.append(
-                f"- Step {log['step']} [{log['tool']}]: {log['outcome_summary']}"
-            )
-        return "\n".join(digest_lines)
 
     def _get_anti_repetition_str(self, history: List[ActionLog], limit: int = 6) -> str:
         """Summarize recent attempts so the planner can avoid repeating itself."""

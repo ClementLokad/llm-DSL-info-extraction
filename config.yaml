@@ -288,10 +288,10 @@ main_pipeline:
 
   agent_logic:
     max_retries: 3
-    distillation_llm: "mistral"
-    main_llm: "mistral"
-    planner_llm: "mistral"
-    cleaning_llm: "mistral"
+    distillation_llm: "deepseek-v3"
+    main_llm: "deepseek-r1"
+    planner_llm: "deepseek-v3"
+    cleaning_llm: "deepseek-v3"
 
   grep_tool:
     max_results: 50
@@ -337,7 +337,7 @@ main_pipeline:
 # =============================================================================
 benchmark:
   benchmark_type: "llm_as_a_judge" # Choose the benchmark type: "cosine_similarity", "llm_as_a_judge", "llm_as_judge2", "hybrid"
-  benchmark_model: "mistral"  # LLM model to use as a judge: "mistral", "groq", "qwen", "qwen-ssh"
+  benchmark_model: "deepseek-v3"  # LLM model to use as a judge: "mistral", "groq", "qwen", "qwen-ssh"
   benchmark_prompt: "You are a strict evaluator. When I give you a question and an LLM’s answer, you must output ONLY a single character: 1 if the answer is fully correct, or 0 if the answer is incorrect. Do NOT output explanations, chain-of-thought, tags, spaces, punctuation, or any extra text. If you output anything other than exactly 1 or 0, you have failed the task. Your entire reply must be exactly one character: 1 or 0."
   save_data: false
 

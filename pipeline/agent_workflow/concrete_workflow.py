@@ -186,8 +186,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "### BOOTSTRAP RULE\n"
             "The root tree above already provides the structural half of the investigation bootstrap.\n"
             "If the target is still uncertain after reading the tree, prefer rag_tool as the FIRST active tool so that structure and semantics are combined immediately.\n\n"
-            "### ANTI-REPETITION\n"
-            f"{anti_repetition}\n\n"
+            #"### ANTI-REPETITION\n"
+            #f"{anti_repetition}\n\n"
             "### PLANNING INSTRUCTIONS\n"
             "1. Identify the most critical keyword or concept in the current question.\n"
             "2. Choose the tool that matches the nature of what you are looking for:\n"
@@ -212,7 +212,6 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
 
         facts_str = self._get_knowledge_bank_str(state)
         previous_qa_str = self._show_previous_qa(state)
-        recent_results_digest = self._get_recent_results_digest(history)
         anti_repetition = self._get_anti_repetition_str(history)
 
         tree_str = self.tree_tool.custom_tree('', 3, 3)
@@ -228,10 +227,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             f"### CURRENT QUESTION\n{question}\n\n"
             "### CODEBASE STRUCTURE (from root : '/')\n"
             f"{tree_str}\n\n"
-            "### RECENT RESULTS DIGEST\n"
-            f"{recent_results_digest}\n\n"
-            "### ANTI-REPETITION\n"
-            f"{anti_repetition}\n\n"
+            #"### ANTI-REPETITION\n"
+            #f"{anti_repetition}\n\n"
             "### PROPOSED SOLUTION (From Main Agent)\n"
             f"\"{previous_generation}\"\n\n"
             "**CRITICAL CHECK**: Does the proposed solution directly and fully answer the "
@@ -438,24 +435,37 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 arguments={"advice": str(exc)},
             )
     
-    def _plan_prior_evidence_followup(self, state, planner_tools) -> ToolCallResult:
+    def _plan_prior_evidence_followup(self, state: WorkflowState, planner_tools) -> ToolCallResult:
         """Handle the prior evidence-tool follow-up branch.
-        Called when the previous tool was prior_evidence_tool but no results were found."""
+        Called when the previous tool was prior_evidence_tool and end_investigation=False or
+        when no results were found."""
         # --- Step 1: Retrieve prior evidence output and clean up history ---
         parameters = state.get("pending_tool_call", {}).get("arguments", {})
         state["pipeline_state"]["execution_history"] = (
             state["pipeline_state"]["execution_history"][:-1]
         )
+        (_, len_results) = state.get("prior_evidence_end_investigation", (True, 0))
         
         # --- Step 2: Construct and store the follow-up prompt ---
-        prior_evidence_result = (
-            "The prior evidence search did not return any relevant results. "
-            "Here are the parameters that were used for the search:\n"
-            f"{parameters}\n\n"
-        )
-        prior_evidence_instruction = (
-            "Based on this information, select the next tool to call."
-        )
+        if len_results == 0:
+            prior_evidence_result = (
+                "The prior evidence search did not return any relevant results. "
+                "Here are the parameters that were used for the search:\n"
+                f"{parameters}\n\n"
+            )
+            prior_evidence_instruction = (
+                "Based on this information, select the next tool to call."
+            )
+        else:
+            prior_evidence_result = (
+                f"{len_results} piece of evidence have successfully been retrieved and will be given to the main LLM. "
+                "Here are the parameters that were used for the search:\n"
+                f"{parameters}\n\n"
+            )
+            prior_evidence_instruction = (
+                "Since you selected end_investigation=false, you are now free to select a new tool to call"
+            )
+        
         state["follow_up_prompt"] = (
             f"Result:\n{prior_evidence_result}\n"
             f"Instruction:\n{prior_evidence_instruction}"
@@ -1141,11 +1151,15 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # Step 1: Unpack arguments
         args = state.get("pending_tool_call", {}).get("arguments", {})
         evidence_ids = args.get("evidence_ids", [])
+        end_investigation = args.get("end_investigation", True)  # Default to True
         thought = state.get("current_thought", "No reasoning provided.")
         
         if state['pipeline_state']['verbose']:
             self.console.print(
                 f"[dim]Evidence IDs requested: [bright_magenta]{escape(str(evidence_ids))}[/bright_magenta][/dim]"
+            )
+            self.console.print(
+                f"[dim]End investigation: [bright_magenta]{end_investigation}[/bright_magenta][/dim]"
             )
         
         # Step 2: Retrieve prior evidence using the tool's method
@@ -1170,10 +1184,13 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             outcome_str += f" (IDs not found: {missing_ids})"
         self._append_history(state, "prior_evidence_tool", evidence_ids, outcome_str, thought)
         
-        # Step 4: Format results using the tool's method
+        # Step 4: Store end_investigation flag in state for refine_prior_evidence decision
+        state["prior_evidence_end_investigation"] = (end_investigation, total_results)
+        
+        # Step 5: Format results using the tool's method
         _, raw_results_str = self.prior_evidence_tool.format_results_by_source(results_by_id)
         
-        # Step 5: Assemble the rewritten prompt for the Solver
+        # Step 6: Assemble the rewritten prompt for the Solver
         base_prompt = self._design_first_part_prompt(state)
         state['rewritten_prompt'] = f"{base_prompt}### PRIOR EVIDENCE RESULTS\n"
         
@@ -1295,19 +1312,44 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             return "replan"
     
     def refine_prior_evidence(self, state: WorkflowState) -> str:
-        """Decide whether prior evidence results are satisfactory or need replanning."""
+        """Decide whether prior evidence results are satisfactory or need replanning.
+        
+        Priority hierarchy:
+        1. Fundamental mechanism: If NO results found → always replan (keep searching)
+        2. If results ARE found → check end_investigation:
+           - True (default) → validated (submit answer)
+           - False → replan (continue with follow-up question)
+        """
         self.console.print("[dim]--- SUB-DECISION: Prior evidence results validation ---[/dim]")
+        
         exec_history = state["pipeline_state"].get("execution_history", [])
         if not exec_history or exec_history[-1]["tool"] != "prior_evidence_tool":
             self.console.print("[dim]    -> No recent prior evidence call found. Validated by default.[/dim]")
             return "validated"
 
-        last_results = exec_history[-1].get("results_to_analyse", [])
-        if last_results:
-            self.console.print(f"[dim]    -> Prior evidence returned {len(last_results)} results, validated.[/dim]")
+        (end_investigation, len_results) = state.get("prior_evidence_end_investigation", (True, 0))
+        
+        # Fundamental mechanism: NO results → always loop (keep investigating)
+        if len_results == 0:
+            self.console.print(
+                "[dim]    -> Prior evidence returned 0 results, replanning (fundamental mechanism).[/dim]"
+            )
+            return "replan"
+        
+        # Results exist → check end_investigation flag
+        end_investigation = state.get("prior_evidence_end_investigation", True)
+        
+        if end_investigation:
+            self.console.print(
+                f"[dim]    -> Prior evidence returned {len_results} results and "
+                f"end_investigation=True, ending investigation.[/dim]"
+            )
             return "validated"
         else:
-            self.console.print("[dim]    -> Prior evidence returned 0 results, replanning.[/dim]")
+            self.console.print(
+                f"[dim]    -> Prior evidence returned {len_results} results and "
+                f"end_investigation=False, continuing with follow-up question.[/dim]"
+            )
             return "replan"
 
     def should_continue_graph_navigation(self, state: WorkflowState) -> str:

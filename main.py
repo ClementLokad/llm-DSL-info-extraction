@@ -493,7 +493,7 @@ EXAMPLES:
     # Agent selection
     parser.add_argument(
         "--agent", "-a",
-        choices=["mistral", "groq", "qwen", "qwen-ssh"],
+        choices=["mistral", "groq", "qwen", "qwen-ssh", "deepseek-v3", "deepseek-r1"],
         help="Override default agent from config"
     )
     
@@ -530,7 +530,7 @@ EXAMPLES:
 
     parser.add_argument(
         "--benchmarkagent", "-ba",
-        choices=["mistral", "groq", "qwen", "qwen-ssh"],
+        choices=["mistral", "groq", "qwen", "qwen-ssh", "deepseek-v3", "deepseek-r1"],
         help="Override benchmark agent from config"
     )
     
