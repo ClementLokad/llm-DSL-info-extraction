@@ -137,7 +137,7 @@ class AdvancedRAGTool(SimpleRAGTool):
         self.embedder = embedder
         self.query_transformer = query_transformer
         self.rate_limit_delay = get_config().get("agent.rate_limit_delay")
-        self.cross_encoding = get_config().get("main_pipeline.rag_tool.cross_encoding", False)
+        self.cross_encoding = get_config().get("main_pipeline.rag_tool.cross_encoding", True)
         self.ce_multiplier = get_config().get("main_pipeline.rag_tool.cross_encoding_multiplier", 3)
         self.agent = prepare_default_agent()
         self.reranker_model = TextCrossEncoder(get_config().get("main_pipeline.rag_tool.cross_encoder",

@@ -10,7 +10,7 @@
 # =============================================================================
 agent:
   # Default agent to use for queries
-  default_model: "mistral"  # Options: "gemini", "gpt", "mistral", "groq"
+  default_model: "deepseek-v3"  # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
   # Delay in seconds between LLM calls to avoid rate limits (0 = disabled)
   rate_limit_delay: 2
 
@@ -97,7 +97,7 @@ chunker:
 # SUMMARIZER CONFIGURATION
 # =============================================================================
 summarizer:
-  summary_model: "mistral" # Options: "mistral", "groq", "qwen", "qwen-ssh"
+  summary_model: "qwen" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
   summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
   raptor_summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
 
@@ -106,7 +106,7 @@ summarizer:
 # =============================================================================
 
 query_transformer:
-  query_transformer_model: "mistral" # Options: "qwen", "gemini", "gpt", "mistral", "groq"
+  query_transformer_model: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
   query_transformer_type: Null # Options: "fusion", "hyde", Null
   generated_instances_amount: "several" # Options: "[INTEGER_NUMBER]" i.e : "1", "144"... or "several" to let the llm decide
 
@@ -317,10 +317,10 @@ main_pipeline:
 
   agent_logic:
     max_retries: 3
-    distillation_llm: "groq"
-    main_llm: "groq"
-    planner_llm: "groq"
-    cleaning_llm: "groq"
+    distillation_llm: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
+    main_llm: "deepseek-r1" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
+    planner_llm: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
+    cleaning_llm: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
 
   grep_tool:
     max_results: 50
@@ -331,8 +331,8 @@ main_pipeline:
     max_grep_retries: 4
   
   rag_tool:
-    advanced: false # Hybrid qdrant sparse mode is unstable on the current Python 3.14 local environment
-    cross_encoding: false
+    advanced: true # Hybrid qdrant sparse mode is unstable on the current Python 3.14 local environment
+    cross_encoding: true # Whether to use cross-encoder re-ranking after initial retrieval
     cross_encoding_multiplier: 5
     cross_encoder: "jinaai/jina-reranker-v2-base-multilingual"
     drop_off_ratio: 0.4 # Documents with less than drop_off_ratio*best_res relevance are discarded
@@ -366,7 +366,7 @@ main_pipeline:
 # =============================================================================
 benchmark:
   benchmark_type: "llm_as_a_judge" # Choose the benchmark type: "cosine_similarity", "llm_as_a_judge", "llm_as_judge2", "hybrid"
-  benchmark_model: "groq"  # LLM model to use as a judge: "mistral", "groq", "qwen", "qwen-ssh"
+  benchmark_model: "deepseek-v3"  # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
   benchmark_prompt: "You are a strict evaluator. When I give you a question and an LLM’s answer, you must output ONLY a single character: 1 if the answer is fully correct, or 0 if the answer is incorrect. Do NOT output explanations, chain-of-thought, tags, spaces, punctuation, or any extra text. If you output anything other than exactly 1 or 0, you have failed the task. Your entire reply must be exactly one character: 1 or 0."
   save_data: false
 

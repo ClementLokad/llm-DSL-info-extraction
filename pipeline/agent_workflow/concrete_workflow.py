@@ -532,9 +532,9 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             warning_str = f". But beware, you only have {state.get('local_graph_retries', 0)} attempts left for graph navigation !"
         graph_instruction = (
             "Based on these structural results, decide your next action:\n"
-            f"- Continue graph navigation with another action (tree, node, neighbors, edges){warning_str}\n"
+            f"- Continue graph navigation with another action (tree, node, search){warning_str}\n"
             "- Or switch to rag_tool/grep_tool to examine specific code\n"
-            "When you're ready to conclude graph exploration, use the 'neighbors', 'edges' or 'search' action (only the results "
+            "When you're ready to conclude graph exploration, use the 'neighbors' or 'edges' action (only the results "
             "from the last action will be shown to the main LLM)."
         )
         state["follow_up_prompt"] = (
@@ -1241,7 +1241,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
 
         graph_result_text = self.graph_tool.to_prompt_text(result)
         state["local_graph_retries"] = graph_retries + 1
-        if action == "search":
+        if action in ["neighbors", "edges"]:
             base_prompt = self._design_first_part_prompt(state)
             state["rewritten_prompt"] = (
                 f"{base_prompt}"
@@ -1254,7 +1254,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 "the question as concisely as possible."
             )
         else:
-            state["rewritten_prompt"] = graph_result_text  # For non-search actions, just update the prompt with the new graph state for the next turn's planning
+            state["rewritten_prompt"] = graph_result_text  # For non-neighbor and non-edge actions, just update the prompt with the new graph state for the next turn's planning
         return state
 
     def use_tree_tool(self, state: WorkflowState) -> WorkflowState:
@@ -1367,8 +1367,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         pending = state.get("pending_tool_call", {})
         action = pending.get("arguments", {}).get("action")
         
-        # If action was "search", end the loop (user found what they need)
-        if action in ["search", "edges", "neighbors"]:
+        # If action was "edges" or "neighbors", end the loop (user found what they need)
+        if action in ["edges", "neighbors"]:
             self.console.print(f"[dim]    -> '{action}' action used, concluding graph exploration.[/dim]")
             return "end"
         

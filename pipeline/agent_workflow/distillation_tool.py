@@ -73,7 +73,7 @@ class LLMDistillationTool(BaseDistillationTool):
             prompt_content = Panel(escape(user_message), title="Distillation Prompt", border_style="purple")
             response_content = Panel(Markdown(response), title="Distillation Response", border_style="blue")
             self.console.print(Panel(Group(prompt_content, response_content),
-                                     title="Distillation Tool", border_style="yellow"))
+                                     title=f"Distillation Tool - {self.llm.model_name}", border_style="yellow"))
  
         return response
  
@@ -129,7 +129,7 @@ class LLMDistillationTool(BaseDistillationTool):
             "answer the Query or the Thought.\n"
             "The Agent is moving to the next step and will lose access to these raw documents, "
             "so do not discard key information about the query found here.\n"
-            "Discard only irrelevant text. Combine duplicate information.\n"
+            "Discard irrelevant text. Combine duplicate information.\n"
             "One fact should not be too long — 25 words maximum.\n"
             "For each fact, specify which item IDs (from the --- ITEM headers) contributed to it.\n"
             "\n"
@@ -198,6 +198,6 @@ class LLMDistillationTool(BaseDistillationTool):
             for fact, ids in distilled_results:
                 results_table.add_row(escape(fact), escape(str(ids)))
             self.console.print(Panel(Group(prompt_content, response_content, results_table),
-                                     title="Distillation Tool", border_style="yellow"))
+                                     title=f"Distillation Tool - {self.llm.model_name}", border_style="yellow"))
  
         return distilled_results

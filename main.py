@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """DSL Query System"""
 import sys
+import os
 import argparse
 import json
 import time
 from pathlib import Path
+
+os.environ["FASTEMBED_CACHE_PATH"] = os.path.join(os.getcwd(), "data/fastembed_models")
 
 from rich.console import Console
 from rich.panel import Panel
@@ -58,7 +61,7 @@ class MainAgenticPipeline(AgenticPipeline):
         retriever.load_index(str(index_path))
             
         self.rag = {'embedder': embedder, 'retriever': retriever, 'query_transformer': query_transformer,}
-        if self.config_manager.get("main_pipeline.rag_tool.advanced", False):
+        if self.config_manager.get("main_pipeline.rag_tool.advanced", True):
             rag_tool = AdvancedRAGTool(retriever=retriever, embedder=embedder, query_transformer=query_transformer)
         else:
             rag_tool = SimpleRAGTool(retriever=retriever, embedder=embedder, query_transformer=query_transformer)
@@ -303,9 +306,14 @@ class DSLQuerySystem():
             )
             res_path = Path(res_dir)
             res_path.parent.mkdir(parents=True, exist_ok=True)
+            pipeline_agents = self.config_manager.get("main_pipeline.agent_logic", {})
             res = {
                 "Models": {
-                    "Main agent": self.config_manager.get("agent.default_model"),
+                    "Solver agent": pipeline_agents.get("main_llm"),
+                    "Planner agent": pipeline_agents.get("planner_llm"),
+                    "Distillation agent": pipeline_agents.get("distillation_llm"),
+                    "Cleaning agent": pipeline_agents.get("cleaning_llm"),
+                    "Query Transformer agent": self.config_manager.get("query_transformer.query_transformer_model"),
                     "Benchmark agent": self.config_manager.get("benchmark.benchmark_model")
                 },
                 "Results": grades
