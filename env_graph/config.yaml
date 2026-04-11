@@ -1,6 +1,10 @@
 # =============================================================================
-# ENV_GRAPH - Parsing and API Configuration
+# ENV_GRAPH - Package defaults
 # =============================================================================
+#
+# This file provides package-level defaults.
+# In the envision/ repo, project-level overrides should live in the root
+# config.yaml under the `env_graph:` section.
 
 # -----------------------------------------------------------------------------
 # Parsing - Envision script extraction

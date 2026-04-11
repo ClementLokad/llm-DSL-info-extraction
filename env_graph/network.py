@@ -9,22 +9,20 @@ Displays raw API responses with Rich formatting - no post-processing.
 What you see is exactly what the API returns.
 
 Usage:
-    uv run network -b, --build                 # Build the graph
-    uv run network -s, --stats                 # Show statistics  
-    uv run network -t, --tree /path            # Explore folder hierarchy
-    uv run network -r, --read 67982            # Read node content
-    uv run network -g, --grep "pattern"        # Search patterns in code
-    uv run network -n, --node 67982            # Get node metadata
-    uv run network -q, --search "query"        # Search by name/path
-    uv run network -x, --neighbors 67982       # Explore connections
-    uv run network -N, --nodes                 # List all nodes
-    uv run network -E, --edges                 # List all edges
-
-Author: Envision Copilot Team
+    python -m env_graph.network --build
+    python -m env_graph.network --stats
+    python -m env_graph.network --tree /
+    python -m env_graph.network --read 67982
+    python -m env_graph.network --grep "pattern"
+    python -m env_graph.network --node 67982
+    python -m env_graph.network --search "query"
+    python -m env_graph.network --neighbors 67982
+    python -m env_graph.network --nodes
+    python -m env_graph.network --edges
 """
 
 import json
-from typing import Optional, List
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -168,10 +166,10 @@ Test the Graph API with beautiful JSON output.
 ## Quick Start
 
 ```bash
-uv run network --build          # Build the graph first
-uv run network --stats          # See what's in the graph
-uv run network --tree           # Explore folder structure
-uv run network --read 67982     # Read a script
+python -m env_graph.network --build
+python -m env_graph.network --stats
+python -m env_graph.network --tree /
+python -m env_graph.network --read 67982
 ```
 
 ## Commands
@@ -204,21 +202,21 @@ uv run network --read 67982     # Read a script
 ## Examples
 
 ```bash
-uv run network -t /                        # Tree at root
-uv run network -t /Clean -d data -D 2      # Data tree, depth 2
-uv run network -r 67982                    # Read script
-uv run network -r 67982 --start 1 --end 50 # Lines 1-50
-uv run network -g "table Items"            # Grep pattern
-uv run network -x 67982 --direction outgoing  # Outgoing edges only
-uv run network -N --types script           # List only scripts
-uv run network -E --types reads            # List only read edges
+python -m env_graph.network -t /                           # Tree at root
+python -m env_graph.network -t /Clean -d data -D 2         # Data tree, depth 2
+python -m env_graph.network -r 67982                       # Read script
+python -m env_graph.network -r 67982 --start 1 --end 50    # Lines 1-50
+python -m env_graph.network -g "table Items"               # Grep pattern
+python -m env_graph.network -x 67982 --direction outgoing  # Outgoing edges only
+python -m env_graph.network -N --types script              # List only scripts
+python -m env_graph.network -E --types reads               # List only read edges
 ```
 
-Use `uv run network --help` for full options.
+Use `python -m env_graph.network --help` for full options.
 """))
     
     except FileNotFoundError:
-        console.print("[yellow]⚠️ No data. Run `uv run network --build` first.[/yellow]")
+        console.print("[yellow]⚠️ No data. Run `python -m env_graph.network --build` first.[/yellow]")
         raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]❌ Error:[/red] {e}")

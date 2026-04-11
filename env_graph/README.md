@@ -1,22 +1,23 @@
-# Envision Preprocess (`src/envision_preprocess`)
+# Envision Graph (`env_graph`)
 
-**Les "Yeux" du système.**
+Graph extraction and navigation utilities for the `envision/` repository.
 
-Ce package parse les scripts Envision DSL (`.nvn`) et construit un **Graphe de Dépendances Hiérarchique** à deux domaines : scripts et données.
+This package parses Envision DSL scripts (`.nvn`) and builds a hierarchical
+dependency graph with two domains: scripts and data files.
 
 ---
 
 ## 🚀 Quick Start
 
 ```bash
-# 1. Construire le graphe de dépendances
-uv run network --build
+# 1. Build the dependency graph
+python -m env_graph.network --build
 
-# 2. Explorer la structure
-uv run network --tree
+# 2. Explore the structure
+python -m env_graph.network --tree /
 
-# 3. Voir les statistiques
-uv run network --stats
+# 3. Show statistics
+python -m env_graph.network --stats
 ```
 
 ---
@@ -24,7 +25,7 @@ uv run network --stats
 ## 📋 CLI Reference
 
 ```
-uv run network [OPTIONS]
+python -m env_graph.network [OPTIONS]
 
 Construction:
   --build               Construire le graphe depuis les scripts
@@ -50,29 +51,15 @@ Exploration:
   -d, --direction DIR   incoming | outgoing | siblings | all
   -r, --relation TYPE   Filtrer par type de relation
 
-Options:
-  --json                Sortie JSON (machine-readable)
-  --raw                 Sortie brute (sans formatage)
 ```
 
 ---
 
 ## ⚙️ Configuration (`config.yaml`)
 
-```yaml
-parsing:
-  script_dir: "scripts"           # Dossier des scripts .nvn
-  script_ext: "nvn"               # Extension
-  data_extensions: ["ion"]        # Extensions data files
-  normalize_brackets: true        # [ 1 ] normalization
-
-api:
-  mode: "lite"                    # "lite" (LLM) ou "full" (debug)
-
-output:
-  network_file: "datas/network/network.json"
-  metadata_file: "datas/network/metadata.json"
-```
+Project-level overrides live in [config.yaml](/home/kpihx/Work/X/envision/envision/config.yaml)
+under the `env_graph:` section. Package defaults remain in
+[env_graph/config.yaml](/home/kpihx/Work/X/envision/envision/env_graph/config.yaml).
 
 ### Mode Lite vs Full
 
@@ -85,14 +72,15 @@ output:
 
 ## 🏗️ Architecture
 
-```
-envision_preprocess/
-├── api.py          # API publique (EnvisionGraphAPI)
-├── builder.py      # Construction du graphe
-├── extractor.py    # Extraction des symboles
-├── typedefs.py     # Types (NodeType, EdgeType, etc.)
+```text
+env_graph/
+├── api.py          # Public API (EnvisionGraphAPI)
+├── builder.py      # Graph construction
+├── extractor.py    # Symbol extraction
+├── typedefs.py     # Node / edge types
 ├── network.py      # CLI entry point
-└── config.yaml     # Configuration
+├── utils.py        # Config + mapping helpers
+└── config.yaml     # Package defaults
 ```
 
 ### Deux Domaines de Dossiers
@@ -145,7 +133,7 @@ SCRIPTS                          DATA
 ## 🔌 Usage Programmatique
 
 ```python
-from envision_preprocess.api import EnvisionGraphAPI
+from env_graph.api import EnvisionGraphAPI
 
 api = EnvisionGraphAPI()
 
@@ -172,12 +160,11 @@ matches = api.grep("table Items")
 
 ## 📁 Données
 
-**Input** : `scripts/*.nvn` (scripts Envision bruts)
+**Input**: `env_scripts/*.nvn` and `mapping.txt` from the `envision/` repo.
 
 **Output** : 
+```text
+data/network/
+├── network.json    # Full graph (nodes + edges)
+└── metadata.json   # Generation statistics
 ```
-datas/network/
-├── network.json    # Graphe complet (nodes + edges)
-└── metadata.json   # Statistiques de génération
-```
-

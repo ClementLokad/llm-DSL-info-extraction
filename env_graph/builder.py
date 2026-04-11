@@ -12,7 +12,8 @@ Architecture:
     SCRIPTS domain: /1. utilities/, /2. Data sanity/, etc. (contains scripts)
     DATA domain: /Input/, /Clean/, /Manual/, etc. (contains data_files)
 
-Author: Envision Copilot Team
+This module is maintained inside the envision/ repository and uses the
+project's local Python environment and configuration layout.
 """
 
 import re
@@ -61,8 +62,8 @@ class NetworkBuilder:
         self.root_dir = Path(self.parsing_config.get("script_dir", "scripts"))
         self.script_ext = self.parsing_config.get("script_ext", "nvn")
         self.max_recursion = self.parsing_config.get("recursion_limit", 10)
-        self.normalize_brackets = self.config.get("normalize_brackets", True)
-        self.data_extensions = self.config.get("data_extensions", ["ion"])
+        self.normalize_brackets = self.parsing_config.get("normalize_brackets", True)
+        self.data_extensions = self.parsing_config.get("data_extensions", ["ion"])
         
         self.network = Network()
         self.file_mapping = ConfigLoader.load_mapping(self.config)

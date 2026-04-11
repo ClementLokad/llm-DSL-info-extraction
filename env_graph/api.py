@@ -15,7 +15,8 @@ All methods support two modes via config.api.mode:
 - "full": Complete data with all metadata (for debugging/benchmarks)
 - "lite": Minimal data with stats preserved (for LLM token efficiency)
 
-Author: Envision Copilot Team
+This API is maintained inside the envision/ repository and is designed to
+work with the project's local Python environment and configuration layout.
 """
 
 import json
@@ -95,13 +96,11 @@ class EnvisionGraphAPI:
         
         self._graph_cache: Optional[Dict[str, Any]] = None
         self._stats_cache: Optional[Dict[str, Any]] = None
-    
+        self.config_path = config_path
+
     def _get_mode(self) -> ApiMode:
         """Get API mode from config (full or lite)."""
         return self.api_config.get("mode", "lite")
-        
-        self._graph_cache: Optional[Dict[str, Any]] = None
-        self._stats_cache: Optional[Dict[str, Any]] = None
 
     # =========================================================================
     # Cache Management
@@ -157,7 +156,7 @@ class EnvisionGraphAPI:
             }
         """
         print("[Network] 🏗️ Building dependency graph from source...")
-        builder = NetworkBuilder()
+        builder = NetworkBuilder(config_path=self.config_path)
         builder.build()
         self.clear_cache()
         

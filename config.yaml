@@ -49,6 +49,32 @@ paths:
   csv_extension: ".csv"
 
 # =============================================================================
+# ENV_GRAPH CONFIGURATION
+# =============================================================================
+env_graph:
+  parsing:
+    script_dir: "env_scripts"
+    script_ext: "nvn"
+    data_extensions: ["ion", "csv"]
+    mapping_file: "mapping.txt"
+    recursion_limit: 10
+    normalize_brackets: true
+
+  api:
+    mode: "lite"
+
+  search:
+    top_k: 20
+
+  grep:
+    default_node_types: ["script", "function"]
+
+  output:
+    network_file: "data/network/network.json"
+    metadata_file: "data/network/metadata.json"
+    snippet_lines: 10
+
+# =============================================================================
 # PARSER CONFIGURATION
 # =============================================================================
 parser:
@@ -310,7 +336,7 @@ main_pipeline:
     absolute_minimum: 0.15 # Documents with less than absolute_minimum relevance are discarded
   
   graph_tool:
-    config_path: "env_graph/config.yaml"
+    config_path: "config.yaml"
     auto_build: true
     default_domain: "scripts"
     response_max_chars: 12000
