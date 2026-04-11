@@ -84,8 +84,9 @@ class EnvisionGraphTool(Tool):
                 "tables, functions, and folders. ALWAYS start with action='tree' on the 'scripts' "
                 "domain to understand project structure before deeper navigation. Use execution_order "
                 "from folder/file prefixes to reason about pipeline chronology. Then use 'neighbors' "
-                "or 'edges' for relationships, 'node' for details, and 'search' to conclude once the "
-                "target is identified."
+                "or 'edges' for relationships, 'node' for details, and 'search' ONLY to locate a node "
+                "by name/path before switching to a structural action. CRITICAL: search does NOT search "
+                "relationship names or code content. It only searches node id, node name, and node path."
             ),
             properties={
                 "action": {
@@ -95,7 +96,8 @@ class EnvisionGraphTool(Tool):
                         "Graph action to execute. 'tree' explores folder hierarchy and should be the "
                         "default first move. 'node' inspects one node. 'neighbors' navigates incoming/"
                         "outgoing/sibling relationships. 'edges' lists relationships by type. 'search' "
-                        "finds nodes by name/path and is a good way to conclude graph exploration."
+                        "finds nodes by name/path only. DO NOT use search for verbs such as 'import', "
+                        "'read', 'write', or 'define' because those are edge relations, not node names."
                     ),
                 },
                 "path": {
@@ -134,12 +136,19 @@ class EnvisionGraphTool(Tool):
                         "scripts that READ a file = node_id is the file + direction='incoming' + relation_type='reads'; "
                         "files that a script READS = node_id is the script + direction='outgoing' + relation_type='reads'; "
                         "scripts that WRITE a file = file + incoming + writes; "
-                        "scripts that IMPORT a module = module + incoming + imports."
+                        "scripts that IMPORT a module = module + incoming + imports; "
+                        "modules imported by a script = script + outgoing + imports; "
+                        "global import overview = action='edges' with relation_type='imports'."
                     ),
                 },
                 "query": {
                     "type": "string",
-                    "description": "[search] Search query on node names or paths. Use this when you know a name fragment but not the exact node id.",
+                    "description": (
+                        "[search] Search query on node names or paths ONLY. Good examples: "
+                        "'Functions', 'Global Parameters', 'PathSchemas', '/1. utilities/Modules'. "
+                        "Bad examples: 'import', 'imports', 'read', 'write' because those are relations "
+                        "or code terms, not node names."
+                    ),
                 },
                 "node_types": {
                     "type": "array",
