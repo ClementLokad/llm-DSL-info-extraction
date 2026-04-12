@@ -1,4 +1,5 @@
 from pipeline.benchmarks.dual_cross_encoder_benchmark import DualBenchmark
+from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark
 from typing import List, Dict, Any
 import numpy as np
 import re
@@ -7,11 +8,14 @@ class HybridBenchmark:
     """A benchmark that uses both a simple algorithmic check for factual consistency (define as deterministic questions) and a dual cross-encoder benchmark for more high level questions.
     For a given question, if it is deterministic, we will check if the reference answer is contained in the llm response, if it is the case we will give it a score of 1, else 0.
     """
-    def __init__(self):
-        self.dual_benchmark = DualBenchmark()
+    def __init__(self, underministic_benchmark = "dual"):
+        if underministic_benchmark == "dual":
+            self.second_benchmark = DualBenchmark()
+        elif underministic_benchmark == "llm":
+            self.second_benchmark = LLMAsAJudgeBenchmark()
 
     def initialize(self):
-        self.dual_benchmark.initialize()
+        self.second_benchmark.initialize()
     
     def _normalize_text(self, text: str) -> str:
         """
@@ -92,14 +96,7 @@ class HybridBenchmark:
                 })
             else:
                 # Use the dual benchmark for non-deterministic questions
-                scores = self.dual_benchmark.evaluate_generation_comprehensive(item["question"], item["reference"], item["llm_response"])
-                results.append({
-                    "question": item["question"],
-                    "llm_response": item["llm_response"],
-                    "reference": item["reference"],
-                    "score": scores["final_score"],
-                    **scores,
-                    "method": "dual_benchmark"
-                })
+                grade = self.second_benchmark.run([item])["results"][0]
+                results.append(grade)
         mean_score = float(np.mean([r["score"] for r in results]))
         return {"results": results, "mean_score": mean_score}

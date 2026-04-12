@@ -63,6 +63,7 @@ _CLEANER_SYSTEM_PROMPT = (
     "Rules:\n"
     "  - Remove internal thoughts, tool-usage notes, or planning artefacts.\n"
     "  - Translate the answer if needed so it is in the SAME language as the question.\n"
+    "  - Write numbers with digits not letters (e.g. '5' not 'five').\n"
     "  - Cite sources (full file paths) where relevant.\n"
     "  - Do NOT add conversational filler.\n"
     "  - Respond strictly in this XML format:\n"

@@ -82,8 +82,10 @@ class MainAgenticPipeline(AgenticPipeline):
             self.benchmark = LLMAsAJudgeBenchmark()
         elif benchmark_type == "llm_as_a_judge2":
             self.benchmark = LLMAsAJudgeBenchmark2()
-        else:
+        elif benchmark_type == "hybrid":
             self.benchmark = HybridBenchmark()
+        else:
+            self.benchmark = HybridBenchmark(underministic_benchmark="llm")
         self.benchmark.initialize()
 
         # Pre-compile the agent sub-graph to avoid recompiling on every node call
@@ -128,7 +130,7 @@ class MainAgenticPipeline(AgenticPipeline):
             
             self.console.print(f"[dim]    → LLM ({self.benchmark.agent.model_name}) Judge score with reference: {grade['score']}[/dim]")
 
-        elif self.config_manager.get_benchmark_type() == "hybrid":
+        elif self.config_manager.get_benchmark_type().startswith("hybrid"):
             self.console.print("[dim]--- NODE: Hybrid Grade Answer ---[/dim]")
 
             grade = self.benchmark.run([qa_pair])["results"][0]
@@ -263,6 +265,8 @@ class DSLQuerySystem():
             self.console.print("\n[bold blue]  LLM: [/bold blue]")
             self.console.print(Markdown(f"{escape(r['llm_response'])}"))
             self.console.print(f"\n[bold red] Score : [/bold red]{escape(str(r['score']))}")
+            if "reasoning" in r:
+                self.console.print(f"\n[bold gold3]  LLM Judge reasoning:[/bold gold3]\n{escape(r['reasoning'])}")
  
         self.console.print("\n")
         self.console.print(Align.center(table))
@@ -515,7 +519,7 @@ EXAMPLES:
 
     parser.add_argument(
         "--benchmarktype", "-bt",
-        choices=["llm_as_a_judge", "llm_as_a_judge2", "cosine_similarity", "hybrid"],
+        choices=["llm_as_a_judge", "llm_as_a_judge2", "cosine_similarity", "hybrid", "hybrid_llm"],
         help="Override benchmark type from config"
     )
 

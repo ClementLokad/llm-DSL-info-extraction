@@ -7,7 +7,18 @@ import json
 import agents.prepare_agent as prepare_agent
 import config_manager
 
-default_prompt = "Tu es un évaluateur strict. Lorsque je te soumets une question, la vraie réponse et la réponse d'un LLM, tu dois générer UNIQUEMENT un seul caractère : 1 si la réponse du LLM est correcte, ou 0 si la réponse est incorrecte. Si la réponse du LLM est très incomplète et qu'il manque un élément important, mets la note de 0. Si la réponse du LLM contient des éléments en plus par rapport à la vraie réponse, mais qu'elle contient tous les éléments de la vraie réponse, mets la note de 1. Ne génère PAS d'explications, de raisonnement, de balises, d'espaces, de ponctuation ou tout autre texte supplémentaire. Si tu génères autre chose que strictement 1 ou 0, tu as échoué à la tâche. Ta réponse complète doit être exactement d'un caractère : 1 ou 0"
+default_prompt = """Tu es un évaluateur strict pour une base de code d'entreprise.
+Ton rôle est d'évaluer la 'Réponse du LLM' par rapport à la 'Vraie réponse' (la référence de vérité).
+
+CRITÈRES D'ÉVALUATION (Binaire 0 ou 1) :
+- Si la réponse du LLM est très incomplète et qu'il manque un élément important ou contient des hallucinations, mets 0.
+- Si la réponse du LLM contient tous les éléments clés de la vraie réponse (elle peut contenir plus de détails), mets 1.
+
+FORMAT DE SORTIE REQUIS :
+Tu dois générer UNIQUEMENT un objet JSON valide avec deux clés : "reasoning" (ta justification détaillée et concise) et "score" (0 ou 1). Ne génère aucun texte en dehors de ce JSON.
+Exemple :
+{"reasoning": "La réponse du LLM contient 3 scripts au lieu de 4. Il manque '/4. Optimization workflow/02 Suppliers'.", "score": 0}
+"""
 
 default_prompt2 = """Tu es un juge expert en évaluation de systèmes RAG (Retrieval-Augmented Generation) pour une base de code d'entreprise.
 Ton rôle est d'évaluer la 'Réponse du LLM' par rapport à la 'Vraie réponse' (la référence de vérité).
@@ -42,19 +53,32 @@ class LLMAsAJudgeBenchmark(Benchmark):
     def initialize(self):
         self.agent = prepare_agent.prepare_benchmark_agent()
 
-    def judge(self, question: str, llm_response: str, reference: str) -> int:
-        """Returns 1 if the llm_response is considered correct by the judge llm, else 0"""
+    def judge(self, question: str, llm_response: str, reference: str) -> Dict[str, Any]:
+        """Returns a dict with reasoning and binary score (0 or 1)"""
         
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)
         
         self.agent.reset_context()
-        text_score = self.agent.generate_response(system_prompt=self.prompt,
+        raw_response = self.agent.generate_response(system_prompt=self.prompt,
                                                   user_message=f"\n\nQuestion : {question}\nVraie réponse : {reference}\nRéponse du LLM : {llm_response}",
                                                   temperature=0.05)
-        if text_score not in ["1", "0"]:
-            raise Exception("Score invalide")
-        return (int(text_score))
+        
+        # Robust JSON extraction (in case the LLM wraps it in ```json ... ``` tags)
+        json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
+        if not json_match:
+            raise ValueError(f"Le LLM n'a pas retourné de JSON valide. Réponse brute: {raw_response}")
+            
+        parsed_eval = json.loads(json_match.group(0))
+        
+        score = int(parsed_eval.get("score", -1))
+        if score not in [0, 1]:
+            raise ValueError(f"Score invalide (doit être 0 ou 1): {score}")
+            
+        return {
+            "score": score,
+            "reasoning": parsed_eval.get("reasoning", "Pas de justification fournie.")
+        }
 
     def run(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -75,18 +99,20 @@ class LLMAsAJudgeBenchmark(Benchmark):
         issues = 0 # Nombre d'items pour lesquels le judge a donné un jugement invalide
         for item in data:
             try:
-                score = self.judge(item["question"], item["llm_response"], item["reference"])
-            except Exception:
-                issues +=1
+                eval_data = self.judge(item["question"], item["llm_response"], item["reference"])
+            except Exception as e:
+                print(f"Issue evaluating question '{item['question']}': {e}")
+                issues += 1
             else:
                 results.append({
                     "question": item["question"],
                     "llm_response": item["llm_response"],
                     "reference": item["reference"],
-                    "score": score
+                    "score": eval_data["score"],
+                    "reasoning": eval_data["reasoning"]
                 })
-        mean_score = float(np.mean([r["score"] for r in results]))
-        return {"results": results, "mean_score": mean_score, "issues" : issues, "prompt" : self.prompt}
+        mean_score = float(np.mean([r["score"] for r in results])) if results else 0.0
+        return {"results": results, "mean_score": mean_score, "issues": issues, "prompt": self.prompt}
 
 class LLMAsAJudgeBenchmark2(Benchmark):
     """
