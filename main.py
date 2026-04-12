@@ -33,6 +33,9 @@ from pipeline.agent_workflow.file_tree_tool import FileTreeTool
 from pipeline.agent_workflow.graph_tool import EnvisionGraphTool
 from pipeline.agent_workflow.agentic_pipeline import AgenticPipeline
 from pipeline.langgraph_base import BasePipeline, GraphState, AgentGraphState, BenchmarkState, APIError
+from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark
+from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark, LLMAsAJudgeBenchmark2
+from pipeline.benchmarks.hybrid_benchmark import HybridBenchmark
 
 class MainAgenticPipeline(AgenticPipeline):
     def __init__(self, console: Console, verbose=True):
@@ -65,12 +68,24 @@ class MainAgenticPipeline(AgenticPipeline):
             rag_tool = AdvancedRAGTool(retriever=retriever, embedder=embedder, query_transformer=query_transformer)
         else:
             rag_tool = SimpleRAGTool(retriever=retriever, embedder=embedder, query_transformer=query_transformer)
+
         grep_tool = GrepTool()
         graph_tool = EnvisionGraphTool()
         script_finder_tool = PathScriptFinder()
         tree_tool = FileTreeTool()
         distillation_tool = LLMDistillationTool(console=console)
+        benchmark_type = self.config_manager.get_benchmark_type()
         
+        if benchmark_type == "cosine_similarity":
+            self.benchmark = CosineSimBenchmark(embedder)
+        elif benchmark_type == "llm_as_a_judge":
+            self.benchmark = LLMAsAJudgeBenchmark()
+        elif benchmark_type == "llm_as_a_judge2":
+            self.benchmark = LLMAsAJudgeBenchmark2()
+        else:
+            self.benchmark = HybridBenchmark()
+        self.benchmark.initialize()
+
         # Pre-compile the agent sub-graph to avoid recompiling on every node call
         agent_workflow = ConcreteAgentWorkflow(
             rag_tool, 
@@ -86,73 +101,41 @@ class MainAgenticPipeline(AgenticPipeline):
         self.console.print("[bold green]✅ Ready[/bold green]\n")
     
     def grade_answer(self, state: GraphState) -> GraphState:
-        embedder = self.rag["embedder"]
         rate_limit_delay = self.config_manager.get('agent.rate_limit_delay', 0)
-        final_answer = state["final_answer"]
-        reference_answer = state["reference_answer"]
+        
+        qa_pair = {
+            "question": state["question"],
+            "llm_response": state["final_answer"],
+            "reference": state["reference_answer"],
+            "deterministic": state.get("deterministic", False)
+        }
         
         if self.config_manager.get_benchmark_type() == 'cosine_similarity':
-            from pipeline.benchmarks.cosine_sim_benchmark import CosineSimBenchmark 
             self.console.print("[dim]--- NODE: Cosine Similarity Grade Answer ---[/dim]")
             
-            benchmark = CosineSimBenchmark(embedder)
+            grade = self.benchmark.run([qa_pair])["results"][0]
             
-            score = benchmark.compute_similarity(final_answer, reference_answer)
-            if state["verbose"]:
-                self.console.print(f"[dim]→ Similarity score with reference: {score:.4f}[/dim]")
-            
-            grade = {"score": score,
-                    "question": state["question"],
-                    "llm_response": state["final_answer"],
-                    "reference": state["reference_answer"]}
-            
-            return {"grade": grade}
+            self.console.print(f"[dim]    → Similarity score with reference: {grade['score']:.4f}[/dim]")
         
         elif self.config_manager.get_benchmark_type().startswith('llm_as_a_judge'):
-            from pipeline.benchmarks.llm_as_a_judge_benchmark import LLMAsAJudgeBenchmark, LLMAsAJudgeBenchmark2
             self.console.print("[dim]--- NODE: Judge LLM Grade Answer ---[/dim]")
-            
-            if self.config_manager.get_benchmark_type() == "llm_as_a_judge2":
-                benchmark = LLMAsAJudgeBenchmark2()
-            else:
-                benchmark = LLMAsAJudgeBenchmark()
-            benchmark.initialize()
 
             #delay to avoid too many requests
             if rate_limit_delay > 0:
                 time.sleep(rate_limit_delay)
-            qa_pair = {
-                "question": state["question"],
-                "llm_response": state["final_answer"],
-                "reference": state["reference_answer"]
-            }
-            grade = benchmark.run([qa_pair])["results"][0]
-            if state["verbose"]:
-                self.console.print(f"[dim]→ LLM ({benchmark.agent.model_name}) Judge score with reference: {grade['score']}[/dim]")
+
+            grade = self.benchmark.run([qa_pair])["results"][0]
             
-            return {"grade": grade}
-        
+            self.console.print(f"[dim]    → LLM ({self.benchmark.agent.model_name}) Judge score with reference: {grade['score']}[/dim]")
+
         elif self.config_manager.get_benchmark_type() == "hybrid":
-            from pipeline.benchmarks.hybrid_benchmark import HybridBenchmark
             self.console.print("[dim]--- NODE: Hybrid Grade Answer ---[/dim]")
-            
-            benchmark = HybridBenchmark()
-            benchmark.initialize()
 
-            #delay to avoid too many requests
-            if rate_limit_delay > 0:
-                time.sleep(rate_limit_delay)
-            qa_pair = {
-                "question": state["question"],
-                "llm_response": state["final_answer"],
-                "reference": state["reference_answer"],
-                "deterministic": state.get("deterministic", False)
-            }
-            grade = benchmark.run([qa_pair])["results"][0]
-            if state["verbose"]:
-                self.console.print(f"[dim]→ Hybrid benchmark score with reference: {grade['score']}[/dim]")
+            grade = self.benchmark.run([qa_pair])["results"][0]
             
-            return {"grade": grade}
+            self.console.print(f"[dim]    → Hybrid benchmark score with reference: {grade['score']}[/dim]")
+            
+        return {"grade": grade}
 
 class DSLQuerySystem():
     def __init__(self, pipeline: BasePipeline, console: Console):
@@ -532,7 +515,7 @@ EXAMPLES:
 
     parser.add_argument(
         "--benchmarktype", "-bt",
-        choices=["llm_as_a_judge", "llm_as_a_judge2", "cosine_similarity"],
+        choices=["llm_as_a_judge", "llm_as_a_judge2", "cosine_similarity", "hybrid"],
         help="Override benchmark type from config"
     )
 
@@ -655,8 +638,8 @@ EXAMPLES:
             pipeline_logic['planner_llm'] = args.agent
             pipeline_logic['cleaning_llm'] = args.agent
 
-        if config_manager.get_config().get_default_agent() in ["qwen", "qwen-ssh"]:
-            # Disable rate limiting for local LLM
+        if config_manager.get_config().get_default_agent() in ["qwen", "qwen-ssh", "deepseek-v3", "deepseek-r1"]:
+            # Disable rate limiting for local LLM or paid APIs
             config_manager.get_config().config['agent']['rate_limit_delay'] = 0
 
         if args.linear != None:

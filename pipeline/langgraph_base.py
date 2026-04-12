@@ -85,6 +85,7 @@ class AgentGraphState(GraphState):
     """
     question: str
     reference_answer: str
+    retrieved_context: List[RetrievalResult] # List of documents with metadata
     knowledge_bank: List[KnowledgeElement]
     execution_history: List[ActionLog]
     accumulated_evidence: Dict[str, RetrievalResult]
@@ -95,6 +96,7 @@ class AgentGraphState(GraphState):
     retry_count: int
     grade: Optional[Dict[str, Any]]
     verbose: bool
+    deterministic: bool
     previous_qa: List[Tuple[str, str]]
     undistilled_log: Optional[ActionLog] # Keep track of retrieved documents that were not distilled into facts
 
@@ -235,6 +237,8 @@ class BasePipeline:
         
         grades = []
         
+        app = sub_rag_system.compile()
+        
         for i, (question, reference_answer) in enumerate(qa_pairs):
             self.console.print(f"-> Processing Q/A pair n°{i+1}/{len(qa_pairs)}:\n  [bold green]Question: {question}[/bold green]\n"
                                f"  [bold purple]Reference Answer: {reference_answer}[/bold purple]")
@@ -252,8 +256,6 @@ class BasePipeline:
                 "verbose": state["verbose"],
                 "deterministic": qa_metadata.get(question, {}).get("deterministic", False)
             }
-            
-            app = sub_rag_system.compile()
             
             interrupted = False
             

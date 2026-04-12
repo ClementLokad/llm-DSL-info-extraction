@@ -29,7 +29,7 @@ class CosineSimBenchmark(Benchmark):
         emb2 = self.embedder.embed_text(reference)
         return float(util.cos_sim(emb1, emb2).item())
 
-    def run(self, data: List[Dict[str, str]]) -> Dict[str, Any]:
+    def run(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Calcule les similarités pour chaque paire (LLM ↔ référence).
 
@@ -51,8 +51,8 @@ class CosineSimBenchmark(Benchmark):
                 "question": item["question"],
                 "llm_response": item["llm_response"],
                 "reference": item["reference"],
-                "similarity": score
+                "score": score
             })
 
-        mean_score = float(np.mean([r["similarity"] for r in results]))
+        mean_score = float(np.mean([r["score"] for r in results]))
         return {"results": results, "mean_score": mean_score}

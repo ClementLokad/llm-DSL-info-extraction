@@ -45,7 +45,7 @@ class DualBenchmark(Benchmark):
             "relevance": relevance_prob
         }
     
-    def run(self, data: List[Dict[str, str]]) -> Dict[str, Any]:
+    def run(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Calcule les similarités pour chaque paire (LLM ↔ référence).
 
