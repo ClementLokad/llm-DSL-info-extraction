@@ -1,3 +1,4 @@
+from agents.claude_agent import ClaudeAgent
 from agents.mistral_agent import MistralAgent
 from agents.groq_agent import GroqAgent
 from agents.qwen_agent import QwenAgent
@@ -21,6 +22,10 @@ def prepare_agent(agent_name: str) -> LLMAgent:
             agent = DeepSeekAgent(model="deepseek-chat")
         elif agent_name == 'deepseek-r1':
             agent = DeepSeekAgent(model="deepseek-reasoner")
+        elif agent_name == 'sonnet':
+            agent = ClaudeAgent(model="claude-sonnet-4-6")
+        elif agent_name == 'haiku':
+            agent = ClaudeAgent(model="claude-haiku-4-5")
         else:
             raise ValueError(f"Unsupported agent: {agent_name}")
         agent.initialize()

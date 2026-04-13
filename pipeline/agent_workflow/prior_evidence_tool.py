@@ -126,7 +126,7 @@ class PriorEvidenceTool(Tool):
                     "description": (
                         "List of evidence IDs to retrieve (e.g., ['ev_7ac924', 'ev_d627a3']). "
                         "Each ID corresponds to a specific retrieval result from previous tool calls.\n"
-                        "These IDs can be found in the VERIFIED FACTS section, you must not try to guess them."
+                        "These IDs can be found only in the VERIFIED FACTS section, you must NOT try to guess them."
                     ),
                 },
                 "end_investigation": {

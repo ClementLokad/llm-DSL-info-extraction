@@ -259,7 +259,6 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "- If grep returned too many or 0 results, try rag_tool with the core concept instead.\n"
             "- If rag results were weak, try grep with a specific identifier extracted from those results.\n"
             "- Synonyms or rephrased queries often surface what a direct query missed.\n"
-            "- prior_evidence_tool can combine documents from earlier searches without re-running them.\n"
             "- Avoid repeating the same failed call; change the query, the source scope, or the tool family.\n"
             "### INSTRUCTIONS\n"
             "Follow the DECISION LOGIC flowchart step by step. "
@@ -687,12 +686,15 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             time.sleep(self.rate_limit_delay)
             
         # If in interactive mode we must distill the last results
-        if state["pipeline_state"].get("undistilled_log"):
-            self.console.print("[dim]Distilling last query results...[/dim]")
-            new_facts = self._distill_results(state, state["pipeline_state"].get("undistilled_log"))
+        last_log = state["pipeline_state"].get("undistilled_log")
+        if last_log:
+            if last_log.get("tool") in ["rag_tool", "grep_tool", "script_finder_tool"]:
+                self.console.print("[dim]Distilling last query results...[/dim]")
+                new_facts = self._distill_results(state, state["pipeline_state"].get("undistilled_log"))
+                if state["pipeline_state"]["verbose"]:
+                    self.console.print(f"[dim]Extracted {len(new_facts)} facts.[/dim]")
+
             state["pipeline_state"]["undistilled_log"] = None  # Clear after distillation
-            if state["pipeline_state"]["verbose"]:
-                self.console.print(f"[dim]Extracted {len(new_facts)} facts.[/dim]")
     
         # ------------------------------------------------------------------
         # Step 1: Determine context and build the tool schema list
