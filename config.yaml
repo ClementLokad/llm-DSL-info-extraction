@@ -331,8 +331,8 @@ main_pipeline:
     max_grep_retries: 4
   
   rag_tool:
-    advanced: true # Hybrid qdrant sparse mode is unstable on the current Python 3.14 local environment
-    cross_encoding: true # Whether to use cross-encoder re-ranking after initial retrieval
+    advanced: true # requires qdrant embedder and retriever
+    cross_encoding: true # Whether to use cross-encoder re-ranking after initial retrieval, works only with advanced RAG
     cross_encoding_multiplier: 5
     cross_encoder: "jinaai/jina-reranker-v2-base-multilingual"
     drop_off_ratio: 0.4 # Documents with less than drop_off_ratio*best_res relevance are discarded
