@@ -19,8 +19,6 @@ from rich.markup import escape
 sys.path.append(str(Path(__file__).parent))
 
 import config_manager
-import agents.prepare_agent as prepare_agent
-from rag.core.base_embedder import BaseEmbedder
 from rag.utils.switch_db import get_default_embedder, get_default_retriever, get_default_query_transformer
 from rag.retrievers.qdrant_retriever import QdrantRetriever
 from old.linear_pipeline import MainLinearPipeline

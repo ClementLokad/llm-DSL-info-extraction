@@ -7,7 +7,6 @@ from typing import List
 
 import config_manager
 import agents.prepare_agent as prepare_agent
-from rag.core.base_embedder import BaseEmbedder
 from rag.utils.switch_db import get_default_embedder, get_default_retriever
 from rag.retrievers.grep_retriever import GrepRetriever
 from rag.router import Router, QueryType

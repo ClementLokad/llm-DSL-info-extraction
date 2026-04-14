@@ -91,6 +91,12 @@ class AgenticPipeline(BasePipeline):
                 get_config().get_default_agent(),
             )
         )
+        self.cleaning_llm = prepare_agent(
+            get_config().get(
+                'main_pipeline.agent_logic.cleaning_llm',
+                get_config().get_default_agent(),
+            )
+        )
         self.rate_limit_delay = get_config().get('agent.rate_limit_delay', 0)
         self.agent = agent.build_graph()
         self.benchmark_type = get_config().get_benchmark_type()
@@ -248,13 +254,6 @@ class AgenticPipeline(BasePipeline):
         self.console.print("[dim]--- NODE: Clean Generated Answer ---[/dim]")
         raw_generation = state["generation"]
 
-        cleaning_llm = prepare_agent(
-            get_config().get(
-                'main_pipeline.agent_logic.cleaning_llm',
-                get_config().get_default_agent(),
-            )
-        )
-
         user_message = (
             f"### QUESTION\n{state['question']}\n\n"
             f"### RAW GENERATION\n{raw_generation}\n\n"
@@ -273,8 +272,8 @@ class AgenticPipeline(BasePipeline):
         if self.rate_limit_delay > 0:
             time.sleep(self.rate_limit_delay)
 
-        cleaning_llm.reset_context()
-        answer = cleaning_llm.generate_response(
+        self.cleaning_llm.reset_context()
+        answer = self.cleaning_llm.generate_response(
             user_message=user_message,
             system_prompt=_CLEANER_SYSTEM_PROMPT,
             temperature = 0.1
@@ -291,7 +290,7 @@ class AgenticPipeline(BasePipeline):
                 f"🧹[bold bright_blue] → Cleaned Final Answer:[/bold bright_blue]\n"
                 f"{escape(final_answer)}\n"
             )
-            self.console.print(Panel(content_log, title=f"Cleaning - {cleaning_llm.model_name}", border_style="green"))
+            self.console.print(Panel(content_log, title=f"Cleaning - {self.cleaning_llm.model_name}", border_style="green"))
 
         return {"final_answer": final_answer}
 
