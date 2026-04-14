@@ -2,6 +2,8 @@
 """Build search index"""
 import sys
 import argparse
+import json
+import os
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent))
@@ -11,6 +13,17 @@ from rag.parsers.envision_parser import EnvisionParser
 from rag.chunkers.envision_chunker import EnvisionChunker
 from rag.summarizers.chunk_summarizer import ChunkSummarizer
 from rag.utils.switch_db import get_default_embedder, get_default_retriever
+
+
+def _load_existing_summaries(summary_list_path: str) -> dict:
+    """Helper to load existing summaries from JSON without initializing ChunkSummarizer."""
+    if not os.path.exists(summary_list_path) or os.path.getsize(summary_list_path) == 0:
+        return {}
+    try:
+        with open(summary_list_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
 
 
 def build_index():
@@ -43,7 +56,6 @@ def build_index():
     def_emb = cfg.get("embedder.default_type", "qdrant")
     
     print("🔨 Building summary index...")
-    summarizer = ChunkSummarizer(cfg.get_summarizer_config())
     parser = EnvisionParser(cfg.get_parser_config())
     chunker = EnvisionChunker(cfg.get_chunker_config())
     embedder = get_default_embedder()
@@ -72,13 +84,38 @@ def build_index():
 
     # Mode: Check status only
     if args.check_status: 
+        summarizer = ChunkSummarizer(cfg.get_summarizer_config())
         print(summarizer.get_summary_state(chunks))
 
     # Mode: Build index (with optional resume)
     else:
-        summarizer.generate_summary_file(chunks, rebuild=args.rebuild)
+        if len(chunks) == 0:
+            print("⚠️ No chunks found, skipping LLM initialization and summary generation")
+            return
         
-        for i, summary in enumerate(summarizer.get_summary_list()):
+        # Check if all summaries are already computed and not rebuilding
+        summary_config = cfg.get_summarizer_config()
+        summary_list_path = summary_config.get('summary_list_path', "summaries.json")
+        existing_summaries = _load_existing_summaries(summary_list_path)
+        
+        if len(existing_summaries) == len(chunks) and not args.rebuild:
+            print(f"✅ All {len(chunks)} summaries already computed. Loading from cache...")
+            summarizer = None  # Don't load the LLM
+        else:
+            print(f"📝 {len(existing_summaries)}/{len(chunks)} summaries already computed. Generating missing summaries...")
+            summarizer = ChunkSummarizer(cfg.get_summarizer_config())
+            summarizer.generate_summary_file(chunks, rebuild=args.rebuild)
+        
+        # Load the summaries (either from existing or newly generated)
+        if summarizer is None:
+            # All summaries were already cached, just load them
+            summary_list = [existing_summaries[str(i)] for i in range(len(chunks))]
+        else:
+            # Some summaries were generated, get the updated list
+            summary_list = summarizer.get_summary_list()
+        
+        # Assign summaries to chunk metadata
+        for i, summary in enumerate(summary_list):
             chunks[i].metadata['summary'] = summary
 
         if def_ret == def_emb == "qdrant":

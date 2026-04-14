@@ -419,9 +419,10 @@ EXAMPLES:
   python main.py --indextype full_chunk --query "[QUERY]"  # Use full chunk index
   python main.py --indextype summary --interactive             # Use summary index
   
-  # RAG fusion
-  python main.py --fusion --query "[COMPLEX QUERY]"  # Enable RAG fusion for query
-  python main.py --fusion --interactive               # Enable RAG fusion mode
+  # Query transformation
+  python main.py --querytransform fusion --query "[COMPLEX QUERY]"  # Enable RAG fusion for query
+  python main.py --querytransform hyde --query "hypothetical answer"  # Use HyDE transform
+  python main.py --querytransform fusion --interactive               # Enable RAG fusion mode
   
   # Benchmark mode
   python main.py --benchmarkpath questions.json       # Run benchmark evaluation
@@ -440,7 +441,7 @@ EXAMPLES:
   python main.py -bp "a/path/to/benchmark" --save_data     # Saves the benchmark result in a json file in data folder
 
   # Combined options
-  python main.py --agent mistral --fusion --query "find configs"            # Mistral + fusion
+  python main.py --agent mistral --querytransform fusion --query "find configs"            # Mistral + fusion
   python main.py --agentic --agent gpt --query "analyze code"               # Agentic with GPT
   python main.py --indextype summary --verbose --query "search knowledge"   # Summary index + verbose
   python main.py --benchmarkpath questions.json --benchmarkagent gemini --verbose  # Benchmark with details
