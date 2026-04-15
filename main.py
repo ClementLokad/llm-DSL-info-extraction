@@ -146,7 +146,26 @@ class DSLQuerySystem():
     def query(self, question, verbose=True):
         simple_qa_graph = self.pipeline.build_single_qa_graph()
         app = simple_qa_graph.compile()
-        input_state = GraphState(question=question, verbose=verbose, reference_answer="", retry_count=0)
+        if isinstance(self.pipeline, MainAgenticPipeline):
+            input_state = AgentGraphState(
+                question=question,
+                reference_answer="",
+                knowledge_bank=[],
+                execution_history=[],
+                accumulated_evidence={},
+                prompt="",
+                generation="",
+                final_answer=None,
+                regenerate_needed=False,
+                retry_count=0,
+                grade=None,
+                verbose=verbose,
+                previous_qa=[],
+                answer_validation_retry_count=0,
+                answer_validation_report=None,
+            )
+        else:
+            input_state = GraphState(question=question, verbose=verbose, reference_answer="", retry_count=0)
         try:
             final_state = app.invoke(input_state)
         finally:
@@ -176,7 +195,9 @@ class DSLQuerySystem():
                 retry_count=0,
                 grade=None,
                 verbose=verbose,
-                previous_qa=[]
+                previous_qa=[],
+                answer_validation_retry_count=0,
+                answer_validation_report=None,
             )
         else:
             input_state = GraphState(question="", reference_answer="", verbose=verbose, retry_count=0)
@@ -204,6 +225,8 @@ class DSLQuerySystem():
                     input_state["prompt"] = ""
                     input_state["final_answer"] = None
                     input_state["regenerate_needed"] = False
+                    input_state["answer_validation_retry_count"] = 0
+                    input_state["answer_validation_report"] = None
                     # Keep the updated fields
                     input_state["undistilled_log"] = final_state.get("execution_history")[-1] \
                         if final_state.get("execution_history") else None

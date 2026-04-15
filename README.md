@@ -31,6 +31,7 @@ Le projet a évolué vers une architecture basée sur **LangGraph**, permettant 
 - 📊 **Benchmarking intégré** - Évaluation automatique par similarité cosinus
 - 🤖 **Agents IA multiples** - Support GPT-4, Gemini, Mistral et Groq avec rate limiting configurable
 - ⚙️ **Configuration externalisée** - Tous les paramètres dans `config.yaml`
+- 🛡️ **Validation légère des chemins cités** - En mode agentique, la réponse finale peut être relue pour vérifier que les chemins de scripts cités existent bien dans `mapping.txt`
 
 ### 📋 Prérequis
 
@@ -61,7 +62,19 @@ graph TD
     Check -->|Error| Engineer
     Check -->|Valid| Grade[Grade Answer]
     Grade --> End([End])
-```
+  ```
+
+### 🛡️ Validation légère des sources citées
+
+Le mode agentique inclut une première couche très légère de validation de réponse finale, configurable dans `main_pipeline.answer_validation` dans `config.yaml`.
+
+- Cette V1 est volontairement **non bloquante**.
+- Elle vérifie uniquement les **chemins de scripts** cités par le LLM par rapport à `mapping.txt`.
+- Elle tolère quelques variations de forme : slash initial optionnel, espaces supplémentaires, extension absente, ou confusion `.nvn` / `.nvm`.
+- Elle peut aussi accepter un **suffixe partiel** s'il identifie un script de manière unique.
+- Si des chemins de scripts semblent invalides, le système tente une petite régénération ; après la limite de retries, la réponse est quand même rendue avec une section d'avertissement.
+
+Important : cette V1 **n'essaie pas encore de valider les chemins de fichiers de données** tels que `.ion` ou `.csv`, car `mapping.txt` ne référence que les scripts. Ces chemins de données devront à terme être validés via le graphe structurel (`env_graph` / `graph_tool`), qui connaît à la fois les scripts et les fichiers de données.
 
 ### 📂 Structure du projet
 

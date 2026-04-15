@@ -322,6 +322,16 @@ main_pipeline:
     planner_llm: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
     cleaning_llm: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
 
+  answer_validation:
+    enabled: true
+    max_retries: 3
+    ignore_extension: true
+    ignore_leading_slash: true
+    allow_partial_suffix_match: true
+    ignore_data_extensions: true
+    ignored_path_extensions: ["ion", "csv"]
+    append_warning_section: true
+
   grep_tool:
     max_results: 50
     max_results_to_refine: 50

@@ -99,6 +99,8 @@ class AgentGraphState(GraphState):
     deterministic: bool
     previous_qa: List[Tuple[str, str]]
     undistilled_log: Optional[ActionLog] # Keep track of retrieved documents that were not distilled into facts
+    answer_validation_retry_count: int
+    answer_validation_report: Optional[Dict[str, Any]]
 
 class BenchmarkState(TypedDict):
     """
