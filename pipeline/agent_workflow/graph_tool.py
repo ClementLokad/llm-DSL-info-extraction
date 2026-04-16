@@ -76,6 +76,101 @@ class EnvisionGraphTool(Tool):
             return payload
         return payload[:max_chars] + "\n... [truncated]"
 
+    def validate_graph_arguments(self, action: str, arguments: Dict[str, Any]) -> tuple:
+        """Validate and normalize graph_tool arguments.
+        
+        Returns: (is_valid: bool, error_msg: str, normalized_args: dict)
+        """
+        if not action:
+            return False, "action parameter is required", {}
+        
+        # Normalize common variants
+        action_normalized = action.strip().lower()
+        normalization_map = {
+            "nodes": "node",
+            "edge": "edges",
+            "neighbour": "neighbors",
+            "neighbours": "neighbors",
+        }
+        if action_normalized in normalization_map:
+            action_normalized = normalization_map[action_normalized]
+        
+        # Validate action is in whitelist
+        valid_actions = ["tree", "node", "search", "neighbors", "edges"]
+        if action_normalized not in valid_actions:
+            return (
+                False,
+                f"Unknown graph action: '{action}'. Valid actions: {', '.join(valid_actions)}",
+                {}
+            )
+        
+        # Validate required and optional arguments per action
+        normalized_args = dict(arguments)
+        normalized_args["action"] = action_normalized
+        
+        # Action-specific validation
+        if action_normalized == "node":
+            if "node_id" not in arguments or not arguments["node_id"]:
+                return False, "action='node' requires node_id parameter", {}
+        
+        elif action_normalized == "neighbors":
+            if "node_id" not in arguments or not arguments["node_id"]:
+                return False, "action='neighbors' requires node_id parameter", {}
+            # Validate direction enum
+            if "direction" in arguments:
+                valid_directions = ["incoming", "outgoing", "all", "siblings"]
+                if arguments["direction"] not in valid_directions:
+                    return (
+                        False,
+                        f"Invalid direction: '{arguments['direction']}'. Valid: {', '.join(valid_directions)}",
+                        {}
+                    )
+            # Validate relation_type enum if provided
+            if "relation_type" in arguments:
+                valid_relations = ["reads", "writes", "imports", "defines", "contains", "sibling"]
+                if arguments["relation_type"] not in valid_relations:
+                    return (
+                        False,
+                        f"Invalid relation_type: '{arguments['relation_type']}'. Valid: {', '.join(valid_relations)}",
+                        {}
+                    )
+        
+        elif action_normalized == "search":
+            if "query" not in arguments or not arguments["query"]:
+                return False, "action='search' requires query parameter", {}
+            # Validate node_types enum if provided
+            if "node_types" in arguments:
+                valid_types = ["script", "data_file", "table", "function", "folder"]
+                provided_types = arguments["node_types"]
+                if isinstance(provided_types, list):
+                    for nt in provided_types:
+                        if nt not in valid_types:
+                            return (
+                                False,
+                                f"Invalid node_type: '{nt}'. Valid: {', '.join(valid_types)}",
+                                {}
+                            )
+        
+        elif action_normalized == "tree":
+            # tree is permissive, optional path and domain
+            if "domain" in arguments:
+                valid_domains = ["scripts", "data", "both"]
+                if arguments["domain"] not in valid_domains:
+                    return (
+                        False,
+                        f"Invalid domain: '{arguments['domain']}'. Valid: {', '.join(valid_domains)}",
+                        {}
+                    )
+            # Validate max_depth is int if provided
+            if "max_depth" in arguments:
+                try:
+                    int(arguments["max_depth"])
+                except (ValueError, TypeError):
+                    return False, f"max_depth must be an integer, got: {arguments['max_depth']}", {}
+        
+        # All validations passed
+        return True, "", normalized_args
+
     def get_description(self) -> Dict[str, Any]:
         return _tool_desc(
             name="graph_tool",

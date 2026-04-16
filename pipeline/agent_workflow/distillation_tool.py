@@ -4,6 +4,7 @@ import os
 import time
 import json
 from pipeline.agent_workflow.workflow_base import BaseDistillationTool
+from pipeline.stats_collector import get_collector
 from get_mapping import get_file_mapping
 from rich.console import Group, Console
 from rich.panel import Panel
@@ -60,14 +61,16 @@ class LLMDistillationTool(BaseDistillationTool):
         )
  
         if self.rate_limit_delay > 0:
+            get_collector().record_rate_limit_delay(self.rate_limit_delay)  # Record rate limit delay in stats
             time.sleep(self.rate_limit_delay)
- 
+        get_collector().start_llm_generation("distillation")
         self.llm.reset_context()
         response = self.llm.generate_response(
             user_message = user_message,
             system_prompt = _DISTILL_SINGLE_SYSTEM_PROMPT,
             temperature = 0.15
         )
+        get_collector().end_llm_generation("distillation")
  
         if verbose:
             prompt_content = Panel(escape(user_message), title="Distillation Prompt", border_style="purple")
@@ -152,14 +155,17 @@ class LLMDistillationTool(BaseDistillationTool):
         )
  
         if self.rate_limit_delay > 0:
+            get_collector().record_rate_limit_delay(self.rate_limit_delay)  # Record rate limit delay in stats
             time.sleep(self.rate_limit_delay)
  
         self.llm.reset_context()
+        get_collector().start_llm_generation("distillation")
         response = self.llm.generate_response(
             user_message=user_message,
             system_prompt=_DISTILLATION_SYSTEM_PROMPT,
             temperature=0.15
         )
+        get_collector().end_llm_generation("distillation")
  
         # Parse JSON response
         try:
@@ -181,8 +187,7 @@ class LLMDistillationTool(BaseDistillationTool):
             if json_match:
                 try:
                     parsed = json.loads(json_match.group(0))
-                    evidence_indices = item.get("evidence_ids", [])
-                    distilled_results = [(item.get("response", ""), evidence_indices) 
+                    distilled_results = [(item.get("response", ""), item.get("evidence_ids", [])) 
                                          for item in parsed if isinstance(item, dict)]
                 except:
                     distilled_results = []

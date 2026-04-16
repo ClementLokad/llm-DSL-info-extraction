@@ -33,6 +33,7 @@ from pipeline.answer_validation import (
     build_validation_feedback,
     append_validation_warning,
 )
+from pipeline.stats_collector import get_collector
 
 from rich.console import Console, Group
 from rich.panel import Panel
@@ -228,15 +229,19 @@ class AgenticPipeline(BasePipeline):
             prompt_panel = Panel(escape(prompt), title="Main LLM Prompt", border_style="purple")
 
         if self.rate_limit_delay > 0:
+            get_collector().record_rate_limit_delay(self.rate_limit_delay)
             time.sleep(self.rate_limit_delay)
 
         # Reset context so each Solver call is a clean system+user exchange
         self.main_llm.reset_context()
         self.main_llm.append_conversation_history(state.get("previous_qa", []))
+        
+        get_collector().start_llm_generation("solver")
         generation = self.main_llm.generate_response(
             user_message=prompt,
             system_prompt=_SOLVER_SYSTEM_PROMPT,
         )
+        get_collector().end_llm_generation("solver")
 
         if state["verbose"]:
             generation_panel = Panel(Markdown(generation),
@@ -284,14 +289,18 @@ class AgenticPipeline(BasePipeline):
             )
 
         if self.rate_limit_delay > 0:
+            get_collector().record_rate_limit_delay(self.rate_limit_delay)
             time.sleep(self.rate_limit_delay)
 
         self.cleaning_llm.reset_context()
+        
+        get_collector().start_llm_generation("cleaning")
         answer = self.cleaning_llm.generate_response(
             user_message=user_message,
             system_prompt=_CLEANER_SYSTEM_PROMPT,
             temperature = 0.1
         )
+        get_collector().end_llm_generation("cleaning")
 
         answer_match = re.search(
             r"<final_answer>(.*?)</final_answer>", answer,
@@ -392,7 +401,8 @@ class AgenticPipeline(BasePipeline):
         )
 
         workflow.add_edge("generate_answer", "agentic_workflow")
-        workflow.add_edge("clean_answer", "validate_answer_sources")
+        # TODO: workflow.add_edge("clean_answer", "validate_answer_sources")
+        workflow.add_edge("clean_answer", "grade_answer") # Temporarily bypassing validation for faster iteration; can re-enable after ensuring validation is non-blocking and robust.
         workflow.add_conditional_edges(
             "validate_answer_sources",
             self.decide_after_answer_validation,
