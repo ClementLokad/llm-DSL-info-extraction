@@ -208,8 +208,6 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "    → rag_tool finds semantically relevant chunks regardless of exact wording.\n"
             " - If the question asks who imports something, graph_tool is usually the structural truth source.\n"
             " - For grep_tool sources, ONLY use real codebase path patterns (from tree_tool or question).\n"
-            " - When genuinely uncertain, consider what a first result would look like: "
-            "if a grep would likely return hundreds of unrelated matches, use rag_tool.\n"
             "3. Call exactly ONE tool. Fill in all RELEVANT optional fields for precision.\n"
             "4. Think evidence-first: you are not trying to sound plausible, you are trying to collect proof.\n"
         ))

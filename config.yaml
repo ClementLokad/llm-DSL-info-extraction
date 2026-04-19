@@ -184,7 +184,7 @@ retriever:
     local: true
     top_k: 5
     rerank_multiplier: 5 # Multiplier for number of chunks to rerank between dense and sparse model on retrieval
-    dense_threshold: 0.45
+    dense_threshold: 0.3 # Minimum similarity score for dense retrieval (0.0 to 1.0), 0.3 is a value found experimentally
     sparse_threshold: 2
   
   # FAISS index settings
@@ -375,7 +375,7 @@ main_pipeline:
 # BENCHMARK CONFIGURATION
 # =============================================================================
 benchmark:
-  benchmark_type: "llm_as_a_judge" # Choose the benchmark type: "cosine_similarity", "llm_as_a_judge", "llm_as_judge2", "hybrid", "hybrid_llm"
+  benchmark_type: "hybrid_llm" # Choose the benchmark type: "cosine_similarity", "llm_as_a_judge", "llm_as_judge2", "hybrid", "hybrid_llm"
   benchmark_model: "deepseek-v3"  # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
   benchmark_prompt: "You are a strict evaluator. When I give you a question and an LLM’s answer, you must output ONLY a single character: 1 if the answer is fully correct, or 0 if the answer is incorrect. Do NOT output explanations, chain-of-thought, tags, spaces, punctuation, or any extra text. If you output anything other than exactly 1 or 0, you have failed the task. Your entire reply must be exactly one character: 1 or 0."
   save_data: false

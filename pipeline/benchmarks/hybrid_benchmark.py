@@ -30,8 +30,8 @@ class HybridBenchmark:
         Returns:
             Normalized text ready for comparison
         """
-        # Collapse all whitespace sequences (spaces, tabs, newlines, etc.) to single space
-        text = re.sub(r'\s+', ' ', text)
+        # Collapse all whitespace sequences (spaces, tabs, newlines, etc.) to zero space
+        text = re.sub(r'\s+', '', text)
         
         # Convert to lowercase
         text = text.lower()

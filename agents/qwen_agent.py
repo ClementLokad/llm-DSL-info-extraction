@@ -57,15 +57,19 @@ class QwenAgent(LLMAgent):
         self,
         model: str = "qwen2.5:7b-instruct-q4_k_m",
         num_ctx: int = 16384,
+        max_tokens: int = 4096,
     ):
         """
         Args:
             model: Ollama model tag to use.
             num_ctx: Context window size in tokens passed to Ollama.
+            max_tokens: Maximum tokens to generate per response (num_predict).
+                       Default 4096 to prevent endless loops. Set to None to disable.
         """
         super().__init__()
         self._model = model
         self._num_ctx = num_ctx
+        self._max_tokens = max_tokens
         self.context: List[Dict[str, Any]] = []
 
     # ------------------------------------------------------------------
@@ -120,11 +124,15 @@ class QwenAgent(LLMAgent):
         Tools are passed only when provided so that non-tool-calling models
         are not accidentally broken by an unexpected parameter.
         """
+        options: Dict[str, Any] = {"num_ctx": self._num_ctx, "temperature": temperature}
+        if self._max_tokens is not None:
+            options["num_predict"] = self._max_tokens
+        
         kwargs: Dict[str, Any] = {
             "model": self._model,
             "messages": messages,
             "stream": False,
-            "options": {"num_ctx": self._num_ctx, "temperature": temperature},
+            "options": options,
         }
         if tools:
             kwargs["tools"] = tools
