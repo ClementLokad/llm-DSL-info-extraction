@@ -28,6 +28,12 @@ from langgraph.graph import END, StateGraph, START
 from config_manager import get_config
 from pipeline.agent_workflow.workflow_base import BaseAgentWorkflow
 from pipeline.langgraph_base import AgentGraphState, BasePipeline, GraphState
+from pipeline.answer_validation import (
+    SourcePathValidator,
+    build_validation_feedback,
+    append_validation_warning,
+)
+from pipeline.stats_collector import get_collector
 
 from rich.console import Console, Group
 from rich.panel import Panel
@@ -85,6 +91,7 @@ class AgenticPipeline(BasePipeline):
 
     def __init__(self, console: Console, agent: BaseAgentWorkflow):
         super().__init__(console)
+        validation_cfg = get_config().get("main_pipeline.answer_validation", {})
         self.main_llm = prepare_agent(
             get_config().get(
                 'main_pipeline.agent_logic.main_llm',
@@ -100,6 +107,14 @@ class AgenticPipeline(BasePipeline):
         self.rate_limit_delay = get_config().get('agent.rate_limit_delay', 0)
         self.agent = agent.build_graph()
         self.benchmark_type = get_config().get_benchmark_type()
+        self.answer_validation_cfg = validation_cfg
+        self.path_validator = SourcePathValidator(
+            ignore_extension=validation_cfg.get("ignore_extension", True),
+            ignore_leading_slash=validation_cfg.get("ignore_leading_slash", True),
+            allow_partial_suffix_match=validation_cfg.get("allow_partial_suffix_match", True),
+            ignore_data_extensions=validation_cfg.get("ignore_data_extensions", True),
+            ignored_path_extensions=validation_cfg.get("ignored_path_extensions", ["ion", "csv"]),
+        )
 
     # -----------------------------------------------------------------------
     # Agentic workflow node
@@ -214,15 +229,19 @@ class AgenticPipeline(BasePipeline):
             prompt_panel = Panel(escape(prompt), title="Main LLM Prompt", border_style="purple")
 
         if self.rate_limit_delay > 0:
+            get_collector().record_rate_limit_delay(self.rate_limit_delay)
             time.sleep(self.rate_limit_delay)
 
         # Reset context so each Solver call is a clean system+user exchange
         self.main_llm.reset_context()
         self.main_llm.append_conversation_history(state.get("previous_qa", []))
+        
+        get_collector().start_llm_generation("solver")
         generation = self.main_llm.generate_response(
             user_message=prompt,
             system_prompt=_SOLVER_SYSTEM_PROMPT,
         )
+        get_collector().end_llm_generation("solver")
 
         if state["verbose"]:
             generation_panel = Panel(Markdown(generation),
@@ -270,14 +289,18 @@ class AgenticPipeline(BasePipeline):
             )
 
         if self.rate_limit_delay > 0:
+            get_collector().record_rate_limit_delay(self.rate_limit_delay)
             time.sleep(self.rate_limit_delay)
 
         self.cleaning_llm.reset_context()
+        
+        get_collector().start_llm_generation("cleaning")
         answer = self.cleaning_llm.generate_response(
             user_message=user_message,
             system_prompt=_CLEANER_SYSTEM_PROMPT,
             temperature = 0.1
         )
+        get_collector().end_llm_generation("cleaning")
 
         answer_match = re.search(
             r"<final_answer>(.*?)</final_answer>", answer,
@@ -294,6 +317,59 @@ class AgenticPipeline(BasePipeline):
 
         return {"final_answer": final_answer}
 
+    def validate_answer_sources(self, state: AgentGraphState) -> AgentGraphState:
+        """Lightweight non-blocking validation of cited script paths."""
+        self.console.print("[dim]--- NODE: Validate Answer Sources ---[/dim]")
+        final_answer = state.get("final_answer") or ""
+
+        if not self.answer_validation_cfg.get("enabled", True):
+            return {"answer_validation_report": None, "regenerate_needed": False}
+
+        report = self.path_validator.validate_answer(final_answer)
+        max_retries = self.answer_validation_cfg.get("max_retries", 3)
+        current_retries = state.get("answer_validation_retry_count", 0)
+
+        if not report.get("has_invalid"):
+            return {
+                "answer_validation_report": report,
+                "regenerate_needed": False,
+            }
+
+        if current_retries < max_retries:
+            feedback = build_validation_feedback(report)
+            updated_prompt = (
+                f"{state.get('prompt', '')}\n\n### SOURCE PATH VALIDATION FEEDBACK\n"
+                f"{feedback}\n"
+            )
+            self.console.print(
+                f"[dim]    -> Invalid cited paths detected. Regenerating answer ({current_retries + 1}/{max_retries}).[/dim]"
+            )
+            return {
+                "answer_validation_report": report,
+                "answer_validation_retry_count": current_retries + 1,
+                "prompt": updated_prompt,
+                "regenerate_needed": True,
+                "retry_count": state.get("retry_count", 0) + 1,
+            }
+
+        self.console.print("[dim]    -> Invalid cited paths persist. Proceeding with warning section.[/dim]")
+        warned_answer = final_answer
+        if self.answer_validation_cfg.get("append_warning_section", True):
+            warned_answer = append_validation_warning(final_answer, report)
+        return {
+            "final_answer": warned_answer,
+            "answer_validation_report": report,
+            "regenerate_needed": False,
+        }
+
+    def decide_after_answer_validation(self, state: AgentGraphState) -> str:
+        self.console.print("[dim]--- DECISION: After Answer Validation ---[/dim]")
+        if state.get("regenerate_needed"):
+            self.console.print("[dim]    -> Route: 're-generate' (source validation failed)[/dim]")
+            return "regenerate"
+        self.console.print("[dim]    -> Route: 'grade_answer' (source validation passed or warning appended)[/dim]")
+        return "proceed"
+
     # -----------------------------------------------------------------------
     # Graph assembly
     # -----------------------------------------------------------------------
@@ -309,6 +385,7 @@ class AgenticPipeline(BasePipeline):
         workflow.add_node("check_logic", self.check_agent_logic)
         workflow.add_node("generate_answer", self.generate_answer)
         workflow.add_node("clean_answer", self.clean_generated_answer)
+        workflow.add_node("validate_answer_sources", self.validate_answer_sources)
         workflow.add_node("grade_answer", self.grade_answer)
 
         workflow.add_edge(START, "agentic_workflow")
@@ -324,7 +401,16 @@ class AgenticPipeline(BasePipeline):
         )
 
         workflow.add_edge("generate_answer", "agentic_workflow")
-        workflow.add_edge("clean_answer", "grade_answer")
+        # TODO: workflow.add_edge("clean_answer", "validate_answer_sources")
+        workflow.add_edge("clean_answer", "grade_answer") # Temporarily bypassing validation for faster iteration; can re-enable after ensuring validation is non-blocking and robust.
+        workflow.add_conditional_edges(
+            "validate_answer_sources",
+            self.decide_after_answer_validation,
+            {
+                "regenerate": "generate_answer",
+                "proceed": "grade_answer",
+            },
+        )
         workflow.add_edge("grade_answer", END)
 
         return workflow

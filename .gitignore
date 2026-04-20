@@ -54,3 +54,10 @@ saved_models/
 
 # Logs
 *.log
+
+# Local PSC PDFs
+PSC_Rapport*.pdf
+Livret_PSC*.pdf
+
+# Local report workspace mirror
+docs/PSC Rapport Final/

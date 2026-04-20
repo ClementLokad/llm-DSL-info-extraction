@@ -20,15 +20,18 @@ class QwenSSHAgent(QwenAgent):
         model: str = "qwen2.5-coder:14b-instruct",
         host: str = "http://localhost:11436",
         num_ctx: int = 16384,
+        max_tokens: int = 4096,
     ):
         """
         Args:
-            model:   Ollama model tag to use on the remote host.
-            host:    URL of the remote Ollama server (default maps to a
-                     typical SSH tunnel port).
-            num_ctx: Context window size in tokens.
+            model:      Ollama model tag to use on the remote host.
+            host:       URL of the remote Ollama server (default maps to a
+                        typical SSH tunnel port).
+            num_ctx:    Context window size in tokens.
+            max_tokens: Maximum tokens to generate per response (num_predict).
+                        Default 4096 to prevent endless loops. Set to None to disable.
         """
-        super().__init__(model=model, num_ctx=num_ctx)
+        super().__init__(model=model, num_ctx=num_ctx, max_tokens=max_tokens)
         self._host = host
         self.client = Client(host=self._host)
 
@@ -65,11 +68,15 @@ class QwenSSHAgent(QwenAgent):
         tools: Optional[List[Dict[str, Any]]] = None,
         temperature: float = 0.3,
     ) -> Dict[str, Any]:
+        options: Dict[str, Any] = {"num_ctx": self._num_ctx, "temperature": temperature}
+        if self._max_tokens is not None:
+            options["num_predict"] = self._max_tokens
+        
         kwargs: Dict[str, Any] = {
             "model": self._model,
             "messages": messages,
             "stream": False,
-            "options": {"num_ctx": self._num_ctx, "temperature": temperature},
+            "options": options,
         }
         if tools:
             kwargs["tools"] = tools

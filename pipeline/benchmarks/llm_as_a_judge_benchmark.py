@@ -6,6 +6,7 @@ import re
 import json
 import agents.prepare_agent as prepare_agent
 import config_manager
+from pipeline.stats_collector import get_collector
 
 default_prompt = """Tu es un évaluateur strict pour une base de code d'entreprise.
 Ton rôle est d'évaluer la 'Réponse du LLM' par rapport à la 'Vraie réponse' (la référence de vérité).
@@ -57,12 +58,15 @@ class LLMAsAJudgeBenchmark(Benchmark):
         """Returns a dict with reasoning and binary score (0 or 1)"""
         
         if self.rate_limit_delay > 0:
+            get_collector().record_rate_limit_delay(self.rate_limit_delay)  # Record rate limit delay in stats
             time.sleep(self.rate_limit_delay)
         
         self.agent.reset_context()
+        get_collector().start_llm_generation("grader")
         raw_response = self.agent.generate_response(system_prompt=self.prompt,
                                                   user_message=f"\n\nQuestion : {question}\nVraie réponse : {reference}\nRéponse du LLM : {llm_response}",
                                                   temperature=0.05)
+        get_collector().end_llm_generation("grader")
         
         # Robust JSON extraction (in case the LLM wraps it in ```json ... ``` tags)
         json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
@@ -131,12 +135,15 @@ class LLMAsAJudgeBenchmark2(Benchmark):
         """Returns the reasoning and a normalized score (0.0 to 1.0)"""
         
         if self.rate_limit_delay > 0:
+            get_collector().record_rate_limit_delay(self.rate_limit_delay)  # Record rate limit delay in stats
             time.sleep(self.rate_limit_delay)
         
         self.agent.reset_context()
+        get_collector().start_llm_generation("grader")
         raw_response = self.agent.generate_response(system_prompt=self.prompt,
                                                   user_message=f"\n\nQuestion : {question}\nVraie réponse : {reference}\nRéponse du LLM : {llm_response}",
                                                   temperature=0.05)
+        get_collector().end_llm_generation("grader")
         
         # Robust JSON extraction (in case the LLM wraps it in ```json ... ``` tags)
         json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)

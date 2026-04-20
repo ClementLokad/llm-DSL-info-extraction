@@ -24,7 +24,7 @@ def build_index():
     embedder.initialize()
     retriever = get_default_retriever()
     if def_ret == "qdrant":
-        retriever.clear_index()
+        retriever.clear_index(summary=False)
         print("Old index succesfully emptied")
     retriever.initialize(embedder.embedding_dimension)
     

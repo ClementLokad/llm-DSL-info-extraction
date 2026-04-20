@@ -46,6 +46,7 @@ from pipeline.agent_workflow.graph_tool import EnvisionGraphTool
 from pipeline.agent_workflow.prior_evidence_tool import PriorEvidenceTool
 from config_manager import get_config
 from langgraph.graph import END, StateGraph, START
+from pipeline.stats_collector import get_collector
 
 from rich.console import Console, Group
 from rich.panel import Panel
@@ -207,8 +208,6 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "    → rag_tool finds semantically relevant chunks regardless of exact wording.\n"
             " - If the question asks who imports something, graph_tool is usually the structural truth source.\n"
             " - For grep_tool sources, ONLY use real codebase path patterns (from tree_tool or question).\n"
-            " - When genuinely uncertain, consider what a first result would look like: "
-            "if a grep would likely return hundreds of unrelated matches, use rag_tool.\n"
             "3. Call exactly ONE tool. Fill in all RELEVANT optional fields for precision.\n"
             "4. Think evidence-first: you are not trying to sound plausible, you are trying to collect proof.\n"
         ))
@@ -587,13 +586,16 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             # --- Kickoff: no prior context, single tool-calling call ---
             system_prompt, user_message = self._kickoff_prompts(state)
             try:
+                get_collector().start_llm_generation("planner-initial-call")
                 tool_call = self.planner_llm.generate_with_tools(
                     user_message=user_message,
                     tools=planner_tools,
                     system_prompt=system_prompt,
                     tool_choice="any",
                 )
+                get_collector().end_llm_generation("planner-initial-call")
             except Exception as exc:
+                get_collector().end_llm_generation("planner-initial-call")
                 self.console.print(
                     f"[dim][yellow]Planner fallback (kickoff): {exc}[/yellow][/dim]"
                 )
@@ -617,12 +619,15 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # the surface form of the Proposed Solution.  The written reasoning
         # becomes prior context that constrains the tool selection in step 2.
         try:
+            get_collector().start_llm_generation("planner-answer-analysis")
             reasoning = self.planner_llm.generate_response(
                 user_message=user_message,
                 system_prompt=system_prompt,
                 temperature=0.2,
             )
+            get_collector().end_llm_generation("planner-answer-analysis")
         except Exception as exc:
+            get_collector().end_llm_generation("planner-answer-analysis")
             self.console.print(
                 f"[dim][yellow]Planner fallback (continuation reasoning): {exc}[/yellow][/dim]"
             )
@@ -641,13 +646,16 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         # The model's own reasoning from step 1 is now in self.context; it cannot
         # easily contradict it without being incoherent within the same window.
         try:
+            get_collector().start_llm_generation("planner-initial-call")
             tool_call = self.planner_llm.generate_with_tools(
                 user_message="Based on your reasoning above, call the appropriate tool now.",
                 tools=planner_tools,
                 tool_choice="any",
                 # system_prompt intentionally omitted — already in context from step 1
             )
+            get_collector().end_llm_generation("planner-initial-call")
         except Exception as exc:
+            get_collector().end_llm_generation("planner-initial-call")
             self.console.print(
                 f"[dim][yellow]Planner fallback (continuation): {exc}[/yellow][/dim]"
             )
@@ -683,6 +691,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         self.console.print("[dim]--- SUB-NODE: Agentic Router (Planner) ---[/dim]")
     
         if self.rate_limit_delay > 0:
+            get_collector().record_rate_limit_delay(self.rate_limit_delay)
             time.sleep(self.rate_limit_delay)
             
         # If in interactive mode we must distill the last results
@@ -754,22 +763,27 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     
         if grep_refinement_active:
             already_distilled = True  # grep refinement never has raw results to distil
+            get_collector().start_llm_generation("planner-followup-call")
             tool_call = self._plan_grep_refinement(state, planner_tools)
     
         elif tree_followup_active:
             already_distilled = True  # tree output is not evidence, nothing to distil
+            get_collector().start_llm_generation("planner-followup-call")
             tool_call = self._plan_tree_followup(state, planner_tools)
         
         elif graph_followup_active:
             already_distilled = True  # graph navigation is structural, not evidence to distil
+            get_collector().start_llm_generation("planner-followup-call")
             tool_call = self._plan_graph_followup(state, planner_tools)
         
         elif rag_followup_active:
             already_distilled = True  # RAG follow-up is triggered by a negative result, so no distillation needed
+            get_collector().start_llm_generation("planner-followup-call")
             tool_call = self._plan_rag_followup(state, planner_tools)
 
         elif prior_evidence_followup_active:
             already_distilled = True  # prior evidence follow-up is triggered by a negative result, so no distillation needed
+            get_collector().start_llm_generation("planner-followup-call")
             tool_call = self._plan_prior_evidence_followup(state, planner_tools)
     
         else:
@@ -777,6 +791,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                 state, planner_tools, is_continuation
             )
             _, user_message = prompts # unpack for verbose display
+        
+        get_collector().end_llm_generation("planner-followup-call") # No effect if not started, safe to call in all branches
     
         # ------------------------------------------------------------------
         # Step 3: Validate the chosen tool
@@ -796,6 +812,27 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
                     f"Valid tools: {', '.join(VALID_TOOLS)}."
                 )
             }
+        
+        # Additional validation for graph_tool arguments
+        elif chosen_tool == "graph_tool":
+            action = arguments.get("action")
+            is_valid, error_msg, normalized_args = self.graph_tool.validate_graph_arguments(
+                action, arguments
+            )
+            if not is_valid:
+                self.console.print(
+                    f"  [System Warning]: Invalid graph_tool arguments → redirecting to regeneration."
+                )
+                chosen_tool = "simple_regeneration_tool"
+                arguments = {
+                    "advice": (
+                        f"SYSTEM ERROR: Invalid graph_tool call. {error_msg} "
+                        f"Please use valid parameters."
+                    )
+                }
+            else:
+                # Use normalized arguments (action may have been corrected)
+                arguments = normalized_args
     
         # Extract the thought field the model may have included in arguments,
         # falling back to a generic label for the history log.
@@ -817,6 +854,10 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             chosen_tool != "submit_answer"
             and state["pipeline_state"]["retry_count"] <= max_retries
         )
+        
+        # Record tool call for stats (excluding submit_answer which is not a real tool)
+        if chosen_tool != "submit_answer":
+            get_collector().record_tool_call(chosen_tool)
     
         # ------------------------------------------------------------------
         # Step 5: Verbose display
@@ -888,6 +929,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     def use_rag_tool(self, state: WorkflowState) -> WorkflowState:
         """Semantic search — parameters arrive as clean JSON from the tool call."""
         self.console.print("[dim]--- SUB-NODE: RAG Tool ---[/dim]")
+        get_collector().start_tool_execution("rag_tool")
     
         # ------------------------------------------------------------------
         # Step 1: Unpack arguments from the pending tool call
@@ -951,11 +993,13 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "Using the RAG results above and all previous knowledge, answer the question "
             "as concisely as possible."
         )
+        get_collector().end_tool_execution("rag_tool")
         return state
     
     def use_grep_tool(self, state: WorkflowState) -> WorkflowState:
         """Text grep — parameters arrive as clean JSON from the tool call."""
         self.console.print("[dim]--- SUB-NODE: Grep Tool ---[/dim]")
+        get_collector().start_tool_execution("grep_tool")
     
         # ------------------------------------------------------------------
         # Step 1: Unpack and validate arguments from the pending tool call
@@ -1096,10 +1140,12 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             f"Using the {len(results)} grep results (from {len(total_sources)} distinct scripts) above and all previous knowledge, answer the "
             "question as concisely as possible."
         )
+        get_collector().end_tool_execution("grep_tool")
         return state
     
     def use_script_finder_tool(self, state: WorkflowState) -> WorkflowState:
         self.console.print("[dim]--- SUB-NODE: Script Finder Tool ---[/dim]")
+        get_collector().start_tool_execution("script_finder_tool")
         args = state.get("pending_tool_call", {}).get("arguments", {})
         script_names = args.get("script_names") or []
 
@@ -1156,11 +1202,13 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             f"If additional information is needed, specify what is missing. "
             f"Otherwise, analyze the results to answer the question.\n"
         )
+        get_collector().end_tool_execution("script_finder_tool")
         return state
 
     def use_prior_evidence_tool(self, state: WorkflowState) -> WorkflowState:
         """Retrieve prior evidence from accumulated evidence collected in previous tool calls."""
         self.console.print("[dim]--- SUB-NODE: Prior Evidence Tool ---[/dim]")
+        get_collector().start_tool_execution("prior_evidence_tool")
         
         # Step 1: Unpack arguments
         args = state.get("pending_tool_call", {}).get("arguments", {})
@@ -1218,11 +1266,13 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             "Using the prior evidence results above and all previous knowledge, answer the "
             "question as concisely as possible."
         )
+        get_collector().end_tool_execution("prior_evidence_tool")
         return state
 
     def use_graph_tool(self, state: WorkflowState) -> WorkflowState:
         """Use the structural graph tool for dependency navigation."""
         self.console.print("[dim]--- SUB-NODE: Graph Tool ---[/dim]")
+        get_collector().start_tool_execution("graph_tool")
         args = state.get("pending_tool_call", {}).get("arguments", {})
         action = args.get("action")
         graph_retries = state.get("local_graph_retries", 0)
@@ -1257,10 +1307,12 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
             )
         else:
             state["rewritten_prompt"] = graph_result_text  # For non-neighbor and non-edge actions, just update the prompt with the new graph state for the next turn's planning
+        get_collector().end_tool_execution("graph_tool")
         return state
 
     def use_tree_tool(self, state: WorkflowState) -> WorkflowState:
         self.console.print("[dim]--- SUB-NODE: Tree Tool ---[/dim]")
+        get_collector().start_tool_execution("tree_tool")
         args = state.get("pending_tool_call", {}).get("arguments", {})
         root_path: str = args.get("root_path", "").strip().strip("'\"")
 
@@ -1274,6 +1326,7 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
         outcome_str = f"Successfully generated file tree from root: {real_root}"
         self._append_history(state, "tree_tool", root_path, outcome_str,
                              state.get("current_thought", ""))
+        get_collector().end_tool_execution("tree_tool")
         return state
 
     # -----------------------------------------------------------------------

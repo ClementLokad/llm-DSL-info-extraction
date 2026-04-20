@@ -18,6 +18,9 @@ from rich.markup import escape
 
 sys.path.append(str(Path(__file__).parent))
 
+from pipeline.stats_collector import BenchmarkStatsCollector, get_collector
+from pipeline.stats_reporter import format_stats_report, save_stats_to_json
+
 import config_manager
 from rag.utils.switch_db import get_default_embedder, get_default_retriever, get_default_query_transformer
 from rag.retrievers.qdrant_retriever import QdrantRetriever
@@ -120,10 +123,6 @@ class MainAgenticPipeline(AgenticPipeline):
         elif self.config_manager.get_benchmark_type().startswith('llm_as_a_judge'):
             self.console.print("[dim]--- NODE: Judge LLM Grade Answer ---[/dim]")
 
-            #delay to avoid too many requests
-            if rate_limit_delay > 0:
-                time.sleep(rate_limit_delay)
-
             grade = self.benchmark.run([qa_pair])["results"][0]
             
             self.console.print(f"[dim]    → LLM ({self.benchmark.agent.model_name}) Judge score with reference: {grade['score']}[/dim]")
@@ -146,7 +145,26 @@ class DSLQuerySystem():
     def query(self, question, verbose=True):
         simple_qa_graph = self.pipeline.build_single_qa_graph()
         app = simple_qa_graph.compile()
-        input_state = GraphState(question=question, verbose=verbose, reference_answer="", retry_count=0)
+        if isinstance(self.pipeline, MainAgenticPipeline):
+            input_state = AgentGraphState(
+                question=question,
+                reference_answer="",
+                knowledge_bank=[],
+                execution_history=[],
+                accumulated_evidence={},
+                prompt="",
+                generation="",
+                final_answer=None,
+                regenerate_needed=False,
+                retry_count=0,
+                grade=None,
+                verbose=verbose,
+                previous_qa=[],
+                answer_validation_retry_count=0,
+                answer_validation_report=None,
+            )
+        else:
+            input_state = GraphState(question=question, verbose=verbose, reference_answer="", retry_count=0)
         try:
             final_state = app.invoke(input_state)
         finally:
@@ -176,7 +194,9 @@ class DSLQuerySystem():
                 retry_count=0,
                 grade=None,
                 verbose=verbose,
-                previous_qa=[]
+                previous_qa=[],
+                answer_validation_retry_count=0,
+                answer_validation_report=None,
             )
         else:
             input_state = GraphState(question="", reference_answer="", verbose=verbose, retry_count=0)
@@ -204,6 +224,8 @@ class DSLQuerySystem():
                     input_state["prompt"] = ""
                     input_state["final_answer"] = None
                     input_state["regenerate_needed"] = False
+                    input_state["answer_validation_retry_count"] = 0
+                    input_state["answer_validation_report"] = None
                     # Keep the updated fields
                     input_state["undistilled_log"] = final_state.get("execution_history")[-1] \
                         if final_state.get("execution_history") else None
@@ -313,7 +335,8 @@ class DSLQuerySystem():
             self.console.print(f"\n[dim]Results saved to {res_path}[/dim]")
     
     def benchmark(self, questions_json_path: str, verbose=False,
-                  start_from: int = 1):
+                  start_from: int = 1, stats_enabled: bool = False,
+                  token_count_enabled: bool = False):
         # Build the sub-graph for single Q/A processing
         sub_rag_system = self.pipeline.build_single_qa_graph()
         
@@ -363,11 +386,19 @@ class DSLQuerySystem():
             sub_rag_system=sub_rag_system
         )
 
+        # Initialize stats collector if --stats is enabled
+        stats_collector = None
+        if stats_enabled:
+            stats_collector: BenchmarkStatsCollector = get_collector()  # Get the global singleton instance
+            stats_collector.start_benchmark()
+
         try:
             final_state = app.invoke(input_state)
         except APIError as exc:
             final_state = exc.saved_state
         finally:
+            if stats_enabled and stats_collector:
+                stats_collector.end_benchmark()
             if isinstance(self.pipeline.rag["retriever"], QdrantRetriever):
                 self.pipeline.rag["retriever"].close()  # Ensure Qdrant client is properly closed on exit
         
@@ -375,8 +406,36 @@ class DSLQuerySystem():
         grades = final_state["grades"]
         for (i, r) in enumerate(grades):
             r["id"] = i+start_from
-            
+
         self._display_and_save_results(grades, questions_json_path, len(grades) != total-start_from+1)
+        
+        # Display and save stats if enabled
+        if stats_enabled and stats_collector:
+            # Optionally get token stats if --token_count was also set
+            token_stats = None
+            if token_count_enabled:
+                config = config_manager.get_config()
+                token_stats = {
+                    "tokens_in": config.config.get("tokens_in", 0),
+                    "tokens_out": config.config.get("tokens_out", 0),
+                }
+            
+            # Print stats report to console
+            stats_report = format_stats_report(
+                stats_collector,
+                include_tokens=token_count_enabled,
+                token_stats=token_stats
+            )
+            self.console.print(Panel(Markdown(stats_report), title="Stats Report", border_style="salmon1"))
+            
+            # Save stats to JSON file
+            stats_filepath = save_stats_to_json(
+                stats_collector,
+                output_dir="data/Statistics",
+                include_tokens=token_count_enabled,
+                token_stats=token_stats
+            )
+            self.console.print(f"[dim]Stats saved to: {stats_filepath}[/dim]")
 
 
 def main():
@@ -547,6 +606,12 @@ EXAMPLES:
     )
     
     parser.add_argument(
+        "--stats",
+        action="store_true",
+        help="Track and report tool calls and timing statistics"
+    )
+    
+    parser.add_argument(
         "--save_data", "-sd",
         action="store_true",
         help="If benchmark is used, the results are saved in a json summary"
@@ -692,7 +757,9 @@ EXAMPLES:
         # Benchmark mode
         if args.benchmarkpath:
             system.benchmark(args.benchmarkpath, verbose=verbose,
-                             start_from=args.benchmarkstart)
+                             start_from=args.benchmarkstart,
+                             stats_enabled=args.stats,
+                             token_count_enabled=args.token_count)
        
         # Determine mode and execute
         elif args.query:

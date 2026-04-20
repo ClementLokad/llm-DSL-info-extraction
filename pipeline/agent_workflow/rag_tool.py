@@ -1,3 +1,6 @@
+import os
+os.environ["FASTEMBED_CACHE_PATH"] = os.path.join(os.getcwd(), "data/fastembed_models")
+
 from typing import List, Tuple, Dict, Any
 from pipeline.agent_workflow.workflow_base import BaseRAGTool, _tool_desc
 from rag.core.base_retriever import BaseRetriever, RetrievalResult
@@ -132,14 +135,11 @@ class AdvancedRAGTool(SimpleRAGTool):
     This class uses a provided retriever to perform retrieval operations.
     """
     
-    def __init__(self, retriever: QdrantRetriever, embedder: QdrantEmbedder, query_transformer):
-        self.retriever = retriever
-        self.embedder = embedder
-        self.query_transformer = query_transformer
+    def __init__(self, retriever: QdrantRetriever, embedder: QdrantEmbedder, query_transformer = None):
+        super().__init__(retriever, embedder, query_transformer)
         self.rate_limit_delay = get_config().get("agent.rate_limit_delay")
         self.cross_encoding = get_config().get("main_pipeline.rag_tool.cross_encoding", True)
         self.ce_multiplier = get_config().get("main_pipeline.rag_tool.cross_encoding_multiplier", 3)
-        self.agent = prepare_default_agent()
         self.reranker_model = TextCrossEncoder(get_config().get("main_pipeline.rag_tool.cross_encoder",
                                                               "jinaai/jina-reranker-v2-base-multilingual"))
 
@@ -299,9 +299,11 @@ if __name__ == "__main__":
     retriever.load_index(str(index_path))
     
     rag_tool = AdvancedRAGTool(retriever, embedder)
+    # rag_tool = SimpleRAGTool(retriever, embedder)
     query = "How is the cost of possessing (holding) a unit of product in stock modeled in Envision?"
     try:
         results = rag_tool.retrieve(query, verbose=True, key_words=["cost", "possessing", "holding"], sources=["/7. Documentation/", "/4. Optimization workflow"])
+        # results = rag_tool.retrieve(query, verbose=True, rerank_multiplier=1)
     finally:
         retriever.close()
 
