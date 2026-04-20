@@ -127,5 +127,5 @@ class ChunkSummarizer():
         system_prompt = f"{self.summary_prompt}\n\n"
         user_prompt = f"\n\nCODE/TEXT TO SUMMARIZE:\n{text}\n\n### Summary\n"
         self.summary_agent.reset_context()
-        summary = self.summary_agent.generate_response(user_prompt, system_prompt=system_prompt, temperature=0.05)
+        summary = self.summary_agent.generate_response(user_prompt, system_prompt=system_prompt, context = '', temperature=0.05)
         return summary.strip()
