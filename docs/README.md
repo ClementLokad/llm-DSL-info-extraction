@@ -1,39 +1,24 @@
 # PSC INF01
-> **Architecture Agentique et Hybride pour l'Extraction de Connaissances sur Code Propriétaire (Envision)**
+> **LLM for Information Extraction in a DSL : Case of Envision (LOKAD)**
 
-![Architecture Globale INF01](assets/architecture.svg)
 
-## 🚀 Présentation du Projet
-Dans le cadre du **PSC X24** à l'École Polytechnique et en partenariat avec **Lokad**, l'équipe **INF01** a développé une infrastructure agentique intelligente pour naviguer dans des bases de code complexes écrites en **Envision**.
+Welcome to the documentation for the Envision Copilot, an agentic system designed to navigate and explain Lokad's proprietary Envision DSL.
 
-Notre solution permet d'automatiser l'extraction de connaissances techniques en combinant recherche sémantique, analyse de graphes et outils de recherche lexicale, le tout orchestré par un agent capable de raisonnement itératif.
+## 🏛️ Project Architecture
+The system is built as a multi-tool agent capable of planning and executing complex search strategies over code and documentation.
 
----
+- **[Full Architecture](architecture.md)**: Global overview of the ReAct pipeline and feedback loops.
+- **[Semantic Pipeline (RAG)](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/envision/rag/)**: The underlying engine for semantic indexing and retrieval. Detailed usage: **[RAG Tool](tools/rag_tool.md)**.
+- **[Structural Engine (env_graph)](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/envision/env_graph/)**: Static analysis layer for building the dependency graph. Detailed usage: **[Graph Tool](tools/graph_tool.md)**.
 
-## 🏛️ Architecture & Composants
-Le projet est structuré autour d'un pipeline modulaire (LangGraph) intégrant des outils spécialisés :
+## 🛠️ Primary Agentic Tools
+The agent uses a combination of three specialized tools to solve user queries:
 
-- **[Architecture Sémantique (RAG)](technical/implementation.md#rag)** : Indexation multi-modale (chunking hybride) située dans `rag/`.
-- **[Graphe de Dépendances](technical/implementation.md#graph)** : Analyse statique du code Envision pour extraire les liens structurels (`env_graph/`).
-- **[Workflow Agentique](workflow/pipeline.md)** : État de l'agent et boucles de feedback (`pipeline/agent_workflow/`).
+1. **[RAG Tool](tools/rag_tool.md)**: Semantic search on documentation and code chunks.
+2. **[Graph Tool](tools/graph_tool.md)**: Structural navigation through dependencies (imports, reads, writes).
+3. **[Grep Tool](tools/grep_tool.md)**: Lexical search for exact patterns and variables across `.nvn` files.
 
----
-
-## 👥 L'Équipe INF01
-- **Gaétan Dégot--Silvestre**
-- **Yoan Dorchies**
-- **Ivann Kamdem**
-- **Guilhem Thébault**
-- **Adam Guediche** [GitHub](https://github.com/ClementLokad/llm-DSL-info-extraction)
-
----
-
-## 📚 Explorer la Documentation
-Utilisez les sections suivantes pour approfondir votre compréhension du système :
-- [**Architecture Globale**](architecture/overview.md) : Vision d'ensemble et pipeline de données.
-- [**Flux de Travail (Workflow)**](workflow/pipeline.md) : Comment l'agent résout une question.
-- [**Spécifications Techniques**](technical/tools.md) : Stack technologique et librairies utilisées.
-- [**Gestion de Projet**](project/management.md) : Méthodologie, jalons et livrables.
-
----
-![Polytechnique](assets/x.pdf) ![Lokad](assets/lokad.png)
+## 🚀 Key Features
+- **Planning & Self-Correction**: The agent dynamically adapts its strategy based on the results of previous actions.
+- **Evidence-Driven**: Every answer is grounded in specific code extracts or structural links.
+- **DSL Specific**: Tailored parsers and analyzers for the Envision language.

@@ -1,4 +1,4 @@
-# Envision PSC X24
+# PSC INF01 X24 : LLM for Information Extraction in a DSL : Case of Envision (LOKAD)
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Agentic%20Workflow-blueviolet.svg)](https://langchain-ai.github.io/langgraph/)
@@ -44,18 +44,15 @@ Two entry modes coexist:
 2. `python main.py --agentic`
    Enable the full LangGraph-based workflow with tool routing and iterative evidence gathering.
 
-The agentic stack currently revolves around these tools:
+The agentic stack currently revolves around these three core tools:
 
 - `rag_tool`
-  Semantic retrieval on indexed Envision chunks.
+  Semantic retrieval on indexed Envision chunks via the `rag/` pipeline.
 - `grep_tool`
-  Exact search on parsed Envision blocks, optionally filtered by source path and block type.
+  Exact lexical search on parsed Envision blocks.
 - `graph_tool`
-  Structural navigation over the dependency graph built from scripts and data relationships.
-- `tree_tool`
-  Compact hierarchy view used to orient the planner before deeper searches.
-- `script_finder_tool`
-  Mapping-aware path recovery from numeric mirrored filenames.
+  Structural navigation over the dependency graph built via `env_graph/`.
+
 
 ## Lightweight answer validation
 
