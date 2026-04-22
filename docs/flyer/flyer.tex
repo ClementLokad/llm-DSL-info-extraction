@@ -88,6 +88,7 @@
         \node[box, below=1.2cm of mainllm] (final) {Final Answer \\ \labelstyle{evidence-based output}};
         
         \node[box, below=1.8cm of questions] (grader) {Answer Grader \\ \labelstyle{checks answer quality}};
+        \node[box, below=1.2cm of grader] (benchmark) {Benchmark};
         
         % Arrows
         \draw[arrow] (questions) -- (planner);
@@ -103,7 +104,7 @@
         \draw[arrow] (planner.south) -- ++(0,-1.2) -| (final.west) node[pos=0.1, right] {\labelstyle{else}};
         
         \draw[arrow] (final.west) -- (grader.east);
-        \draw[arrow] (grader.north) -- (questions.south);
+        \draw[arrow] (grader.south) -- (benchmark.north);
 
         % Loops
         \draw[arrow, dashed] (mainllm.west) -- node[above, font=\tiny] {feedback loop} (planner.east);
