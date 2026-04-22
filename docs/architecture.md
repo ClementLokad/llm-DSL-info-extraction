@@ -22,7 +22,7 @@ This component handles semantic indexing and retrieval. It allows the agent to f
 - **Capabilities**: Hybrid chunking, multi-modal indexing, and summarized retrieval.
 - **Interface**: [RAG Tool](tools/rag_tool.md).
 
-### 2. Dependency Graph (env_graph)
+### 2. Dependency Graph (Graph)
 Located in the **[`env_graph/`](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/env_graph/)** directory.
 Provides a deep static analysis of the Envision codebase to build a topological map of the project.
 - **Capabilities**: File I/O tracking, module imports, and function definition mapping.
