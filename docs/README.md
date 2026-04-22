@@ -1,4 +1,4 @@
-# PSC INF01 X24 : LLM pour l'extraction d'information dans un DSL : Cas de Envision (LOKAD)
+# PSC INF01 X24 : LLM pour l'extraction d'informations dans un DSL : Cas de Envision (LOKAD)
 
 ## Envision Copilot
 
