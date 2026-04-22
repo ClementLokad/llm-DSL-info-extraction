@@ -1,163 +1,292 @@
-# Envision Script Parser and Chunker for RAG Applications
+# ✂️ Chunkers - Découpeurs sémantiques de code
 
-A production-ready system for parsing Envision DSL scripts into semantic blocks and chunking them for Retrieval-Augmented Generation (RAG) applications.
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![Semantic](https://img.shields.io/badge/Semantic-Chunking-green.svg)](https://en.wikipedia.org/wiki/Semantic_chunking)
+[![Envision](https://img.shields.io/badge/Envision-DSL-orange.svg)](https://www.lekiosque.com)
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Parser Details](#parser-details)
-- [Chunker Details](#chunker-details)
-- [Configuration](#configuration)
-- [Advanced Usage](#advanced-usage)
-- [API Reference](#api-reference)
-- [Examples](#examples)
-- [Performance](#performance)
-- [Troubleshooting](#troubleshooting)
+> *Découpeurs intelligents pour transformer les blocs de code en chunks optimisés pour le RAG*
 
 ---
 
-## Overview
+## 📁 Contenu du dossier
 
-This system provides two main components:
+Le dossier `rag/chunkers` contient les systèmes de découpage sémantique :
 
-1. **EnvisionParser**: Parses Envision scripts (`.nvn` files) into semantic code blocks with accurate dependency tracking
-2. **EnvisionChunker**: Groups blocks into fixed-size chunks optimized for RAG embeddings while maintaining semantic coherence
+### 📄 Fichiers principaux
 
-### Key Features
-
-✅ **Accurate Dependency Detection**
-- Tables vs. fields correctly distinguished
-- Interpolated variables (`#(varName)`) detected
-- Path variables (`\{varName}`) tracked
-- No false positives from field names
-
-✅ **Semantic Block Parsing**
-- 13 distinct block types (import, read, table, show, assignment, etc.)
-- Multi-line statement support with indentation awareness
-- Named blocks for easy identification
-
-✅ **Smart Chunking**
-- Configurable token limits (default: 512 tokens)
-- Overlap between chunks for context preservation
-- Large block splitting with internal overlap
-- Section headers as natural boundaries
-
-✅ **RAG-Optimized**
-- Complete metadata for vector databases
-- Dependency graphs for context retrieval
-- Cross-chunk dependency tracking
-- ~95% precision in dependency detection
+- **`__init__.py`** - Module d'initialisation avec exports
+- **`semantic_chunker.py`** - Chunker sémantique principal
+- **`envision_chunker.py`** - Chunker spécialisé Envision DSL
+- **`CHUNKERS.md`** - Cette documentation
 
 ---
 
-## Architecture
+## 🎯 Types de chunkers
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Envision Script (.nvn)                    │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-         ┌─────────────────────────┐
-         │   EnvisionParser        │
-         │  - Lexical analysis     │
-         │  - Block identification │
-         │  - Dependency extraction│
-         └────────────┬────────────┘
-                      │
-                      ▼
-         ┌────────────────────────────────────┐
-         │  CodeBlocks with Metadata          │
-         │  - block_type, name                │
-         │  - dependencies, definitions       │
-         │  - line numbers, content           │
-         └───────────┬────────────────────────┘
-                     │
-                     ▼
-         ┌─────────────────────────┐
-         │   EnvisionChunker       │
-         │  - Split large blocks   │
-         │  - Add overlaps         │
-         │  - Respect token limits │
-         └────────────┬────────────┘
-                      │
-                      ▼
-         ┌────────────────────────────────────┐
-         │  CodeChunks for RAG                │
-         │  - Fixed token size                │
-         │  - Overlap metadata                │
-         │  - Dependency tracking             │
-         │  - Ready for embedding             │
-         └────────────────────────────────────┘
-```
+### 1. 🧠 SemanticChunker
 
----
+**Chunker sémantique intelligent** - Groupement par sections et relations logiques
 
-## Installation
+#### ✨ Fonctionnalités
 
-```bash
-# Clone or copy the files
-cp envision_parser.py /your/project/rag/parsers/
-cp envision_chunker.py /your/project/rag/core/
+- 📑 **Groupement par sections** - Respecte les frontières logiques du code
+- 🔗 **Relations sémantiques** - Groupe les blocs liés (assignments, dépendances)
+- 🎯 **Priorisation intelligente** - Ordre logique des types de blocs
+- 📏 **Contrôle de taille** - Limites de tokens configurables
+- 🔄 **Chevauchement intelligent** - Préservation du contexte entre chunks
 
-# Install dependencies
-pip install tiktoken  # For accurate token counting
-```
-
-### Requirements
-
-- Python 3.7+
-- `tiktoken` (optional, for accurate token counting)
-- Standard library: `re`, `logging`, `dataclasses`, `enum`
-
----
-
-## Quick Start
-
-### Basic Usage
+#### ⚙️ Configuration
 
 ```python
-from rag.parsers.envision_parser import EnvisionParser
-from rag.core.envision_chunker import EnvisionChunker, parse_and_chunk_file
+config = {
+    "chunking": {
+        "strategies": {
+            "group_by_section": true,              # Grouper par sections
+            "group_related_assignments": true,     # Grouper assignments liés
+            "keep_read_statements_separate": true, # READ séparés
+            "include_context_comments": true       # Inclure commentaires
+        },
+        "block_priorities": {
+            "comment_block": 1,
+            "read_statement": 2,
+            "table_definition": 3,
+            "assignment": 4,
+            "show_statement": 5
+        }
+    }
+}
+```
 
-# Method 1: Parse and chunk in one step
-blocks, chunks = parse_and_chunk_file("script.nvn")
+#### 💻 Utilisation
 
-# Method 2: Step by step
-parser = EnvisionParser()
-blocks = parser.parse_file("script.nvn")
+```python
+from rag.chunkers import SemanticChunker
 
-chunker = EnvisionChunker()
-chunks = chunker.chunk_blocks(blocks)
+# Initialisation
+chunker = SemanticChunker(config)
 
-# Access results
+# Découpage sémantique
+chunks = chunker.chunk_blocks(code_blocks)
+
+# Chaque chunk préserve la cohérence sémantique
+for chunk in chunks:
+    print(f"Section: {chunk.metadata.get('section')}")
+    print(f"Tokens: {chunk.size_tokens}")
+    print(f"Dépendances: {chunk.dependencies}")
+```
+
+---
+
+### 2. 🎭 EnvisionChunker
+
+**Chunker spécialisé Envision DSL** - Découpage avec chevauchement pour scripts complexes
+
+#### ✨ Fonctionnalités
+
+- 📏 **Découpage adaptatif** - Taille fixe avec chevauchement
+- 🔄 **Overlap intelligent** - Contexte préservé entre chunks
+- 📊 **Suivi des dépendances** - Métadonnées complètes pour RAG
+- 🎯 **Optimisé Envision** - Compréhension du DSL Lekiosque
+- ⚡ **Performance** - Traitement efficace des gros fichiers
+
+#### ⚙️ Configuration
+
+```python
+config = {
+    "chunking": {
+        "overlap_lines": 3,                    # Lignes de chevauchement
+        "max_tokens": 512,                     # Taille max par chunk
+        "min_chunk_size": 100                  # Taille min acceptable
+    }
+}
+```
+
+#### 💻 Utilisation
+
+```python
+from rag.chunkers.envision_chunker import EnvisionChunker
+
+# Initialisation
+chunker = EnvisionChunker(config)
+
+# Découpage avec overlap
+chunks = chunker.chunk_blocks(code_blocks)
+
+# Analyse des résultats
 for chunk in chunks:
     print(f"Chunk {chunk.chunk_id}:")
-    print(f"  Lines: {chunk.get_line_range()}")
+    print(f"  Plage lignes: {chunk.get_line_range()}")
     print(f"  Tokens: {chunk.size_tokens}")
-    print(f"  Dependencies: {chunk.dependencies}")
-    print(f"  Definitions: {chunk.definitions}")
+    print(f"  Chevauchement: {chunk.overlap_info}")
 ```
 
-### Configuration
+---
+
+## 🏗️ Architecture commune
+
+Tous les chunkers héritent de `BaseChunker` et suivent l'interface standardisée :
+
+### 🔧 Interface unifiée
 
 ```python
-from config_manager import get_config
+class BaseChunker:
+    def __init__(self, config: Dict[str, Any]): ...
+    def chunk_blocks(self, blocks: List[CodeBlock]) -> List[CodeChunk]: ...
+    def _adjust_chunk_sizes(self, chunks: List[CodeChunk]) -> List[CodeChunk]: ...
+```
 
-# Configure via config file
-config = get_config()
-config.set('chunker.max_chunk_tokens', 768)
-config.set('chunker.overlap_lines', 5)
+### 📦 Structure des données
 
-# Or pass directly
-chunker = EnvisionChunker({
-    'max_chunk_tokens': 768,
-    'overlap_lines': 5,
-    'preserve_boundaries': True
-})
+#### CodeBlock (entrée)
+```python
+@dataclass
+class CodeBlock:
+    content: str
+    block_type: BlockType
+    line_start: int
+    line_end: int
+    metadata: Dict[str, Any]
+```
+
+#### CodeChunk (sortie)
+```python
+@dataclass
+class CodeChunk:
+    content: str
+    chunk_id: str
+    size_tokens: int
+    dependencies: Set[str]
+    definitions: Set[str]
+    metadata: Dict[str, Any]
+```
+
+---
+
+## 🔄 Intégration dans le pipeline
+
+Les chunkers s'intègrent parfaitement dans le workflow RAG :
+
+### 📋 Workflow complet
+
+1. **📄 Parsing** - Analyse lexicale et extraction des blocs
+2. **✂️ Chunking** - Découpage sémantique intelligent
+3. **🔮 Embedding** - Transformation vectorielle
+4. **💾 Indexation** - Stockage avec métadonnées
+5. **🔍 Recherche** - Récupération contextuelle
+
+### 🎯 Choix du chunker
+
+| Cas d'usage | Recommandation | Avantages | Utilisation |
+|-------------|----------------|-----------|-------------|
+| **Scripts complexes** | SemanticChunker | 🧠 Cohérence sémantique, 📑 Sections | Scripts métier volumineux |
+| **DSL spécialisé** | EnvisionChunker | 🎭 Overlap intelligent, 📊 Métadonnées | Scripts Envision (.nvn) |
+| **Gros volumes** | SemanticChunker | ⚡ Performance, 🔗 Relations | Traitement par lots |
+| **Précision max** | EnvisionChunker | 🎯 Contrôle fin, 🔄 Contexte | Analyse détaillée |
+
+---
+
+## 📦 Dépendances
+
+### 🔧 Modules internes
+
+- `rag.core.base_chunker` - Classe de base abstraite
+- `rag.core.base_parser` - Gestion des blocs de code
+- `get_mapping` - Mapping fichiers/tables
+- `config_manager` - Configuration centralisée
+
+### 📚 Bibliothèques externes
+
+- **`tiktoken`** - Comptage précis des tokens (optionnel)
+- **Standard library** - `re`, `logging`, `dataclasses`
+
+---
+
+## ⚙️ Configuration avancée
+
+### Stratégies de groupement
+
+```python
+# Configuration complète
+config = {
+    "chunking": {
+        "max_chunk_size": 512,           # Tokens maximum
+        "min_chunk_size": 50,            # Tokens minimum
+        "overlap_lines": 3,              # Lignes de chevauchement
+
+        "strategies": {
+            "group_by_section": true,         # Grouper par sections
+            "group_related_assignments": true,# Assignments liés ensemble
+            "keep_read_statements_separate": true, # READ séparés
+            "include_context_comments": true  # Commentaires contextuels
+        },
+
+        "block_priorities": {            # Ordre de priorité
+            "comment_block": 1,
+            "read_statement": 2,
+            "table_definition": 3,
+            "assignment": 4,
+            "show_statement": 5
+        }
+    }
+}
+```
+
+### Métriques de performance
+
+- **📊 Précision** : ~95% de détection des dépendances
+- **⚡ Vitesse** : Traitement de 1000+ lignes/seconde
+- **🔄 Cohérence** : Préservation des relations sémantiques
+- **📏 Contrôle** : Limites de taille strictes
+
+---
+
+## 🔧 Extension pour nouveaux chunkers
+
+Pour ajouter un nouveau chunker spécialisé :
+
+```python
+from rag.core.base_chunker import BaseChunker
+from typing import List
+
+class CustomChunker(BaseChunker):
+    def chunk_blocks(self, blocks: List[CodeBlock]) -> List[CodeChunk]:
+        # Logique de découpage personnalisée
+        chunks = []
+        # ... implémentation ...
+        return chunks
+```
+
+Puis ajouter au `__init__.py` :
+```python
+from rag.chunkers.custom_chunker import CustomChunker
+
+__all__ = ["SemanticChunker", "CustomChunker"]
+```
+
+---
+
+## 📊 Métriques et monitoring
+
+### Indicateurs clés
+
+- **Taille moyenne des chunks** : Distribution des tokens
+- **Taux de chevauchement** : Efficacité du contexte
+- **Cohérence sémantique** : Préservation des relations
+- **Performance** : Vitesse de traitement
+
+### Debugging
+
+```python
+# Analyse détaillée des chunks
+for i, chunk in enumerate(chunks):
+    print(f"Chunk {i}:")
+    print(f"  Taille: {chunk.size_tokens} tokens")
+    print(f"  Dépendances: {len(chunk.dependencies)}")
+    print(f"  Métadonnées: {chunk.metadata}")
+
+# Validation des contraintes
+assert all(c.size_tokens <= max_tokens for c in chunks)
+assert all(c.size_tokens >= min_tokens for c in chunks)
 ```
 
 ---
