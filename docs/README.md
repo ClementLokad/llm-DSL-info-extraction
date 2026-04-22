@@ -1,4 +1,7 @@
-# Envision — Projet Scientifique Collectif X24
+# PSC INF01 X24 : LLM pour l'extraction d'information dans un DSL : Cas de Envision (LOKAD)
+
+## Envision Copilot
+
 
 ## Titre du sujet
 
@@ -80,5 +83,4 @@ Les pages complémentaires du site détaillent :
 
 - le cadrage du problème ;
 - la méthodologie technique ;
-- les progrès réalisés depuis le rapport intermédiaire ;
-- les principales références administratives et techniques.
+- les progrès réalisés depuis le rapport intermédiaire.
