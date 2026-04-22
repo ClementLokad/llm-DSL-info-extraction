@@ -6,7 +6,7 @@ The `grep_tool` enables exact text searches across all project files.
 While RAG searches by meaning, the `grep_tool` searches by exact character strings. It is used by the agent to precisely locate variables, constants, or specific function calls when the name or pattern is known.
 
 ## 📂 Technical Details
-- **Source Code**: [`grep_tool.py`](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/envision/pipeline/agent_workflow/grep_tool.py)
+- **Source Code**: [`grep_tool.py`](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/pipeline/agent_workflow/grep_tool.py)
 - **Operation**: Recursive filesystem traversal filtering for `.nvn` extensions and block types (table, variable, etc.).
 
 ## 💡 Concrete Examples

@@ -6,14 +6,14 @@ The `rag_tool` is the interface between the agent and the project's vector knowl
 This tool allows the agent to perform semantic searches across technical documentation and Envision source code. It is essential for understanding business concepts and complex DSL syntax without requiring exact matches.
 
 ## 🏛️ Integration
-The `rag_tool` relies directly on the data pipeline located in the **[`rag/`](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/envision/rag/)** directory.
+The `rag_tool` relies directly on the data pipeline located in the **[`rag/`](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/rag/)** directory.
 This pipeline handles:
 - **Parsing** of source files.
 - **Hybrid Chunking** (strategy optimized for code).
 - **Indexing** in a vector database (Qdrant/FAISS).
 
 ## 📂 Technical Details
-- **Source Code**: [`rag_tool.py`](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/envision/pipeline/agent_workflow/rag_tool.py)
+- **Source Code**: [`rag_tool.py`](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/pipeline/agent_workflow/rag_tool.py)
 - **Logic**: Receives a natural language query, transforms it into an embedding, and retrieves the most relevant chunks.
 
 ## 💡 Concrete Examples

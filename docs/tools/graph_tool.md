@@ -6,14 +6,14 @@ The `graph_tool` allows the agent to navigate the structural dependencies of the
 This tool is used to answer questions about the structure and impact of changes (e.g., "Which scripts read this file?", "What are the dependencies of this module?"). It complements the RAG (semantic) and Grep (lexical) tools by providing a topological map of the project.
 
 ## 🛠️ Integration
-This tool leverages the API developed in the **[`env_graph/`](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/envision/env_graph/)** directory.
+This tool leverages the API developed in the **[`env_graph/`](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/env_graph/)** directory.
 The graph engine:
 - Statically analyzes Envision scripts (`.nvn`).
 - Builds a directed dependency graph (file I/O, imports, definitions).
 - Provides a fast interface for the agent to skip irrelevant files.
 
 ## 📂 Technical Details
-- **Source Code**: [`graph_tool.py`](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/envision/pipeline/agent_workflow/graph_tool.py)
+- **Source Code**: [`graph_tool.py`](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/pipeline/agent_workflow/graph_tool.py)
 - **Capacities**: 
   - `tree`: Explore folder/file hierarchy (scripts or data).
   - `node`: Get detailed metadata for a specific node (script, function, table).
