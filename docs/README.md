@@ -9,7 +9,7 @@ The system is built as a multi-tool agent capable of planning and executing comp
 
 - **[Full Architecture](architecture.md)**: Global overview of the ReAct pipeline and feedback loops.
 - **[Semantic Pipeline (RAG)](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/rag/)**: The underlying engine for semantic indexing and retrieval. Detailed usage: **[RAG Tool](tools/rag_tool.md)**.
-- **[Structural Engine (env_graph)](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/env_graph/)**: Static analysis layer for building the dependency graph. Detailed usage: **[Graph Tool](tools/graph_tool.md)**.
+- **[Structural Engine (Graph)](https://github.com/ClementLokad/llm-DSL-info-extraction/tree/main/env_graph/)**: Static analysis layer for building the dependency graph. Detailed usage: **[Graph Tool](tools/graph_tool.md)**.
 
 ## 🛠️ Primary Agentic Tools
 The agent uses a combination of three specialized tools to solve user queries:
