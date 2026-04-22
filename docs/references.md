@@ -5,20 +5,29 @@
 - `Livret_PSCX24.pdf`
 - `PSC_Rapport_Intermediaire_X24.pdf`
 
-## Sources internes au projet
+## Sources du rapport final local
 
-- `README.md` (vue d'ensemble du projet)
-- `main.py` (point d'entree principal et modes d'execution)
-- `pipeline/agent_workflow/agentic_pipeline.py` (orchestration agentique)
-- `pipeline/agent_workflow/concrete_workflow.py` (planificateur et workflow d'appels d'outils)
-- `pipeline/agent_workflow/rag_tool.py` (logique de recherche semantique et hybride)
-- `pipeline/agent_workflow/grep_tool.py` (logique de recherche lexicale exacte)
-- `config.yaml` (configuration reproductible du systeme)
+- `docs/PSC Rapport Final/01_Introduction.tex`
+- `docs/PSC Rapport Final/02__Lokad_Envision_Context.tex`
+- `docs/PSC Rapport Final/03_Architecture_Technique.tex`
+- `docs/PSC Rapport Final/03__Grep_Tool.tex`
+- `docs/PSC Rapport Final/03__Graph_Tool.tex`
+- `docs/PSC Rapport Final/03__Rag_Tool.tex`
 
-## Socle de references scientifiques (issu du rapport intermediaire)
+## Sources techniques du projet
 
-- Fondements de l'architecture Transformer.
-- Litterature sur la Generation Augmentee par Recherche (RAG).
-- Analyse des hallucinations des LLM.
-- Methodologie d'evaluation LLM-as-a-Judge.
-- References sur la generation de DSL et l'ingenierie RAG.
+- `README.md`
+- `config.yaml`
+- `main.py`
+- `pipeline/agent_workflow/concrete_workflow.py`
+- `pipeline/agent_workflow/rag_tool.py`
+- `pipeline/agent_workflow/grep_tool.py`
+- `pipeline/agent_workflow/graph_tool.py`
+- `env_graph/api.py`
+- `env_graph/builder.py`
+- `rag/parsers/envision_parser.py`
+
+## Références externes principales
+
+- Site officiel Lokad : `https://www.lokad.com/`
+- Documentation Envision : `https://docs.lokad.com/`

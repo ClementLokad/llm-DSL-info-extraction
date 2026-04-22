@@ -1,29 +1,42 @@
 # Progres depuis le rapport intermediaire
 
-## Etat de reference au stade intermediaire
+## Ce qui etait deja pose
 
-Au stade intermediaire, le projet avait deja valide :
+Au stade intermédiaire, le projet avait déjà identifié :
 
-- le defi specifique au DSL et la necessite du RAG ;
-- les principes de recherche hybride ;
-- l'orchestration agentique initiale et le cadrage du benchmark.
+- la difficulté spécifique des DSL propriétaires pour les LLM ;
+- l'intérêt d'une recherche hybride ;
+- la nécessité d'une orchestration plus riche qu'une simple chaîne `question -> retrieval -> réponse`.
 
-## Progres observes sur la branche main
+## Ce qui a réellement évolué
 
-En se basant sur la branche main actuelle, l'implementation consolide et etend desormais l'architecture :
+Depuis ce stade, le projet s'est nettement structuré autour d'une architecture agentique plus aboutie.
 
-- workflow d'appel d'outils renforce avec logique de planification structuree ;
-- route explicite entre recherche conceptuelle et recherche exacte ;
-- raffinements de la recherche incluant reranking et scoring tenant compte de la source ;
-- etape de nettoyage des reponses avec contraintes de formatage strictes ;
-- variantes du pipeline de benchmark pour plusieurs modes d'evaluation ;
-- configuration operationnelle enrichie et support de changement de modele.
+Les principales évolutions sont les suivantes :
 
-## Ameliorations de maturite ingenierie
+- consolidation du planificateur et de la boucle d'appels d'outils ;
+- raffinement du RAG et de la recherche hybride ;
+- ajout d'un `grep_tool` plus précis, appuyé sur les blocs syntaxiques Envision ;
+- ajout d'un `graph_tool` capable de reconstruire explicitement les dépendances du dépôt ;
+- meilleure gestion des chemins logiques via le mapping et les outils de navigation ;
+- amélioration du benchmarking et du contrôle qualité.
 
-Le projet presente desormais des traits de maturite plus proches de la production :
+## Changement de maturité
 
-- modularisation plus claire (`pipeline`, `rag`, `agents`) ;
-- controles d'execution configurables (comportement latence/debit) ;
-- meilleure tracabilite de l'execution et de l'agregation de preuves ;
-- controles de coherence ameliores dans les boucles de generation iterative.
+Le projet est passé d'un prototype centré sur le retrieval à un système plus cohérent au niveau ingénierie :
+
+- séparation plus nette des outils ;
+- configuration centralisée ;
+- pipeline agentique modulaire ;
+- meilleure traçabilité des preuves collectées ;
+- premiers garde-fous contre certaines hallucinations dans les réponses finales.
+
+## Enjeu actuel
+
+L'enjeu n'est plus seulement de retrouver un extrait pertinent, mais de permettre au système de choisir la bonne stratégie d'exploration selon la question :
+
+- sémantique ;
+- lexicale ;
+- structurelle.
+
+C'est ce basculement qui marque la principale différence entre l'état intermédiaire et l'état actuel du projet.

@@ -1,29 +1,56 @@
 # Etat de l'art
 
-## Cadrage du probleme
+## Le problème de départ
 
-Les grands modeles de langage (LLM) sont efficaces sur les langages de programmation courants mais
-significativement moins fiables sur les DSL proprietaires. Dans ces contextes, les sorties du modele
-peuvent etre fluides tout en etant syntaxiquement ou semantiquement invalides.
+Les LLM sont très performants sur les langages généralistes présents massivement sur le web, mais cette force se dégrade rapidement sur des DSL propriétaires.
 
-## Approches de reference
+Dans un tel contexte, le modèle peut produire une réponse fluide tout en :
 
-- **Approche par prompt uniquement :** cout faible, mais peu fiable pour les conventions DSL inconnues.
-- **Fine-tuning :** potentiellement performant mais couteux, lent a mettre a jour et rigide operationnellement.
-- **Approche RAG :** adaptative et plus facile a maintenir quand le code source et la documentation evoluent.
+- inventant des chemins de fichiers ;
+- confondant des conventions locales ;
+- perdant la structure réelle du projet ;
+- mélangeant logique métier et hypothèses plausibles.
 
-## Limites du RAG naif
+## Pourquoi ne pas utiliser uniquement le prompting
 
-La recherche vectorielle pure est efficace pour la proximite conceptuelle mais faible pour la recherche
-exacte au niveau des symboles. Pour les taches d'ingenierie DSL, les contraintes lexicales exactes sont
-souvent obligatoires.
+Une stratégie fondée seulement sur un bon prompt reste trop fragile.
 
-## Direction agentique
+Elle peut fonctionner sur des questions simples, mais elle devient vite insuffisante lorsqu'il faut :
 
-Les paradigmes agentiques recents ameliorent la robustesse en combinant :
+- retrouver un identifiant exact ;
+- lier plusieurs scripts ;
+- suivre un flux de données ;
+- raisonner sur un dépôt long et structuré.
 
-- selection d'outils ;
-- planification iterative et retour en arriere ;
-- synthese fondee sur les preuves avant emission de la reponse finale.
+## Limites d'un RAG naïf
 
-Cela motive l'architecture hybride et agentique adoptee dans Envision.
+La recherche vectorielle seule apporte une bonne proximité sémantique, mais elle n'est pas suffisante pour des besoins d'ingénierie précis.
+
+Elle répond mal :
+
+- aux recherches exactes sur symboles ;
+- aux chemins de fichiers ;
+- aux occurrences syntaxiques précises ;
+- aux questions structurelles sur les dépendances du dépôt.
+
+## Vers une architecture hybride
+
+Notre direction de travail a donc consisté à combiner plusieurs formes de recherche :
+
+- **sémantique** pour la logique métier et les concepts ;
+- **lexicale** pour les identifiants et motifs exacts ;
+- **structurelle** pour les relations entre scripts, données, tables et fonctions.
+
+Cette hybridation permet d'éviter qu'un seul paradigme de recherche devienne le point faible du système.
+
+## Pourquoi une boucle agentique
+
+Même avec plusieurs outils, une seule passe ne suffit pas toujours.
+
+Les approches agentiques récentes sont intéressantes car elles permettent :
+
+- de choisir l'outil adapté à la question ;
+- d'itérer lorsqu'une première recherche est insuffisante ;
+- de fonder la réponse finale sur des preuves collectées progressivement.
+
+Dans notre projet, cette logique est particulièrement pertinente car la base de code Envision possède une structure riche, mais aussi coûteuse à explorer intégralement en une seule fois.

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#2b2b2b"/>
+    </marker>
+    <style>
+      .title { font: 700 28px 'Segoe UI', Arial, sans-serif; fill: #102a43; }
+      .label { font: 600 20px 'Segoe UI', Arial, sans-serif; fill: #102a43; }
+      .body { font: 400 16px 'Segoe UI', Arial, sans-serif; fill: #243b53; }
+      .small { font: 400 15px 'Segoe UI', Arial, sans-serif; fill: #334e68; }
+      .box { rx: 18; ry: 18; stroke-width: 2.5; }
+      .arrow { stroke: #2b2b2b; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1200" height="620" fill="#f8fbff"/>
+  <text x="600" y="46" text-anchor="middle" class="title">Architecture publique du PSC Envision</text>
+
+  <rect class="box" x="70" y="220" width="210" height="105" fill="#d9efff" stroke="#4f9bd9"/>
+  <text x="175" y="255" text-anchor="middle" class="label">Question</text>
+  <text x="175" y="285" text-anchor="middle" class="body">demande utilisateur</text>
+  <text x="175" y="308" text-anchor="middle" class="body">sur un projet Envision</text>
+
+  <rect class="box" x="360" y="205" width="235" height="135" fill="#e9f7ef" stroke="#57b26a"/>
+  <text x="477" y="243" text-anchor="middle" class="label">Planner LLM</text>
+  <text x="477" y="273" text-anchor="middle" class="body">choisit l'outil</text>
+  <text x="477" y="296" text-anchor="middle" class="body">et itère si nécessaire</text>
+
+  <rect class="box" x="700" y="80" width="205" height="100" fill="#fff0d9" stroke="#dd9b3c"/>
+  <text x="802" y="118" text-anchor="middle" class="label">RAG tool</text>
+  <text x="802" y="146" text-anchor="middle" class="small">questions conceptuelles</text>
+
+  <rect class="box" x="700" y="245" width="205" height="100" fill="#ffe6e6" stroke="#d96b6b"/>
+  <text x="802" y="283" text-anchor="middle" class="label">Grep tool</text>
+  <text x="802" y="311" text-anchor="middle" class="small">identifiants et motifs exacts</text>
+
+  <rect class="box" x="700" y="410" width="205" height="100" fill="#ece8ff" stroke="#7c6bd9"/>
+  <text x="802" y="448" text-anchor="middle" class="label">Graph tool</text>
+  <text x="802" y="476" text-anchor="middle" class="small">dépendances structurelles</text>
+
+  <rect class="box" x="980" y="205" width="155" height="135" fill="#f0f4f8" stroke="#627d98"/>
+  <text x="1057" y="243" text-anchor="middle" class="label">Preuves</text>
+  <text x="1057" y="273" text-anchor="middle" class="body">chunks, extraits,</text>
+  <text x="1057" y="296" text-anchor="middle" class="body">relations, chemins</text>
+
+  <rect class="box" x="980" y="470" width="155" height="95" fill="#d9f7e8" stroke="#4eaf72"/>
+  <text x="1057" y="508" text-anchor="middle" class="label">Réponse</text>
+  <text x="1057" y="536" text-anchor="middle" class="body">finale fondée</text>
+
+  <path class="arrow" d="M280 272 L360 272"/>
+  <path class="arrow" d="M595 272 L700 130"/>
+  <path class="arrow" d="M595 272 L700 295"/>
+  <path class="arrow" d="M595 272 L700 460"/>
+  <path class="arrow" d="M905 130 L980 245"/>
+  <path class="arrow" d="M905 295 L980 272"/>
+  <path class="arrow" d="M905 460 L980 300"/>
+  <path class="arrow" d="M1057 340 L1057 470"/>
+  <path class="arrow" d="M980 250 C920 250, 920 170, 595 170"/>
+  <text x="700" y="160" text-anchor="middle" class="small">retour de preuves vers le planificateur</text>
+
+  <text x="600" y="595" text-anchor="middle" class="small">Le système choisit le bon mode de recherche au lieu de s'appuyer sur une seule technique uniforme.</text>
+</svg>

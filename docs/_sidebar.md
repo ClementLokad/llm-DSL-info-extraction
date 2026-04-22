@@ -2,13 +2,12 @@
 
 - **Page publique**
   - [Accueil](README.md)
-  - [Objectif](README.md#objectif)
-  - [Approche](README.md#approche)
-  - [Resultats](README.md#resultats)
   - [Illustration](README.md#illustration)
+  - [Démarche](README.md#demarche)
+  - [Résultats principaux](README.md#resultats-principaux)
 
 - **Approfondissements**
   - [Etat de l'art](etat-de-lart.md)
   - [Methodologie](methodologie.md)
-  - [Progres depuis le rapport intermediaire](progres-depuis-rapport-intermediaire.md)
+  - [Progrès depuis le rapport intermediaire](progres-depuis-rapport-intermediaire.md)
   - [References](references.md)

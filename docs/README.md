@@ -1,96 +1,84 @@
 # Envision — Projet Scientifique Collectif X24
 
-## Titre du projet
+## Titre du sujet
 
-**Architecture agentique et hybride pour l'extraction de connaissances sur des bases de code proprietaires (Envision)**
+**Architecture agentique et hybride pour l'extraction de connaissances sur une base de code propriétaire Envision**
 
 ## Composition du groupe
 
-- Degot-Silvestre Gaetan
+- Dégot-Silvestre Gaétan
 - Dorchies Yoan
 - Kamdem Ivann
-- Thebault Guilhem
+- Thébault Guilhem
 - Guediche Adam
 
-## Objectif
+## Partenaire
 
-Le projet traite d'une limitation pratique des grands modeles de langage (LLM) dans les contextes industriels :
-les langages specifiques au domaine (DSL) proprietaires ne figurent pas dans les corpus d'entrainement publics
-et provoquent des hallucinations frequentes.
+Le projet est mené en lien avec **Lokad**, entreprise spécialisée dans l'optimisation quantitative de la supply chain.  
+Le code étudié repose sur **Envision**, un DSL propriétaire utilisé pour construire des applications métier de prévision, d'approvisionnement, d'allocation et de pilotage opérationnel.
 
-L'objectif est de concevoir et evaluer un assistant robuste capable de repondre a des questions techniques
-sur la base de code Envision de Lokad en combinant :
+## Problématique
 
-- recherche semantique pour les questions conceptuelles ;
-- recherche lexicale exacte pour les identifiants, variables et chemins ;
-- orchestration agentique pour iterer jusqu'a collecte suffisante de preuves.
+Les grands modèles de langage sont très performants sur les langages de programmation standards, mais ils restent fragiles lorsqu'ils sont confrontés à un DSL propriétaire peu représenté dans leurs corpus d'entraînement.
 
-## Approche
+Dans notre cas, la difficulté est double :
 
-Le systeme repose sur une architecture hybride et agentique :
+- **le langage lui-même est spécialisé** : Envision mélange manipulation tabulaire, logique procédurale contrainte et primitives de restitution métier ;
+- **les données sont confidentielles** : il n'est pas envisageable d'exposer librement l'ensemble du dépôt et des données client à un assistant grand public.
 
-- **Preparation des donnees :** parser et chunking semantique adaptes aux scripts Envision.
-- **Recherche hybride :** route combinant recherche vectorielle (conceptuelle) et recherche GREP (exacte) pour reduire faux positifs et faux negatifs.
-- **Orchestration agentique :** workflow en boucle pour planification, recherche, synthese et verification.
-- **Evaluation :** approche benchmark-first avec metriques de qualite et operationnelles (similarite, LLM-as-a-Judge, latence).
+Notre objectif est donc de construire un assistant capable de **retrouver, relier et expliquer** des éléments pertinents d'un projet Envision réel, tout en gardant localement le contrôle sur les données et sur la recherche d'information.
 
-## Resultats
+## Demarche
 
-L'implementation finale inclut :
+Le système final repose sur une architecture **hybride et agentique**.
 
-- pile de recherche hybride (recherche vectorielle + recherche par grep) ;
-- routage de requetes entre modes de recherche conceptuel et exact ;
-- workflow agentique avec raisonnement iteratif et appels d'outils ;
-- pipeline de benchmarking et de notation ;
-- mode d'interaction live avec memoire persistante et compaction de contexte ;
-- execution pilotee par configuration et support multi-modeles.
+### 1. Préparer le code pour la recherche
+
+Les scripts Envision sont d'abord parsés en blocs syntaxiques cohérents afin d'éviter un découpage destructeur du code.  
+Cette préparation alimente plusieurs outils complémentaires.
+
+### 2. Combiner trois modes de recherche
+
+- **RAG tool** : recherche sémantique pour les questions conceptuelles et les liens métier diffus.
+- **Grep tool** : recherche lexicale exacte pour les identifiants, les chemins et les motifs syntaxiques précis.
+- **Graph tool** : graphe de dépendances structurelles entre scripts, données, tables et fonctions.
+
+### 3. Orchestrer ces outils dans une boucle agentique
+
+Un planificateur sélectionne l'outil le plus adapté, observe le résultat obtenu, puis décide soit de répondre, soit de poursuivre l'exploration avec une nouvelle requête plus ciblée.
+
+Cette boucle rapproche le comportement du système de celui d'un développeur humain qui navigue progressivement dans une base de code complexe.
+
+## Resultats principaux
+
+Le prototype actuel permet :
+
+- de répondre à des questions techniques sur un dépôt Envision réel ;
+- de distinguer les besoins de recherche sémantique, lexicale et structurelle ;
+- de réduire certaines hallucinations grâce à une recherche guidée par preuves ;
+- de benchmarker le système automatiquement sur un jeu de questions/réponses ;
+- d'opérer sur une base locale, sans exposition brute de l'ensemble des données au modèle.
+
+Le projet a progressivement évolué d'un moteur de recherche assisté vers une **architecture agentique modulaire**, plus robuste pour l'exploration de DSL industriels.
 
 ## Illustration
 
-*Figure 2 — Architecture du flux agentique implemente avec LangGraph*
+L'illustration suivante résume la logique de la solution implémentée.
 
-```
-  ┌───────────────────┐
-  │ Question          │
-  │ Utilisateur       │
-  └─────────┬─────────┘
-            │
-  ┌─────────▼─────────┐
-  │ Agent             │
-  │ Planificateur     │
-  └─────────┬─────────┘
-            │
-  ┌─────────▼─────────┐
-  │ Besoin d'info ?   │◄─────────────────┐
-  └───┬───────────┬───┘                  │
-      │           │                      │
-   Exact       Concept                   │
-      │           │                      │
-  ┌───▼───┐   ┌───▼───┐                 │
-  │ Outil │   │ Outil │                 │
-  │ GREP  │   │  RAG  │                 │
-  └───┬───┘   └───┬───┘                 │
-      │           │                      │
-  ┌───▼───────────▼───┐                 │
-  │ Agregation        │                 │
-  │ Contexte          │                 │
-  └─────────┬─────────┘                 │
-            │                            │
-  ┌─────────▼─────────┐                 │
-  │ Generation        │                 │
-  │ Reponse           │                 │
-  └─────────┬─────────┘                 │
-            │                            │
-  ┌─────────▼─────────┐    Insuffisant  │
-  │ Verification      ├────────────────►┘
-  └─────────┬─────────┘
-            │ Suffisant
-  ┌─────────▼─────────┐
-  │ Reponse Finale    │
-  └───────────────────┘
-```
+![Architecture publique du projet](assets/psc-public-page-architecture.svg)
 
-## Depot du projet
+*Figure — Le planificateur choisit entre recherche sémantique, lexicale et structurelle, puis agrège les preuves avant génération de la réponse finale.*
 
-- Code source : [github.com/ClementLokad/llm-DSL-info-extraction](https://github.com/ClementLokad/llm-DSL-info-extraction)
+## Depots et livrables
+
+- Dépôt principal : [github.com/ClementLokad/llm-DSL-info-extraction](https://github.com/ClementLokad/llm-DSL-info-extraction)
 - Page publique : [kpihx.github.io/envision-copilot-presentation](https://kpihx.github.io/envision-copilot-presentation/)
+
+## Navigation
+
+Les pages complémentaires du site détaillent :
+
+- le cadrage du problème ;
+- la méthodologie technique ;
+- les progrès réalisés depuis le rapport intermédiaire ;
+- les principales références administratives et techniques.

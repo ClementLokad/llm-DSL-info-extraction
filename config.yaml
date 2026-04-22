@@ -10,7 +10,7 @@
 # =============================================================================
 agent:
   # Default agent to use for queries
-  default_model: "deepseek-v3"  # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
+  default_model: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
   # Delay in seconds between LLM calls to avoid rate limits (0 = disabled)
   rate_limit_delay: 2
 
@@ -21,8 +21,8 @@ rag:
   # Number of top relevant chunks to retrieve for each query
   top_k_chunks: 5
   rerank_multiplier: 10
-  
-  fusion: False  # Whether to use RAG fusion strategy
+
+  fusion: False # Whether to use RAG fusion strategy
 
 # =============================================================================
 # GLOBAL FILE AND DIRECTORY CONSTANTS
@@ -34,16 +34,16 @@ paths:
   # debug_dir: "debug"
   # profiles_dir: "profiles"
   data_dir: "data"
-  
+
   # Source directories for processing
-  input_dirs: ["env_scripts"]  # Default directories to process for indexing and testing
-  test_dirs: ["env_scripts"]   # Directories used for testing components
-  
-  mapping_path: "mapping.txt"  # Path to file ID to original path mapping file
-  
+  input_dirs: ["env_scripts"] # Default directories to process for indexing and testing
+  test_dirs: ["env_scripts"] # Directories used for testing components
+
+  mapping_path: "mapping.txt" # Path to file ID to original path mapping file
+
   # File extensions
   # log_extension: ".log"
-  pickle_extension: ".pkl" 
+  pickle_extension: ".pkl"
   index_extension: ".index"
   json_extension: ".json"
   csv_extension: ".csv"
@@ -86,10 +86,10 @@ parser:
 # =============================================================================
 chunker:
   type: "envision"
-  
+
   # Core chunking parameters (all numeric values externalized)
   max_chunk_tokens: 512
-  overlap_lines: 2    # Line-based overlap for split chunks (default: 2 lines)
+  overlap_lines: 2 # Line-based overlap for split chunks (default: 2 lines)
   min_overlap_lines: 2 # Minimum overlap between 2 chunks not separated by a section delimiter (default: 3 lines)
   chars_per_token: 4
 
@@ -98,8 +98,8 @@ chunker:
 # =============================================================================
 summarizer:
   summary_model: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
-  summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
-  raptor_summary_list_path: "data/chunk_summaries.json"  # Path to store chunk summaries
+  summary_list_path: "data/chunk_summaries.json" # Path to store chunk summaries
+  raptor_summary_list_path: "data/chunk_summaries.json" # Path to store chunk summaries
 
 # =============================================================================
 # QUERY TRANSFORMER CONFIGURATION
@@ -118,15 +118,15 @@ embedder:
   default_type: "qdrant" # Options: "qdrant", "sentence_transformer", "openai", "gemini"
 
   # Index type
-  index_type: "summary"  # Options: summary, full_chunk, raptor
-  
+  index_type: "summary" # Options: summary, full_chunk, raptor
+
   # Text preparation settings
   text_preparation:
-    chars_per_token_code: 3      # Code has more tokens per char than prose
-    truncation_ratio: 0.8       # Keep 80% of lines when truncating
-    min_lines_preserve: 1        # Always keep at least 1 line
-    max_variable_names: 3        # Limit variable names shown in context
-    max_table_names: 5           # Limit table names shown in context
+    chars_per_token_code: 3 # Code has more tokens per char than prose
+    truncation_ratio: 0.8 # Keep 80% of lines when truncating
+    min_lines_preserve: 1 # Always keep at least 1 line
+    max_variable_names: 3 # Limit variable names shown in context
+    max_table_names: 5 # Limit table names shown in context
 
   # Qdrant Embedder settings
   qdrant:
@@ -137,19 +137,19 @@ embedder:
     # Note: On Python 3.14+, the py_rust_stemmers library used by BM25 crashes with a segmentation fault.
     # We disable the stemmer here to prevent the crash, as a workaround.
     disable_stemmer: true
-  
+
   # Sentence Transformer settings
   sentence_transformer:
     model_name: "all-MiniLM-L6-v2"
-    model_path: "data/sentence_transformer"  # Local path to model if downloaded
-    device: "cpu"  # auto, cpu, cuda
-    trust_remote_code: false  # Security: only allow standard models
+    model_path: "data/sentence_transformer" # Local path to model if downloaded
+    device: "cpu" # auto, cpu, cuda
+    trust_remote_code: false # Security: only allow standard models
     normalize_embeddings: true
     batch_size: 32
     max_seq_length: 512
     show_progress_bar: true
     convert_to_numpy: true
-  
+
   # OpenAI embedder settings
   openai:
     model_name: "text-embedding-3-small"
@@ -157,7 +157,7 @@ embedder:
     batch_size: 100
     max_retries: 3
     timeout: 30
-  
+
   # Google/Gemini embedder settings
   gemini:
     model_name: "text-embedding-004"
@@ -171,12 +171,12 @@ embedder:
 # =============================================================================
 retriever:
   type: "qdrant"
-  
+
   # Index file names (all file constants externalized from global paths)
   files:
-    chunks_filename: "chunks"              # File storing the code chunks data (extension from paths.pickle_extension)
-    index_filename: "faiss"                # FAISS vector index file (extension from paths.index_extension)
-    metadata_filename: "metadata"          # Index metadata and configuration (extension from paths.pickle_extension)
+    chunks_filename: "chunks" # File storing the code chunks data (extension from paths.pickle_extension)
+    index_filename: "faiss" # FAISS vector index file (extension from paths.index_extension)
+    metadata_filename: "metadata" # Index metadata and configuration (extension from paths.pickle_extension)
 
   qdrant:
     collection_name: "codebase_rag"
@@ -186,11 +186,11 @@ retriever:
     rerank_multiplier: 5 # Multiplier for number of chunks to rerank between dense and sparse model on retrieval
     dense_threshold: 0.3 # Minimum similarity score for dense retrieval (0.0 to 1.0), 0.3 is a value found experimentally
     sparse_threshold: 2
-  
+
   # FAISS index settings
   faiss:
     # Index storage configuration
-    index_path: "./data/faiss_index"  # Directory where FAISS index files are stored
+    index_path: "./data/faiss_index" # Directory where FAISS index files are stored
     # =========================================================================
     # INDEX TYPE SELECTION
     # =========================================================================
@@ -209,21 +209,21 @@ retriever:
     #   * Pros: Very fast search, memory efficient
     #   * Cons: Slower index building, approximate results (~95-98%)
     #   * Best for: > 100K vectors, when speed is priority
-    index_type: "IndexFlatIP"  # Main index type setting
-    
+    index_type: "IndexFlatIP" # Main index type setting
+
     # =========================================================================
-    # SEARCH PARAMETERS 
+    # SEARCH PARAMETERS
     # =========================================================================
     # Number of most similar chunks to return per query
     # Higher values give more results but may include less relevant matches
     # Typical values: 5-20 for most applications
     top_k: 10
-    
+
     # Minimum similarity score threshold (0.0 to 1.0)
     # Only return chunks with similarity >= this value
     # 0.7 = good balance (strongly related), 0.5 = more permissive, 0.9 = very strict
     search_threshold: 0.7
-    
+
     # =========================================================================
     # PERFORMANCE SETTINGS
     # =========================================================================
@@ -231,7 +231,7 @@ retriever:
     # GPU can be 10-100x faster than CPU for large datasets
     # Set to false if no GPU available or for debugging
     use_gpu: true
-    
+
     # =========================================================================
     # IVF INDEX PARAMETERS (only used with IndexIVFFlat)
     # =========================================================================
@@ -240,13 +240,13 @@ retriever:
     # Rule of thumb: nprobe = nlist/10 for balanced performance
     # Examples: nprobe=1 (~80% accuracy), nprobe=10 (~95% accuracy)
     nprobe: 10
-    
+
     # Number of clusters to create during index building
     # Higher nlist = better clustering but more memory usage
     # Rule of thumb: nlist = sqrt(total_vectors) or 4*sqrt(total_vectors)
     # For 10K vectors: nlist=100, for 100K vectors: nlist=1000
     nlist: 100
-    
+
     # =========================================================================
     # HNSW INDEX PARAMETERS (only used with IndexHNSWFlat)
     # =========================================================================
@@ -255,13 +255,13 @@ retriever:
     # Must be >= top_k, typical values: 16-200
     # Can be optimized dynamically based on dataset size
     hnsw_ef_search: 64
-    
+
     # Number of bi-directional links for each node (build-time parameter)
     # Higher M = better accuracy but more memory usage
     # Typical values: 8-64, default 16 is good balance
     # More connections = better recall but larger index
     hnsw_m: 16
-    
+
     # Number of candidates during index construction (build-time parameter)
     # Higher ef_construction = better index quality but slower building
     # Should be >= M, typical values: 64-500
@@ -274,36 +274,36 @@ retriever:
 logging:
   version: 1
   disable_existing_loggers: false
-  
+
   formatters:
     standard:
       format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
       datefmt: "%Y-%m-%d %H:%M:%S"
-    
+
     detailed:
       format: "%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
       datefmt: "%Y-%m-%d %H:%M:%S"
-  
+
   handlers:
     console:
       class: logging.StreamHandler
       level: INFO
       formatter: standard
       stream: ext://sys.stdout
-    
+
     file:
       class: logging.FileHandler
       level: DEBUG
       formatter: detailed
-      filename: logs/preprocessing.log  # TODO: Use paths.logs_dir + "/preprocessing" + paths.log_extension
+      filename: logs/preprocessing.log # TODO: Use paths.logs_dir + "/preprocessing" + paths.log_extension
       mode: a
-  
+
   loggers:
     preprocessing:
       level: DEBUG
       handlers: [console, file]
       propagate: false
-  
+
   root:
     level: INFO
     handlers: [console]
@@ -323,7 +323,7 @@ main_pipeline:
     cleaning_llm: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
 
   answer_validation:
-    enabled: true
+    enabled: false
     max_retries: 3
     ignore_extension: true
     ignore_leading_slash: true
@@ -339,7 +339,7 @@ main_pipeline:
     case_sensitive: false
     max_lines: 150
     max_grep_retries: 4
-  
+
   rag_tool:
     advanced: true # requires qdrant embedder and retriever
     cross_encoding: true # Whether to use cross-encoder re-ranking after initial retrieval, works only with advanced RAG
@@ -347,7 +347,7 @@ main_pipeline:
     cross_encoder: "jinaai/jina-reranker-v2-base-multilingual"
     drop_off_ratio: 0.4 # Documents with less than drop_off_ratio*best_res relevance are discarded
     absolute_minimum: 0.15 # Documents with less than absolute_minimum relevance are discarded
-  
+
   graph_tool:
     config_path: "config.yaml"
     auto_build: true
@@ -359,24 +359,23 @@ main_pipeline:
   # Format: (max_depth, max_children)
   # We try these sequentially in tree_tool until one fits.
   tree_backoff_levels: [
-    [10, 50],   # Level 1: Practically everything
-    [5, 20],    # Level 2: Standard view
-    [3, 10],    # Level 3: Condensed
-    [2, 5],     # Level 4: Highly Condensed
-    [2, 3],     # Level 5: Mostly architecture
-    [1, 5],     # Level 6: Root folders only
-  ]
+      [10, 50], # Level 1: Practically everything
+      [5, 20], # Level 2: Standard view
+      [3, 10], # Level 3: Condensed
+      [2, 5], # Level 4: Highly Condensed
+      [2, 3], # Level 5: Mostly architecture
+      [1, 5], # Level 6: Root folders only
+    ]
   kickoff_tree_max_depth: 5 # Max depth for the initial tree view at kickoff
   kickoff_tree_max_children: 20 # Max children for the initial tree view at kickoff
   file_tree_max_tok: 1000
 
-    
 # =============================================================================
 # BENCHMARK CONFIGURATION
 # =============================================================================
 benchmark:
   benchmark_type: "hybrid_llm" # Choose the benchmark type: "cosine_similarity", "llm_as_a_judge", "llm_as_judge2", "hybrid", "hybrid_llm"
-  benchmark_model: "deepseek-v3"  # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
+  benchmark_model: "deepseek-v3" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1"
   benchmark_prompt: "You are a strict evaluator. When I give you a question and an LLM’s answer, you must output ONLY a single character: 1 if the answer is fully correct, or 0 if the answer is incorrect. Do NOT output explanations, chain-of-thought, tags, spaces, punctuation, or any extra text. If you output anything other than exactly 1 or 0, you have failed the task. Your entire reply must be exactly one character: 1 or 0."
   save_data: false
 

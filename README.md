@@ -1,270 +1,181 @@
-# 🚀 LLM DSL Information Extraction System
+# Envision PSC X24
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
-[![FAISS](https://img.shields.io/badge/FAISS-Vector_Search-green.svg)](https://faiss.ai)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Workflow-blueviolet.svg)](https://langchain-ai.github.io/langgraph/)
-[![AI](https://img.shields.io/badge/AI-GPT%20%7C%20Gemini%20%7C%20Mistral%20%7C%20Groq-orange.svg)](https://groq.com)
-[![PSC Presentation](https://img.shields.io/badge/PSC-Presentation%20Page-2ea44f.svg)](https://kpihx.github.io/envision-copilot-presentation/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://python.org)
+[![LangGraph](https://img.shields.io/badge/LangGraph-Agentic%20Workflow-blueviolet.svg)](https://langchain-ai.github.io/langgraph/)
+[![Qdrant](https://img.shields.io/badge/Retrieval-Qdrant%20%2B%20Grep%20%2B%20Graph-0ea5e9.svg)](https://qdrant.tech/)
+[![PSC Public Page](https://img.shields.io/badge/PSC-Public%20Page-22c55e.svg)](https://kpihx.github.io/envision-copilot-presentation/)
 
-> *Un système sophistiqué d'analyse et d'interrogation de code DSL utilisant l'IA sémantique et des workflows graphiques*
+> Hybrid and agentic knowledge-extraction system for Lokad's proprietary Envision DSL.
 
-## 🔗 PSC presentation page
+## Public deliverables
 
-- Presentation repository: [https://github.com/KpihX/envision-copilot-presentation](https://github.com/KpihX/envision-copilot-presentation)
-- Published page: [https://kpihx.github.io/envision-copilot-presentation/](https://kpihx.github.io/envision-copilot-presentation/)
+- Main repository: [github.com/ClementLokad/llm-DSL-info-extraction](https://github.com/ClementLokad/llm-DSL-info-extraction)
+- PSC public page: [kpihx.github.io/envision-copilot-presentation](https://kpihx.github.io/envision-copilot-presentation/)
 
----
+## Project overview
 
-## 🎯 Vue d'ensemble du projet
+This repository contains the final X24 PSC prototype built to answer technical questions on a real Envision codebase used at Lokad.
 
-Le **LLM DSL Information Extraction System** est une pipeline complète et modulaire conçue pour analyser, traiter et interroger intelligemment des codebases de langages spécifiques à un domaine (DSL), spécialement optimisée pour **Envision DSL** de Lokad.
+The core difficulty is that Envision is a proprietary DSL: a large model cannot be trusted to understand the language, the file conventions, or the project structure from pretraining alone. The system therefore relies on **evidence-driven retrieval** instead of direct free-form code interpretation.
 
-Le projet a évolué vers une architecture basée sur **LangGraph**, permettant des workflows complexes, la fusion RAG, et l'évaluation automatique.
+The final architecture combines:
 
-### 🔥 Fonctionnalités clés
+- **semantic retrieval** for conceptual and business questions;
+- **lexical retrieval** for exact paths, symbols, and syntax motifs;
+- **structural graph navigation** for dependencies between scripts, folders, functions, tables, and data files;
+- **an agentic loop** that decides which tool to use next based on the evidence already collected.
 
-- 🔍 **Parsing intelligent** - Analyse sémantique des fichiers `.nvn` (Envision DSL)
-- 🧩 **Chunking contextuel** - Segmentation intelligente préservant la cohérence
-- 🎯 **Recherche Hybride** - Combinaison de recherche vectorielle (FAISS) et syntaxique (GREP)
-- 🕸️ **Architecture LangGraph** - Workflows graphiques avec boucles de correction et logique conditionnelle
-- 🔄 **RAG Fusion** - Décomposition de requêtes complexes en sous-questions
-- 📊 **Benchmarking intégré** - Évaluation automatique par similarité cosinus
-- 🤖 **Agents IA multiples** - Support GPT-4, Gemini, Mistral et Groq avec rate limiting configurable
-- ⚙️ **Configuration externalisée** - Tous les paramètres dans `config.yaml`
-- 🛡️ **Validation légère des chemins cités** - En mode agentique, la réponse finale peut être relue pour vérifier que les chemins de scripts cités existent bien dans `mapping.txt`
+## Main capabilities
 
-### 📋 Prérequis
+- Parse Envision `.nvn` scripts into structured blocks.
+- Build semantic indexes over full chunks, summaries, or RAPTOR summaries.
+- Search exact code patterns through parsed Envision blocks with `grep_tool`.
+- Navigate script/data/function dependencies with `graph_tool`.
+- Run an agentic workflow with retries, tool routing, and final answer cleaning.
+- Benchmark the system with multiple judge modes.
+- Apply a lightweight non-blocking validation pass on cited script paths in final answers.
 
-- **Python 3.8+** avec pip et venv
-- **Fichiers Envision DSL** (`.nvn`) dans le dossier `env_scripts/`
-- **Clé API** pour au moins un agent (Mistral, GPT, Gemini ou Groq)
-- **~500MB RAM** pour l'index vectoriel
+## System architecture
 
----
+Two entry modes coexist:
 
-## 🏗️ Architecture système
+1. `python main.py`
+   Use the configured defaults for interactive or one-shot questioning.
+2. `python main.py --agentic`
+   Enable the full LangGraph-based workflow with tool routing and iterative evidence gathering.
 
-Le système propose options selon la complexité requise :
+The agentic stack currently revolves around these tools:
 
-1. **`main.py`** : Pipeline linéaire simple (Router → Retrieval → Generation).
-2. **`main.py --agentic`** : Workflow graphique avancé (RAG Fusion, Logic Checking, Grading).
+- `rag_tool`
+  Semantic retrieval on indexed Envision chunks.
+- `grep_tool`
+  Exact search on parsed Envision blocks, optionally filtered by source path and block type.
+- `graph_tool`
+  Structural navigation over the dependency graph built from scripts and data relationships.
+- `tree_tool`
+  Compact hierarchy view used to orient the planner before deeper searches.
+- `script_finder_tool`
+  Mapping-aware path recovery from numeric mirrored filenames.
 
-### 🕸️ Workflow LangGraph (`main.py`)
+## Lightweight answer validation
 
-```mermaid
-graph TD
-    Start([Start]) --> Router{Router}
-    Router -->|Semantic| Retrieve[Retrieve Documents]
-    Router -->|Syntactic| Grep[Grep Search]
-    Retrieve --> Engineer[Engineer Prompt]
-    Engineer --> Generate[Generate Answer]
-    Generate --> Check{Logic Check}
-    Check -->|Error| Engineer
-    Check -->|Valid| Grade[Grade Answer]
-    Grade --> End([End])
-  ```
+The agentic mode can include a first non-blocking validation layer configured in `main_pipeline.answer_validation` inside `config.yaml`.
 
-### 🛡️ Validation légère des sources citées
+Its current scope is intentionally narrow:
 
-Le mode agentique inclut une première couche très légère de validation de réponse finale, configurable dans `main_pipeline.answer_validation` dans `config.yaml`.
+- it validates only **script paths** cited in final answers;
+- it checks them against `mapping.txt`;
+- it tolerates missing leading slashes, extra spaces, missing extensions, and `.nvn` / `.nvm` confusion;
+- it can accept a unique partial suffix match;
+- if suspicious paths are detected, it triggers a short regeneration attempt before returning a warning section.
 
-- Cette V1 est volontairement **non bloquante**.
-- Elle vérifie uniquement les **chemins de scripts** cités par le LLM par rapport à `mapping.txt`.
-- Elle tolère quelques variations de forme : slash initial optionnel, espaces supplémentaires, extension absente, ou confusion `.nvn` / `.nvm`.
-- Elle peut aussi accepter un **suffixe partiel** s'il identifie un script de manière unique.
-- Si des chemins de scripts semblent invalides, le système tente une petite régénération ; après la limite de retries, la réponse est quand même rendue avec une section d'avertissement.
+Data files such as `.ion` or `.csv` are deliberately ignored in this V1 because `mapping.txt` only covers scripts. Proper validation of data paths should later rely on `env_graph`.
 
-Important : cette V1 **n'essaie pas encore de valider les chemins de fichiers de données** tels que `.ion` ou `.csv`, car `mapping.txt` ne référence que les scripts. Ces chemins de données devront à terme être validés via le graphe structurel (`env_graph` / `graph_tool`), qui connaît à la fois les scripts et les fichiers de données.
-
-### 📂 Structure du projet
+## Repository structure
 
 ```text
-llm-DSL-info-extraction/
-├── 🕸️ main.py                    # Interface avancée (Graph-based)
-├── 🔧 langgraph_base.py          # Définition du graphe et des états
-├── 🔨 build_index.py             # Construction d'index FAISS à base de chunks complets
-├── 🔨 build_summary_index.py             # Construction d'index FAISS à base de summaries
-├── ⚙️ config.yaml                # Configuration système
-├── 📄 requirements.txt           # Dépendances Python
-│
-├── 🤖 agents/                    # Agents IA (Mistral, Gemini, GPT, Groq)
-│
-├── 🔄 rag/                       # Pipeline RAG modulaire
-│   ├── 🏗️ core/                 # Interfaces de base
-│   ├── 📄 parsers/               # EnvisionParser
-│   ├── 🧩 chunkers/              # SemanticChunker
-│   ├── 🎯 embedders/             # SentenceTransformerEmbedder
-│   ├── 📖 summarizers/           # ChunkSummarizer
-│   └── 🔍 retrievers/            # FAISSRetriever & GrepRetriever
-│
-├── 📊 pipeline/benchmarks/       # Outils d'évaluation
-│   ├── 📐 cosine_sim_benchmark.py
-│   └── 🔍 llm_as_a_judge/
-│
-└── 📁 env_scripts/               # Fichiers sources .nvn
+envision/
+├── main.py
+├── config.yaml
+├── build_index.py
+├── build_summary_index.py
+├── build_raptor_index.py
+├── mapping.txt
+├── env_graph/
+├── pipeline/
+│   ├── agent_workflow/
+│   └── benchmarks/
+├── rag/
+│   ├── core/
+│   ├── parsers/
+│   ├── chunkers/
+│   ├── embedders/
+│   ├── summarizers/
+│   └── retrievers/
+├── env_scripts/
+├── docs/
+└── data/
 ```
 
----
+## Quick start
 
-## 🚀 Démarrage rapide
-
-### 1. 📦 Installation
+### 1. Install dependencies
 
 ```bash
-# Cloner le repository
-git clone https://github.com/ClementLokad/llm-DSL-info-extraction.git
+git clone git@github.com:ClementLokad/llm-DSL-info-extraction.git
 cd llm-DSL-info-extraction
-
-# Créer et activer l'environnement virtuel
-python -m venv env
-.\env\Scripts\Activate.ps1  # Windows PowerShell
-# source env/bin/activate    # Linux/Mac
-
-# Installer les dépendances
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. ⚙️ Configuration
+### 2. Configure the environment
 
-1. **API Keys** : Copiez `.env.example` vers `.env` et ajoutez vos clés.
-2. **config.yaml** : Configurez tous les paramètres souhaités avant lancement du modèle. Si vous utilisez des API gratuites (ex: Mistral), configurez le délai dans `config.yaml` :
+- Copy `.env.example` to `.env` and set the API keys you need.
+- Review `config.yaml` before running the pipeline.
 
-```yaml
-agent:
-  default_model: "groq"
-  rate_limit_delay: 1  # Pause de 1.5s entre les appels
-```
+Useful sections:
 
-### 3. 🔨 Construction de l'index
+- `agent`
+- `embedder`
+- `retriever`
+- `main_pipeline`
+- `benchmark`
+
+### 3. Build indexes
 
 ```bash
-# Construction de l'index normal avec embedding des chunks complets
 python build_index.py
+python build_summary_index.py
+python build_raptor_index.py
 ```
 
+### 4. Ask questions
+
 ```bash
-# Construction de l'index normal avec embedding des chunks résumés. Arrêt possible avec CTRL+C
-python build_summary_index.py
-
-# Reprendre le calcul de là où on en était
-python build_summary_index.py
-
-# Ecraser le summary avec un nouveau
-python build_summary_index.py --rebuild
-
+python main.py --query "Which scripts read /Clean/Items.ion?"
+python main.py --agentic --query "Where is StockEvol defined and reused?"
+python main.py --agentic --verbose
 ```
 
-### 4. 🎮 Utilisation
+Useful flags:
 
-**Flags** Les flags servant à choisir certains modes de fonctionnement écrasent les choix définis dans config.yaml. Ils ne sont pas nécessaires si la config est gérée par l'utilisateur avant exécution.
+- `--agentic`
+- `--verbose`
+- `--quiet`
+- `--query`
+- `--agent`
+- `--indextype`
+- `--fusion`
+- `--benchmarkpath`
+- `--benchmarktype`
+- `--benchmarkagent`
+
+## Benchmarking
+
+The project supports several benchmark modes driven by `config.yaml` and CLI flags.
+
+Examples:
 
 ```bash
-# fonction de base exécutée sans option
-python main.py
-
-# --verbose : Activer le mode verbeux (voir les étapes du graphe)
-python main.py --verbose
-
-# --agentic : Activer le mode agentique
-python main.py --agentic
-
-# --agent, -a : Choisir l'agent (gemini, gpt, mistral, llama3, groq, qwen)
-python main.py --agent qwen
-
-# --verbose, -v : Détailler les étapes bien un output verbeux
-python main.py --verbose
-
-# --quiet : Supprimer les messages d'initialisation
-python main.py --quiet
-
-# --query : Poser une seule question
-python main.py --query "Combien de scripts lisent /Clean/Items.ion ?"
-
-# --status, -s : Donner l'état de de la configuration et de l'index
-
-# --indextype, -in : Choix de l'index utilisé pour les embeddings (full_chunk, summary)
-python main.py --indextype full_chunk
-
-# --fusion, -f --query : Activer la RAG Fusion (pour questions complexes)
-python main.py --fusion --query "Explain the inventory logic and how it relates to sales"
-
-# --benchmarkpath, -bp : Donner le nom du benchmark à effectuer
-python main.py --quiet
-
-# --benchmarktype, -bt : Donner le type de benchmark à effectuer
 python main.py --benchmarkpath questions.json --benchmarktype llm_as_a_judge
-
-# --benchmarkagent, -ba, -bt : Changer l'agent utilisé par le benchmark (si llm_as_a_judge)
-python main.py --benchmarkpath questions.json --benchmarktype llm_as_a_judge -benchmarkagent mistral
+python main.py --benchmarkpath questions.json --benchmarktype hybrid
 ```
 
----
+## Documentation site
 
-## 💻 Comparaison des Modes
+The `docs/` directory contains the PSC public page and supporting material. It is published at:
 
-| Fonctionnalité          |    `main.py`    |   `main.py`   |
-| :----------------------- | :---------------: | :------------------------: |
-| **Architecture**   |     Linéaire     |     Graphe (LangGraph)     |
-| **Complexité**    |      Faible      |          Élevée          |
-| **RAG Fusion**     |        ❌        |     ✅ (`--fusion`)     |
-| **Logic Checking** |        ❌        | ✅ (Boucle de correction) |
-| **Benchmarking**   |        ❌        |    ✅ (`--benchmark`)    |
-| **Rate Limiting**  |      Manuel      | Automatique (Configurable) |
-| **Usage**          | Requêtes simples |    Analyse approfondie    |
+- [kpihx.github.io/envision-copilot-presentation](https://kpihx.github.io/envision-copilot-presentation/)
 
----
+The local Overleaf mirror used for the final report lives under `docs/PSC Rapport Final/` and is intentionally ignored by Git in this repository.
 
-## 📊 Benchmarking
+## Contribution notes
 
-Le système inclut un outil de benchmark basé sur la similarité cosinus.
+- Keep `config.yaml` as the single source of truth for runtime behavior.
+- Prefer updating parser-, retrieval-, or workflow-specific modules rather than introducing duplicated logic.
+- If you touch the public-facing project story, keep both `README.md` and `docs/README.md` aligned.
 
-1. Créez un fichier `questions.json` :
-   ```json
-   [
-     {
-       "question": "What is the main table?",
-       "answer": "The main table is Orders"
-     }
-   ]
-   ```
-2. Lancez le benchmark :
-   ```bash
-   python main.py --benchmarkpath questions.json --benchmarktype llm_as_a_judge
-   ```
+## License
 
----
-
-## 🔧 Configuration avancée (`config.yaml`)
-
-```yaml
-agent:
-  default_model: "groq"
-  rate_limit_delay: 1.5  # Délai anti-rate-limit
-
-parser:
-  type: "envision"
-
-chunker:
-  type: "semantic"
-  max_chunk_tokens: 512
-
-retriever:
-  type: "faiss"
-  faiss:
-    top_k: 10
-```
-
----
-
-## 🤝 Contribution
-
-1. **Architecture** : Respectez la séparation `rag/` vs `agents/`.
-2. **LangGraph** : Ajoutez de nouveaux nœuds dans `langgraph_base.py`.
-3. **Tests** : Utilisez `test.py` pour valider les composants de base.
-4. **Page publique (`docs/`)** : Le dossier `docs/` contient le site Docsify de présentation PSC, hébergé sur [kpihx.github.io/envision-copilot-presentation](https://kpihx.github.io/envision-copilot-presentation/). Un hook `pre-push` synchronise automatiquement `docs/` vers le repo de présentation à chaque `git push`. Pour désactiver ponctuellement : `SKIP_DOCS_PUSH=1 git push`.
-
----
-
-## 📝 Licence
-
-Ce projet est sous licence PRIVATE LICENSE AGREEMENT. Voir [LICENSE](LICENSE) pour plus de détails.
+This project is distributed under the private license included in [LICENSE](LICENSE).
