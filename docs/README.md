@@ -69,7 +69,7 @@ L'illustration suivante résume la logique de la solution implémentée.
 
 *Figure — Le planificateur choisit entre recherche sémantique, lexicale et structurelle, puis agrège les preuves avant génération de la réponse finale.*
 
-## Depots et livrables
+## Liens du projet
 
 - Dépôt principal : [github.com/ClementLokad/llm-DSL-info-extraction](https://github.com/ClementLokad/llm-DSL-info-extraction)
 - Page publique : [kpihx.github.io/envision-copilot-presentation](https://kpihx.github.io/envision-copilot-presentation/)

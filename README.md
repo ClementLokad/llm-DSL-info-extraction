@@ -7,7 +7,7 @@
 
 > Hybrid and agentic knowledge-extraction system for Lokad's proprietary Envision DSL.
 
-## Public deliverables
+## Project links
 
 - Main repository: [github.com/ClementLokad/llm-DSL-info-extraction](https://github.com/ClementLokad/llm-DSL-info-extraction)
 - PSC public page: [kpihx.github.io/envision-copilot-presentation](https://kpihx.github.io/envision-copilot-presentation/)
@@ -164,7 +164,7 @@ python main.py --benchmarkpath questions.json --benchmarktype hybrid
 
 ## Documentation site
 
-The `docs/` directory contains the PSC public page and supporting material. It is published at:
+The `docs/` directory contains the PSC public page and supporting material. The public entry point is:
 
 - [kpihx.github.io/envision-copilot-presentation](https://kpihx.github.io/envision-copilot-presentation/)
 
