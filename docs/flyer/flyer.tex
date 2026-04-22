@@ -101,7 +101,7 @@
         \draw[arrow] (graph.east) -- (distill.west);
         
         \draw[arrow] (distill.south) -- (mainllm.north);
-        \draw[arrow] (planner.south) -- ++(0,-1.2) -| (final.west) node[pos=0.1, right] {\labelstyle{else}};
+        \draw[arrow] (planner.south) -- (final.west) node[pos=0, right] {\labelstyle{else}};
         
         \draw[arrow] (final.west) -- (grader.east);
         \draw[arrow] (grader.south) -- (benchmark.north);
