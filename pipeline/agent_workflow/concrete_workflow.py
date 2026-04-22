@@ -147,6 +147,8 @@ class ConcreteAgentWorkflow(BaseAgentWorkflow):
     
     def _design_first_part_prompt(self, state: WorkflowState) -> str:
         base = super()._design_first_part_prompt(state)
+        tree_str = self.tree_tool.custom_tree('', 3, 3)
+        base += f"### CODEBASE STRUCTURE (from root : '/')\n{tree_str}\n\n"
         if state.get("accumulated_prior_evidence"):
             base += f"\n### RETRIEVED EVIDENCE FROM PREVIOUS TOOL CALLS\n"
             _, raw_results_str = self.prior_evidence_tool.format_results_by_source(state.get("accumulated_prior_evidence"))
