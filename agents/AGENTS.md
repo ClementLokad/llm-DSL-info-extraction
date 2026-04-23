@@ -1,29 +1,30 @@
-# 🤖 Documentation des Agents IA
+# 🤖 LLM Agents Documentation
 
-[![Agents](https://img.shields.io/badge/Agents-GPT%20%7C%20Gemini%20%7C%20Mistral-blue.svg)](https://github.com)
+[![Agents](https://img.shields.io/badge/Agents-DeepSeek%20%7C%20Claude%20%7C%20Mistral%20%7C%20Groq%20%7C%20Qwen-blue.svg)](https://github.com)
 [![Rate Limiting](https://img.shields.io/badge/Rate_Limiting-Enabled-green.svg)](https://github.com)
 
-> *Architecture modulaire et extensible pour l'intégration de modèles de langage*
+> *Modular and extensible architecture for integrating large language models*
 
 ---
 
-## 🎯 Vue d'ensemble
+## 🎯 Overview
 
-Le système d'agents IA fournit une **interface unifiée** pour interagir avec différents modèles de langage tout en gérant automatiquement :
+The LLM Agents system provides a **unified interface** for interacting with different language models while automatically managing:
 
-- 🔄 **Rate limiting intelligent** avec retry exponential backoff
-- 🔌 **Architecture plugin** pour faciliter l'ajout de nouveaux agents
-- ⚡ **Gestion d'erreurs robuste** avec fallback et logging
-- 🎛️ **Configuration externalisée** des paramètres par agent
-- 📊 **Métriques de performance** et monitoring des appels API
+- 🔄 **Intelligent rate limiting** with exponential backoff retries
+- 🔌 **Plugin architecture** for easy addition of new agents
+- ⚡ **Robust error handling** with fallback and logging
+- 🔧 **Agent selection** via config.yaml (API keys configured in .env)
+- 🎯 **OpenAI-compatible tool calling** for standardized function execution
+- 📊 **Performance metrics** and API call monitoring
 
 ---
 
-## 🏗️ Architecture des agents
+## 🏗️ Agent Architecture
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                  🤖 LLM AGENTS ARCHITECTURE                 │
+│              🤖 LLM AGENTS ARCHITECTURE                    │
 ├─────────────────────────────────────────────────────────────┤
 │  🎭 Agent Interface (base.py)                              │
 │  ├── 🔄 @rate_limited decorator                            │
@@ -31,7 +32,9 @@ Le système d'agents IA fournit une **interface unifiée** pour interagir avec d
 │  └── 📊 Performance monitoring                             │
 ├─────────────────────────────────────────────────────────────┤
 │  🧠 Agent Implementations                                  │
-│  ├── 🔮 GeminiAgent    ├── 🧠 GPTAgent    ├── ⚡ MistralAgent │
+│  ├── 🚀 DeepSeekAgent    ├── 🧠 ClaudeAgent                │
+│  ├── ⚡ MistralAgent     ├── 🌀 GroqAgent                  │
+│  └── 🐲 QwenAgent       ├── 📡 QwenSSHAgent                │
 ├─────────────────────────────────────────────────────────────┤
 │  🔧 Configuration Layer                                    │
 │  ├── 🔑 API Keys (.env)  ├── ⚙️ Parameters (config.yaml)   │
@@ -40,210 +43,405 @@ Le système d'agents IA fournit une **interface unifiée** pour interagir avec d
 
 ---
 
-## 🚀 Agents disponibles
+## 🚀 Available Agents
 
-### 🔮 Gemini Agent - Google AI
+### 🚀 DeepSeek Agent - DeepSeek API
 
-**Fichier**: `gemini_agent.py`
-**Provider**: Google AI Studio
-**Modèle**: `gemini-1.5-flash`
+**File**: `deepseek_agent.py`
+**Provider**: DeepSeek
+**Model**: `deepseek-v3` (default but `deepseek-r1` is also available)
 
-#### ✨ Caractéristiques
+#### ✨ Features
 
-- ⚡ **Vitesse exceptionnelle** - Réponses sub-seconde
-- 🧠 **Compréhension de code** - Optimisé pour l'analyse syntaxique
-- 🌍 **Multilingue** - Support excellent français/anglais
-- 💰 **Coût-efficace** - Tarification attractive pour volume
-- 🔒 **Sécurité** - Policies de contenu strictes
+- 🚀 **High performance** - Fast reasoning with advanced architecture
+- 🧠 **Code understanding** - Specialized for DSL analysis
+- 💰 **Cost-effective** - Competitive pricing for production use
+- 🌐 **Multilingual** - Strong support for English and French
+- 🔒 **Privacy** - Data processing with compliance focus
 
 #### 🔧 Configuration
 
-```yaml
-# config.yaml
-agent:
-  default_model: "gemini"
-  
-gemini:
-  model_name: "gemini-1.5-flash"
-  temperature: 0.1          # Précision maximale
-  max_output_tokens: 2048   # Réponses détaillées
-  top_p: 0.8               # Créativité contrôlée
-```
-
 ```bash
-# .env
-GOOGLE_API_KEY=your-gemini-api-key-here
+# .env - API key only (required)
+DEEPSEEK_API_KEY=your-deepseek-api-key-here
 ```
 
-#### 📊 Métriques typiques
+```yaml
+# config.yaml - Select which agent to use
+agent:
+  default_model: "deepseek-v3" # Or "deepseek-r1"
+```
 
-- **Latence** : ~0.8s par requête
-- **Throughput** : 60 requêtes/minute
-- **Token limits** : 1M tokens contexte, 8K output
-- **Rate limits** : Gérés automatiquement
+#### 📊 Typical Metrics
 
-#### 🎯 Cas d'usage optimaux
+- **Latency**: ~1.5s per request
+- **Throughput**: 40 requests/minute
+- **Token limits**: 64K context, 8K output
+- **Rate limits**: Generous for development
 
-- ✅ Analyse rapide de code DSL
-- ✅ Extraction d'informations factuelles
-- ✅ Questions-réponses sur documentation
-- ✅ Résumés et synthèses
+#### 🎯 Optimal Use Cases
+
+- ✅ Production DSL queries
+- ✅ Complex reasoning tasks
+- ✅ Budget-conscious deployments
+- ✅ Multilingual support needed
 
 ---
 
-### 🧠 GPT Agent - OpenAI
+### 🧠 Claude Agent - Anthropic
 
-**Fichier**: `gpt_agent.py`
-**Provider**: OpenAI API
-**Modèle**: `gpt-4-turbo`
+**File**: `claude_agent.py`
+**Provider**: Anthropic
+**Model**: `claude-sonnet-4-6` (default but `claude-haiku-4-5` is also available)
 
-#### ✨ Caractéristiques
+#### ✨ Features
 
-- 🏆 **Qualité premium** - Raisonnement le plus sophistiqué
-- 🔍 **Analyse profonde** - Compréhension contextuelle excellente
-- 🎨 **Créativité** - Génération de contenu riche
-- 📚 **Knowledge base** - Formation sur données récentes
-- 🔧 **Function calling** - Support des outils externes
+- 🏆 **Premium quality** - Sophisticated reasoning and analysis
+- 📚 **Extended context** - Up to 200K token context window
+- 🎨 **Creative generation** - High-quality content creation
+- 🔧 **Tool use** - Supports function calling and JSON mode
+- 🧠 **Instruction following** - Excellent at following detailed prompts
 
 #### 🔧 Configuration
 
-```yaml
-# config.yaml
-gpt:
-  model_name: "gpt-4-turbo"
-  temperature: 0.2          # Balance précision/créativité
-  max_tokens: 4096         # Réponses étendues
-  top_p: 0.9               # Diversité vocabulaire
-  frequency_penalty: 0.1   # Éviter répétitions
-  presence_penalty: 0.1    # Diversifier sujets
-```
-
 ```bash
-# .env  
-OPENAI_API_KEY=your-openai-api-key-here
+# .env - API key only (required)
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
 ```
 
-#### 📊 Métriques typiques
+```yaml
+# config.yaml - Select which agent to use
+agent:
+  default_model: "sonnet"  # Or "haiku" for faster, cheaper option
+```
 
-- **Latence** : ~2.5s par requête
-- **Throughput** : 20 requêtes/minute (Tier 1)
-- **Token limits** : 128K contexte, 4K output
-- **Rate limits** : Variables selon tier
+#### 📊 Typical Metrics
 
-#### 🎯 Cas d'usage optimaux
+- **Latency**: ~2.0s per request
+- **Throughput**: 25 requests/minute
+- **Token limits**: 200K context, 4K output
+- **Rate limits**: Depends on subscription tier
 
-- ✅ Raisonnement complexe sur business logic
-- ✅ Génération de documentation détaillée
-- ✅ Explication de patterns architecturaux
-- ✅ Debug et troubleshooting
+#### 🎯 Optimal Use Cases
+
+- ✅ Complex reasoning required
+- ✅ Extended documentation generation
+- ✅ Detailed code analysis
+- ✅ Multi-step problem solving
 
 ---
 
 ### ⚡ Mistral Agent - Mistral AI
 
-**Fichier**: `mistral_agent.py`
+**File**: `mistral_agent.py`
 **Provider**: Mistral AI
-**Modèle**: `mistral-large-latest`
+**Model**: `mistral-large-latest`
 
-#### ✨ Caractéristiques
+#### ✨ Features
 
-- 🇪🇺 **Alternative européenne** - Conformité RGPD native
-- ⚖️ **Balance prix/performance** - Excellent rapport qualité/coût
-- 🌍 **Multilingue avancé** - Spécialisé langues européennes
-- 🔒 **Privacy-focused** - Données traitées en Europe
-- ⚡ **Vitesse compétitive** - Latence raisonnable
+- 🇪🇺 **European alternative** - GDPR-native compliance
+- ⚖️ **Price/performance balance** - Excellent value proposition
+- 🌍 **Advanced multilingual** - Specialized for European languages
+- 🔒 **Privacy-focused** - Data processing in Europe
+- ⚡ **Competitive speed** - Reasonable latency
 
 #### 🔧 Configuration
 
-```yaml
-# config.yaml
-mistral:
-  model_name: "mistral-large-latest"
-  temperature: 0.3          # Équilibre optimal
-  max_tokens: 3000         # Réponses substancielles
-  top_p: 0.85              # Contrôle qualité
-  random_seed: 42          # Reproductibilité tests
-```
-
 ```bash
-# .env
+# .env - API key only (required)
 MISTRAL_API_KEY=your-mistral-api-key-here
 ```
 
-#### 📊 Métriques typiques
+```yaml
+# config.yaml - Select which agent to use
+agent:
+  default_model: "mistral" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1", "sonnet", "haiku"
+```
 
-- **Latence** : ~1.8s par requête
-- **Throughput** : 30 requêtes/minute
-- **Token limits** : 32K contexte, 8K output
-- **Rate limits** : Généreux pour développement
+#### 📊 Typical Metrics
 
-#### 🎯 Cas d'usage optimaux
+- **Latency**: ~1.8s per request
+- **Throughput**: 30 requests/minute
+- **Token limits**: 32K context, 8K output
+- **Rate limits**: Generous for development
 
-- ✅ Projets nécessitant conformité européenne
-- ✅ Applications multilingues français/anglais
-- ✅ Budget contraint avec qualité maintenue
-- ✅ Prototypage et développement
+#### 🎯 Optimal Use Cases
+
+- ✅ European compliance required
+- ✅ Multilingual French/English
+- ✅ Budget-constrained with quality maintained
+- ✅ Rapid prototyping
 
 ---
 
-## 🔧 Interface abstraite - BaseAgent
+### 🌀 Groq Agent - Groq API
 
-### 📋 Classe de base
+**File**: `groq_agent.py`
+**Provider**: Groq
+**Model**: `mixtral-8x7b-32768` (fast inference)
+
+#### ✨ Features
+
+- ⚡ **Ultra-fast inference** - Sub-second latency at scale
+- 💰 **Cost-effective** - Free tier available for development
+- 🔄 **High throughput** - 30+ concurrent requests
+- 📱 **Lightweight models** - Efficient open models (Mixtral, Llama)
+- 🚀 **Production-ready** - Specialized LPU hardware
+
+#### 🔧 Configuration
+
+```bash
+# .env - API key only (required)
+GROQ_API_KEY=your-groq-api-key-here
+```
+
+```yaml
+# config.yaml - Select which agent to use
+agent:
+  default_model: "groq" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1", "sonnet", "haiku"
+```
+
+#### 📊 Typical Metrics
+
+- **Latency**: ~0.5s per request (fastest)
+- **Throughput**: 100+ requests/minute
+- **Token limits**: 32K context, 8K output
+- **Rate limits**: Very generous, free tier available
+
+#### 🎯 Optimal Use Cases
+
+- ✅ Real-time interactive queries
+- ✅ High-volume benchmarking
+- ✅ Cost-sensitive production
+- ✅ Rapid prototyping with free tier
+
+---
+
+### 🐲 Qwen Agent - Alibaba Qwen
+
+**File**: `qwen_agent.py`
+**Provider**: Alibaba Cloud (Qwen API)
+**Model**: `qwen-plus` or `qwen-max`
+
+#### ✨ Features
+
+- 🌏 **Asia-optimized** - Specialized for Asian languages
+- 🧠 **Strong reasoning** - Qwen's MoE architecture
+- 💰 **Affordable** - Competitive pricing for cloud services
+- 🔄 **Multilingual** - Support for 10+ languages
+- ⚡ **Fast inference** - Optimized for latency
+
+#### 🔧 Configuration
+
+```bash
+# .env - API key only (required)
+QWEN_API_KEY=your-qwen-api-key-here
+QWEN_WORKSPACE_ID=your-workspace-id
+```
+
+```yaml
+# config.yaml - Select which agent to use
+agent:
+  default_model: "qwen" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1", "sonnet", "haiku"
+```
+
+#### 📊 Typical Metrics
+
+- **Latency**: ~1.2s per request
+- **Throughput**: 50 requests/minute
+- **Token limits**: 30K context, 8K output
+- **Rate limits**: Reasonable for development
+
+#### 🎯 Optimal Use Cases
+
+- ✅ Asian language support
+- ✅ Alibaba cloud deployments
+- ✅ Cost-effective Asia-Pacific
+- ✅ Multilingual applications
+
+---
+
+### 📡 Qwen SSH Agent - Qwen via SSH
+
+**File**: `qwen_ssh_agent.py`
+**Provider**: Alibaba Qwen (via SSH tunnel)
+**Model**: `qwen-max` (local/SSH deployment)
+
+#### ✨ Features
+
+- 🔒 **Secure tunneling** - SSH-based encrypted connection
+- 🏢 **Enterprise-ready** - On-premises deployment support
+- 🔐 **High security** - No direct API exposure
+- 🌐 **Network flexibility** - Works across firewalls
+- 📊 **Local monitoring** - Full request inspection possible
+
+#### 🔧 Configuration
+
+```bash
+# .env - SSH credentials and API key (required)
+QWEN_SSH_KEY_PATH=/path/to/ssh/key
+QWEN_SSH_PASSWORD=your-ssh-password
+QWEN_API_KEY=your-qwen-api-key-here
+```
+
+```yaml
+# config.yaml - Select which agent to use
+agent:
+  default_model: "qwen_ssh" # Options: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1", "sonnet", "haiku"
+```
+
+#### 📊 Typical Metrics
+
+- **Latency**: ~2.0s per request (includes SSH overhead)
+- **Throughput**: 20 requests/minute
+- **Token limits**: 30K context, 8K output
+- **Rate limits**: Depends on server configuration
+
+#### 🎯 Optimal Use Cases
+
+- ✅ Enterprise security requirements
+- ✅ On-premises Qwen deployments
+- ✅ Sensitive data processing
+- ✅ Network isolation needed
+
+---
+
+## 🔧 Abstract Base Class - BaseAgent
+
+### 📋 Base Class
+
+All agent implementations inherit from `LLMAgent` abstract base class and must implement the core methods. Our system uses the **OpenAI-compatible tool calling format** for standardized function execution across all LLM providers.
 
 ```python
 # agents/base.py
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, List, Dict, Any
 import time
 import functools
 
 class LLMAgent(ABC):
-    """Interface abstraite pour tous les agents IA"""
+    """Abstract interface for all AI agents with standardized OpenAI tool calling"""
   
     @abstractmethod
     def initialize(self) -> None:
-        """Initialiser l'agent avec sa configuration"""
+        """Initialize the agent with its configuration"""
         pass
   
     @abstractmethod  
-    def generate_response(self, question: str, context: Optional[str] = None) -> str:
-        """Générer une réponse à partir de la question et du contexte
+    def generate_response(
+        self, 
+        user_message: str, 
+        system_prompt: Optional[str] = None, 
+        context: Optional[List[Dict[str, Any]]] = None, 
+        temperature: float = 0.3
+    ) -> str:
+        """Generate a plain-text response from question and context
     
         Args:
-            question: Question posée par l'utilisateur
-            context: Contexte extrait des chunks pertinents
+            user_message: The user's question or instruction
+            system_prompt: Optional system-role instruction
+            context: Conversation history for multi-turn interactions
+            temperature: Sampling temperature (0.0-1.0)
         
         Returns:
-            Réponse générée par le modèle
+            Model-generated text response
+        """
+        pass
+
+    @abstractmethod
+    def generate_with_tools(
+        self,
+        user_message: str,
+        tools: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+        tool_choice: str = "any"
+    ) -> 'ToolCallResult':
+        """Request the model to call one of the provided tools using OpenAI format
+        
+        **OpenAI Tool Format**: Each tool is a dict with structure:
+        {
+            "type": "function",
+            "function": {
+                "name": "function_name",
+                "description": "What this function does",
+                "parameters": {
+                    "type": "object",
+                    "properties": { ... },
+                    "required": [ ... ]
+                }
+            }
+        }
+
+        Args:
+            user_message: The user-facing question or instruction
+            tools: List of tool schemas in OpenAI format
+            system_prompt: Optional system instruction
+            tool_choice: "any" forces a tool call (internally mapped to provider equivalents)
+
+        Returns:
+            ToolCallResult containing tool_name, tool_id, and arguments
+        """
+        pass
+
+    @abstractmethod
+    def submit_tool_result_and_continue(
+        self,
+        tool_call_id: str,
+        tool_name: str,
+        result: str,
+        next_instruction: str,
+        tools: List[Dict[str, Any]],
+        tool_choice: str = "any"
+    ) -> 'ToolCallResult':
+        """
+        Append tool result to conversation and request next tool call.
+        Used to continue multi-step tool-calling workflows.
+        
+        Internally handles the OpenAI tool calling protocol:
+        - Converts tool result to 'tool' role message
+        - Includes next_instruction as user message
+        - Requests next tool call from model
+        - Returns next ToolCallResult
+
+        Args:
+            tool_call_id: ID from preceding generate_with_tools call
+            tool_name: Name of the function that was executed
+            result: Serialized result of the tool execution
+            next_instruction: User message for next action
+            tools: Available tool schemas in OpenAI format
+            tool_choice: "any" forces next tool call
+
+        Returns:
+            ToolCallResult for next tool call
         """
         pass
 ```
 
-### 🔄 Décorateur Rate Limiting
+### 🔄 Rate Limiting Decorator
 
 ```python
 @rate_limited(max_retries: int = 3, initial_delay: float = 1.0)
 def decorator(func):
     """
-    Gestion intelligente des limites de taux API:
+    Intelligent API rate limiting management:
   
     Features:
-    - ⏱️ Retry avec exponential backoff  
-    - 🎯 Détection automatique rate limits
-    - 📊 Logging détaillé des tentatives
-    - ⚡ Pause minimale après succès
+    - ⏱️ Retry with exponential backoff  
+    - 🎯 Automatic rate limit detection
+    - 📊 Detailed attempt logging
+    - ⚡ Minimal pause after success
     """
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         for attempt in range(max_retries):
             try:
                 result = func(*args, **kwargs)
-                time.sleep(0.1)  # Pause courtoise
+                time.sleep(0.1)  # Courteous pause
                 return result
             except Exception as e:
                 if "rate limit" in str(e).lower() and attempt < max_retries - 1:
                     wait_time = initial_delay * (2 ** attempt)
-                    print(f"⏳ Rate limit atteint. Attente {wait_time:.1f}s...")
+                    print(f"⏳ Rate limit reached. Waiting {wait_time:.1f}s...")
                     time.sleep(wait_time)
                     continue
                 raise
@@ -252,70 +450,82 @@ def decorator(func):
 
 ---
 
-## 🎛️ Configuration avancée
+## 🎛️ Configuration
 
-### ⚙️ Paramètres par défaut
+### ⚙️ Agent Selection
 
 ```yaml
-# config.yaml - Section agents
+# config.yaml - Choose which agent to use for each task
 agent:
-  # Agent par défaut du système
-  default_model: "mistral"
+  default_model: "deepseek-v3"  # Primary agent: deepseek, claude, mistral, groq, qwen, qwen_ssh
+
+# Examples - set different agents for different tasks
+main_pipeline:
+  agent_logic:
+    distillation_llm: "deepseek-v3"        # Fast, efficient
+    main_llm: "deepseek-r1"                # Primary reasoning
+    planner_llm: "deepseek-v3"             # Task planning
+    cleaning_llm: "deepseek-v3"            # Response cleanup
 ```
 
-### 🔑 Gestion des clés API
+### 🔑 API Key Setup (Required)
+
+Only API keys need to be configured. Set them in your `.env` file:
 
 ```bash
-# .env - Clés d'API sécurisées
-GOOGLE_API_KEY=AIza...                    # Google AI Studio
-OPENAI_API_KEY=sk-proj-...               # OpenAI API
-MISTRAL_API_KEY=H3I21h...                # Mistral AI
-
-# Variables optionnelles pour configuration avancée
-GOOGLE_PROJECT_ID=your-project-id        # Pour Google Cloud
-OPENAI_ORG_ID=your-org-id               # Pour organisation OpenAI
+# .env - Secure API keys (configure only the agents you use)
+DEEPSEEK_API_KEY=your-deepseek-api-key-here
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
+MISTRAL_API_KEY=your-mistral-api-key-here
+GROQ_API_KEY=your-groq-api-key-here
+QWEN_API_KEY=your-qwen-api-key-here
+QWEN_WORKSPACE_ID=your-workspace-id                    # For Qwen
+QWEN_SSH_KEY_PATH=/path/to/ssh/key                    # For Qwen SSH
+QWEN_SSH_PASSWORD=your-ssh-password                   # For Qwen SSH
 ```
+
+**Note**: Agent hyperparameters (temperature, max_tokens, etc.) are managed internally and optimized per agent. Only API keys require configuration.
 
 ---
 
-## 🧪 Tests et validation
+## 🧪 Testing and Validation
 
-### 📊 Suite de tests agents
+### 📊 Agent Test Suite
 
-**Fichier**: `test_agents.py`
+**File**: `test_agents.py`
 
 ```python
 class TestAgents:
-    """Tests exhaustifs des agents IA"""
+    """Comprehensive tests for AI agents"""
   
     def test_agent_initialization(self):
-        """Vérifier initialisation correcte de tous les agents"""
+        """Verify all agents initialize correctly"""
     
     def test_rate_limiting(self):
-        """Valider le comportement du rate limiting"""
+        """Validate rate limiting behavior"""
     
     def test_error_handling(self):
-        """Tester gestion d'erreurs et fallbacks"""
+        """Test error handling and fallbacks"""
     
     def test_response_quality(self):
-        """Évaluer qualité des réponses sur cas tests"""
+        """Evaluate response quality on test cases"""
     
     def test_performance_metrics(self):
-        """Mesurer latence et throughput par agent"""
+        """Measure latency and throughput per agent"""
 ```
 
-### 🎯 Validation qualité réponses
+### 🎯 Response Quality Validation
 
 ```python
-# Métriques automatisées de qualité
+# Automated quality metrics
 def evaluate_response_quality(question: str, response: str, expected_keywords: List[str]) -> float:
     """
-    Critères d'évaluation:
-    - ✅ Présence mots-clés attendus
-    - ✅ Longueur réponse appropriée  
-    - ✅ Structure et formatage
-    - ✅ Pertinence contextuelle
-    - ✅ Absence d'hallucinations
+    Evaluation criteria:
+    - ✅ Presence of expected keywords
+    - ✅ Appropriate response length  
+    - ✅ Structure and formatting
+    - ✅ Contextual relevance
+    - ✅ Absence of hallucinations
     """
     score = 0.0
   
@@ -325,11 +535,11 @@ def evaluate_response_quality(question: str, response: str, expected_keywords: L
   
     # Length appropriateness (20%)
     response_length = len(response.split())
-    if 50 <= response_length <= 300:  # Sweet spot pour DSL queries
+    if 50 <= response_length <= 300:  # Sweet spot for DSL queries
         score += 0.2
     
     # Structure quality (40%)
-    structure_indicators = [':', '-', '•', '\n', 'exemple', 'logic']
+    structure_indicators = [':', '-', '•', '\n', 'example', 'logic']
     structure_score = sum(1 for indicator in structure_indicators if indicator in response.lower())
     score += min(structure_score / len(structure_indicators), 1.0) * 0.4
   
@@ -338,81 +548,194 @@ def evaluate_response_quality(question: str, response: str, expected_keywords: L
 
 ---
 
-## 🚀 Ajout d'un nouvel agent
+## 🚀 Adding a New Agent
 
-### 📋 Template d'implémentation
+### 📋 Implementation Template
+
+All agents must implement the abstract `LLMAgent` interface and support OpenAI-compatible tool calling format:
 
 ```python
-# agents/claude_agent.py
+# agents/new_agent.py
 import os
-from typing import Optional
-import requests
+from typing import Optional, List, Dict, Any
 
-from .base import LLMAgent, rate_limited
+from .base import LLMAgent, rate_limited, ToolCallResult
 
-class ClaudeAgent(LLMAgent):
-    """Agent utilisant Anthropic Claude"""
+class NewAgent(LLMAgent):
+    """Agent using NewProvider API with OpenAI tool calling support"""
   
-    def __init__(self, config: Optional[dict] = None):
-        self.config = config or {}
-        self.api_key = os.getenv('ANTHROPIC_API_KEY')
-        self.model = self.config.get('model_name', 'claude-3-sonnet-20240229')
-        self.temperature = self.config.get('temperature', 0.2)
-        self.max_tokens = self.config.get('max_tokens', 3000)
+    def __init__(self):
+        super().__init__()
+        self.api_key = os.getenv('NEWPROVIDER_API_KEY')
+        self._model = 'default-model'  # Internal model reference
     
         if not self.api_key:
-            raise ValueError("ANTHROPIC_API_KEY non configurée")
+            raise ValueError("NEWPROVIDER_API_KEY not configured")
   
     def initialize(self) -> None:
-        """Initialiser le client Claude"""
-        self.client = AnthropicClient(api_key=self.api_key)
+        """Initialize NewProvider client"""
+        self.client = NewProviderClient(api_key=self.api_key)
     
-        # Test de connectivité
+        # Connectivity test
         try:
             self._test_connection()
-            print(f"   ✅ Claude-{self.model} initialisé")
+            print(f"   ✅ {self._model} initialized")
         except Exception as e:
-            raise RuntimeError(f"❌ Échec initialisation Claude: {e}")
+            raise RuntimeError(f"❌ NewProvider initialization failed: {e}")
   
     @rate_limited(max_retries=3, initial_delay=1.0)
-    def generate_response(self, question: str, context: Optional[str] = None) -> str:
-        """Générer réponse via Claude API"""
-    
-        # Construction du prompt
-        prompt = self._build_prompt(question, context)
+    def generate_response(
+        self,
+        user_message: str,
+        system_prompt: Optional[str] = None,
+        context: Optional[List[Dict[str, Any]]] = None,
+        temperature: float = 0.3
+    ) -> str:
+        """Generate response via NewProvider API"""
+        
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        if context:
+            messages.extend(context)
+        messages.append({"role": "user", "content": user_message})
     
         try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
+            response = self.client.create_message(
+                model=self._model,
+                temperature=temperature,
+                messages=messages
             )
-        
             return response.content[0].text.strip()
-        
         except Exception as e:
-            raise RuntimeError(f"Erreur Claude API: {e}")
+            raise RuntimeError(f"NewProvider API error: {e}")
+
+    @rate_limited(max_retries=3, initial_delay=1.0)
+    def generate_with_tools(
+        self,
+        user_message: str,
+        tools: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+        tool_choice: str = "any"
+    ) -> ToolCallResult:
+        """Generate with OpenAI-format tool calling"""
+        
+        # Convert tool_choice to provider-specific format if needed
+        # (e.g., 'any' -> 'required' for some providers)
+        provider_tool_choice = self._map_tool_choice(tool_choice)
+        
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_message})
+        
+        try:
+            response = self.client.create_message(
+                model=self._model,
+                messages=messages,
+                tools=tools,
+                tool_choice=provider_tool_choice
+            )
+            
+            # Extract tool call from provider response and convert to ToolCallResult
+            tool_call = response.tool_calls[0]
+            return ToolCallResult(
+                tool_name=tool_call.function.name,
+                tool_id=tool_call.id,
+                arguments=tool_call.function.arguments
+            )
+        except Exception as e:
+            raise RuntimeError(f"NewProvider tool calling error: {e}")
+
+    @rate_limited(max_retries=3, initial_delay=1.0)
+    def submit_tool_result_and_continue(
+        self,
+        tool_call_id: str,
+        tool_name: str,
+        result: str,
+        next_instruction: str,
+        tools: List[Dict[str, Any]],
+        tool_choice: str = "any"
+    ) -> ToolCallResult:
+        """Submit tool result and request next tool call (OpenAI format)"""
+        
+        # Append tool result to conversation in OpenAI format
+        self.context.append({
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"id": tool_call_id, "function": {"name": tool_name}}]
+        })
+        self.context.append({
+            "role": "tool",
+            "tool_call_id": tool_call_id,
+            "content": result
+        })
+        self.context.append({"role": "user", "content": next_instruction})
+        
+        try:
+            response = self.client.create_message(
+                model=self._model,
+                messages=self.context,
+                tools=tools,
+                tool_choice=self._map_tool_choice(tool_choice)
+            )
+            
+            tool_call = response.tool_calls[0]
+            return ToolCallResult(
+                tool_name=tool_call.function.name,
+                tool_id=tool_call.id,
+                arguments=tool_call.function.arguments
+            )
+        except Exception as e:
+            raise RuntimeError(f"NewProvider continuation error: {e}")
+    
+    @property
+    def model_name(self) -> str:
+        """Return the model name for identification"""
+        return self._model
+    
+    def _map_tool_choice(self, tool_choice: str) -> str:
+        """Map standard tool_choice values to provider-specific format"""
+        # Override this method if your provider uses different values
+        return tool_choice
 ```
 
-### ⚙️ Configuration du nouvel agent
+### ⚙️ Configure New Agent
 
 ```bash
-# .env - Ajouter clé API
-ANTHROPIC_API_KEY=your-claude-api-key-here
+# .env - API key ONLY
+NEWPROVIDER_API_KEY=your-newprovider-api-key-here
 ```
+
+```yaml
+# config.yaml - Select your agent
+agent:
+  default_model: "new_provider"  # Add to choices: "qwen", "qwen-ssh", "mistral", "groq", "deepseek-v3", "deepseek-r1", "sonnet", "haiku"
+```
+
+### ✅ Required Implementation Checklist
+
+- [ ] Class inherits from `LLMAgent`
+- [ ] Implements `initialize()`
+- [ ] Implements `generate_response()` with full signature
+- [ ] Implements `generate_with_tools()` using **OpenAI tool format**
+- [ ] Implements `submit_tool_result_and_continue()` using **OpenAI tool format**
+- [ ] Implements `model_name` property
+- [ ] All methods decorated with `@rate_limited`
+- [ ] Environment variables documented in `.env`
+- [ ] Registered in agent factory/dispatcher
+- [ ] Unit tests added
+- [ ] Documentation updated
 
 ---
 
-## 📊 Monitoring et métriques
+## 📊 Monitoring and Metrics
 
-### 🎯 Métriques collectées automatiquement
+### 🎯 Automatically Collected Metrics
 
 ```python
 class AgentMetrics:
-    """Collecteur de métriques pour agents"""
+    """Metrics collector for agents"""
   
     def __init__(self):
         self.metrics = {
@@ -427,7 +750,7 @@ class AgentMetrics:
   
     def record_request(self, agent_name: str, latency: float, 
                       success: bool, tokens: int = 0):
-        """Enregistrer métriques d'une requête"""
+        """Record request metrics"""
         self.metrics['total_requests'] += 1
     
         if success:
@@ -435,111 +758,111 @@ class AgentMetrics:
         else:
             self.metrics['failed_requests'] += 1
         
-        # Mise à jour latence moyenne
+        # Update average latency
         self._update_avg_latency(latency)
     
-        # Tracking tokens et coût
+        # Track tokens and cost
         self.metrics['tokens_consumed'] += tokens
         self.metrics['cost_estimate'] += self._estimate_cost(agent_name, tokens)
 ```
 
-### 📈 Dashboard métriques
+### 📈 Metrics Dashboard
 
 ```bash
-# Commande de monitoring
+# Monitoring command
 python main.py --status --verbose
 
-# Output exemple:
+# Example output:
 🤖 AGENT PERFORMANCE METRICS
 =====================================
-📊 Mistral Agent:
-   • Requêtes totales: 147
-   • Taux de succès: 98.6%
-   • Latence moyenne: 1.83s
-   • Tokens consommés: 23,456
-   • Coût estimé: $0.47
+📊 DeepSeek Agent:
+   • Total requests: 247
+   • Success rate: 99.2%
+   • Average latency: 1.5s
+   • Tokens consumed: 45,678
+   • Estimated cost: $0.23
    
 ⚡ Rate Limiting:
-   • Hits détectés: 3
-   • Retry réussis: 3/3
-   • Temps attente total: 12.4s
+   • Rate limits hit: 2
+   • Successful retries: 2/2
+   • Total wait time: 5.2s
 ```
 
 ---
 
 ## ⚠️ Troubleshooting
 
-### 🔧 Problèmes courants
+### 🔧 Common Issues
 
-#### ❌ Erreur: Clé API invalide
+#### ❌ Error: Invalid API Key
 
 ```bash
-# Vérifier variables d'environnement
-echo $GOOGLE_API_KEY
-echo $OPENAI_API_KEY  
+# Verify environment variables
+echo $DEEPSEEK_API_KEY
+echo $ANTHROPIC_API_KEY  
 echo $MISTRAL_API_KEY
 
-# Recharger .env si nécessaire
+# Reload .env if needed
 source .env
 ```
 
-#### ❌ Rate limit dépassé
+#### ❌ Rate Limit Exceeded
 
 ```python
-# Le décorateur @rate_limited gère automatiquement
-# Mais vous pouvez ajuster les paramètres:
+# @rate_limited decorator handles automatically
+# But you can adjust parameters:
 
 @rate_limited(max_retries=5, initial_delay=2.0)
 def generate_response(self, question: str, context: str = None) -> str:
     # Implementation
 ```
 
-#### ❌ Timeout de connexion
+#### ❌ Connection Timeout
 
 ```yaml
-# Augmenter timeout dans config.yaml
+# Increase timeout in config.yaml
 agent:
-  default_timeout: 60  # 60 secondes au lieu de 30
+  default_timeout: 60  # 60 seconds instead of 30
 ```
 
-### 🔧 Debug et diagnostics
+### 🔧 Debug and Diagnostics
 
 ```bash
-# Mode debug pour voir tous les appels API
+# Debug mode to see all API calls
 python main.py --verbose --query "test query"
 
-# Test de connectivité d'un agent spécifique
-python test_agents.py --agent gemini
+# Test connectivity of specific agent
+python test_agents.py --agent deepseek
 
-# Vérification configuration
+# Verify configuration
 python -c "from config_manager import ConfigManager; print(ConfigManager().get_config())"
 ```
 
 ---
 
-## 🤝 Contribution
+## 🤝 Contributing
 
-### 📋 Guidelines pour nouveaux agents
+### 📋 Guidelines for New Agents
 
-1. **🏗️ Hériter de LLMAgent** - Utiliser l'interface abstraite
-2. **🔄 Implémenter @rate_limited** - Gestion automatique des limits
-3. **⚙️ Configuration externalisée** - Paramètres dans config.yaml
-4. **🧪 Tests exhaustifs** - Suite de tests pour chaque agent
-5. **📖 Documentation** - Ajouter exemples et cas d'usage
+1. **🏗️ Inherit from LLMAgent** - Use the abstract interface
+2. **🔄 Implement @rate_limited** - Automatic rate limit management
+3. **⚙️ Externalize configuration** - Parameters in config.yaml
+4. **🧪 Comprehensive tests** - Test suite for each agent
+5. **📖 Documentation** - Add examples and use cases
 
-### 🔧 Checklist nouvel agent
+### 🔧 New Agent Checklist
 
-- [ ] Classe hérite de `LLMAgent`
-- [ ] Méthodes `initialize()` et `generate_response()` implémentées
-- [ ] Décorateur `@rate_limited` appliqué
-- [ ] Configuration dans `config.yaml`
-- [ ] Variables d'environnement documentées
-- [ ] Tests unitaires ajoutés
-- [ ] Documentation mise à jour
+- [ ] Class inherits from `LLMAgent`
+- [ ] Methods `initialize()` and `generate_response()` implemented
+- [ ] `@rate_limited` decorator applied
+- [ ] Configuration in `config.yaml`
+- [ ] Environment variables documented
+- [ ] Unit tests added
+- [ ] Documentation updated
 
 ---
 
-## 🔗 Related Documentation
+## 📚 Related Documentation
 
 ### Pipeline & Orchestration
 - [LangGraph Pipeline](../pipeline/PIPELINE.md) - Main orchestration system
