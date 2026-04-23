@@ -5,7 +5,7 @@ from agents.qwen_agent import QwenAgent
 from agents.qwen_ssh_agent import QwenSSHAgent
 from agents.deepseek_agent import DeepSeekAgent
 from agents.base import LLMAgent
-from config_manager import get_config
+from utils.config_manager import get_config
 
 def prepare_agent(agent_name: str) -> LLMAgent:
         """Prepare and return the default LLM agent based on configuration."""

@@ -1,7 +1,7 @@
 import re
 from typing import List, Set, Optional, Tuple, Dict, Any
 from rag.core.base_parser import BlockType, CodeBlock, BaseParser
-from config_manager import get_config
+from utils.config_manager import get_config
 
 
 class EnvisionParser(BaseParser):

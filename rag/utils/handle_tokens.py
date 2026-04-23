@@ -1,5 +1,5 @@
 import tiktoken
-from config_manager import get_config
+from utils.config_manager import get_config
 
 
 def get_token_count(content: str, encoding_name: str = "cl100k_base") -> int:

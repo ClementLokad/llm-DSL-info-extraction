@@ -7,7 +7,7 @@ import time
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
-from config_manager import ConfigManager
+from utils.config_manager import ConfigManager
 from agents.gpt_agent import GPTAgent
 from agents.mistral_agent import MistralAgent
 from agents.gemini_agent import GeminiAgent

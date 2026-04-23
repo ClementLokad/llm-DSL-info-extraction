@@ -295,7 +295,7 @@ logging:
       class: logging.FileHandler
       level: DEBUG
       formatter: detailed
-      filename: logs/preprocessing.log # TODO: Use paths.logs_dir + "/preprocessing" + paths.log_extension
+      filename: logs/preprocessing.log
       mode: a
 
   loggers:

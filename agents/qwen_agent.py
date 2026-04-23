@@ -47,7 +47,7 @@ from typing import Any, Dict, List, Optional
 import ollama
 
 from .base import LLMAgent, ToolCallResult
-from config_manager import get_config
+from utils.config_manager import get_config
 
 
 class QwenAgent(LLMAgent):

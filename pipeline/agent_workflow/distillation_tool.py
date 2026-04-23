@@ -5,7 +5,7 @@ import time
 import json
 from pipeline.agent_workflow.workflow_base import BaseDistillationTool
 from pipeline.stats_collector import get_collector
-from get_mapping import get_file_mapping
+from utils.get_mapping import get_file_mapping
 from rich.console import Group, Console
 from rich.panel import Panel
 from rich.markdown import Markdown

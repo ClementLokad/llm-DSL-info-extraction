@@ -12,7 +12,7 @@ Tracks:
 import time
 from typing import Dict, Optional
 
-from config_manager import ConfigManager
+from utils.config_manager import ConfigManager
 
 
 class BenchmarkStatsCollector:

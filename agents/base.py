@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Any, Dict, Tuple
-from config_manager import get_config
+from utils.config_manager import get_config
 from rag.utils.handle_tokens import get_token_count
 from dataclasses import dataclass
 import time

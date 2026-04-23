@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Set
 from dataclasses import dataclass
 from enum import Enum
-from config_manager import get_config
+from utils.config_manager import get_config
 from rag.utils.handle_tokens import get_token_count
 import logging
 

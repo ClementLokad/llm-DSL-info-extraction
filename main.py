@@ -21,7 +21,7 @@ sys.path.append(str(Path(__file__).parent))
 from pipeline.stats_collector import BenchmarkStatsCollector, get_collector
 from pipeline.stats_reporter import format_stats_report, save_stats_to_json
 
-import config_manager
+import utils.config_manager as config_manager
 from rag.utils.switch_db import get_default_embedder, get_default_retriever, get_default_query_transformer
 from rag.retrievers.qdrant_retriever import QdrantRetriever
 from old.linear_pipeline import MainLinearPipeline
@@ -634,7 +634,7 @@ EXAMPLES:
             
             # Check configuration
             try:
-                from config_manager import ConfigManager
+                from utils.config_manager import ConfigManager
                 config_mgr = ConfigManager()
                 default_agent = config_mgr.get_default_agent()
                 console.print(f"✅ Configuration loaded")

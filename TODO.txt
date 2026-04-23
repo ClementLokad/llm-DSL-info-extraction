@@ -1,8 +1,0 @@
-- Synthétiser, dégraisser les scripts envision : scripts trop verbeux
-- Tester d'autres similarities approachs autres que Cosine similarity
-- Métriques 
-
-- Langraph / Langsmidth / Langchain
-- Raptor
-- Doc
-- Semantic splitter

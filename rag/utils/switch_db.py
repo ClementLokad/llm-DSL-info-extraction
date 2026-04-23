@@ -1,4 +1,4 @@
-from config_manager import get_config
+from utils.config_manager import get_config
 
 from rag.core.base_embedder import BaseEmbedder
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder

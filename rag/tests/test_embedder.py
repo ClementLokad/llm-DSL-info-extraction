@@ -14,7 +14,7 @@ import numpy as np
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-from config_manager import ConfigManager
+from utils.config_manager import ConfigManager
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
 from rag.tests.test_chunker import TestSemanticChunker
 

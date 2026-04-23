@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Build search index"""
+import os
+os.environ["FASTEMBED_CACHE_PATH"] = os.path.join(os.getcwd(), "data/fastembed_models")
+
 import sys
 import argparse
 import json
-import os
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent))
 
-from config_manager import ConfigManager
+from utils.config_manager import ConfigManager
 from rag.parsers.envision_parser import EnvisionParser
 from rag.chunkers.envision_chunker import EnvisionChunker
 from rag.summarizers.chunk_summarizer import ChunkSummarizer

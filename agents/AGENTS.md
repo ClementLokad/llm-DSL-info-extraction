@@ -539,8 +539,27 @@ python -c "from config_manager import ConfigManager; print(ConfigManager().get_c
 
 ---
 
-## 📝 Licence
+## 🔗 Related Documentation
 
-Ce projet est sous licence PRIVATE LICENSE AGREEMENT. Voir [LICENSE](../LICENSE) pour plus de détails.
+### Pipeline & Orchestration
+- [LangGraph Pipeline](../pipeline/PIPELINE.md) - Main orchestration system
+- [Agentic Workflow](../pipeline/agent_workflow/AGENTIC_WORKFLOW.md) - Agent loop using these agents
+- [Benchmarking Framework](../pipeline/benchmarks/BENCHMARKS.md) - Performance evaluation using agents
+
+### RAG Components
+- [RAG Pipeline Overview](../rag/RAG.md) - Complete retrieval architecture
+- [Query Transformers Documentation](../rag/query_transformers/QUERY_TRANSFORMERS.md) - Query enhancement
+- [Embedders Documentation](../rag/embedders/EMBEDDERS.md) - Embedding models
+- [Retrievers Documentation](../rag/retrievers/RETRIEVERS.md) - Vector database retrieval
+
+### Getting Started
+- [Quick Start Tutorial](../TUTORIAL.md) - Setup and usage guide
+- [Project README](../README.md) - High-level overview
+
+---
+
+## 📝 License
+
+This project is under PRIVATE LICENSE AGREEMENT. See [LICENSE](../LICENSE) for details.
 
 ---

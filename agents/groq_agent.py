@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional
 from groq import Groq
 
 from .base import LLMAgent, ToolCallResult, rate_limited
-from config_manager import get_config
+from utils.config_manager import get_config
 
 
 class GroqAgent(LLMAgent):

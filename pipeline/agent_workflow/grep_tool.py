@@ -8,8 +8,8 @@ from rag.core.base_retriever import RetrievalResult, CodeChunk
 from rag.core.base_parser import CodeBlock, BlockType 
 from rag.parsers.envision_parser import EnvisionParser
 from pipeline.agent_workflow.workflow_base import BaseGrepTool, _tool_desc
-from get_mapping import get_file_mapping
-from config_manager import get_config
+from utils.get_mapping import get_file_mapping
+from utils.config_manager import get_config
 from rag.utils.script_scanner import collect_constants, scan_string_for_references, replace_constants_in_script
 
 

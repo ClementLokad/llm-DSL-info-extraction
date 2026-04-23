@@ -26,7 +26,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-import config_manager
+import utils.config_manager as config_manager
 from pipeline.agent_workflow.workflow_base import (
     Tool,
     BaseAgentWorkflow,
@@ -37,14 +37,14 @@ from pipeline.agent_workflow.workflow_base import (
     WorkflowState,
     _tool_desc,
 )
-from get_mapping import get_file_mapping
+from utils.get_mapping import get_file_mapping
 from pipeline.langgraph_base import KnowledgeElement, RetrievalResult, ActionLog
 from agents.prepare_agent import prepare_agent
 from agents.base import ToolCallResult
 from rag.core.base_parser import BlockType
 from pipeline.agent_workflow.graph_tool import EnvisionGraphTool
 from pipeline.agent_workflow.prior_evidence_tool import PriorEvidenceTool
-from config_manager import get_config
+from utils.config_manager import get_config
 from langgraph.graph import END, StateGraph, START
 from pipeline.stats_collector import get_collector
 

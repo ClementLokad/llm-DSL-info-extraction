@@ -157,7 +157,7 @@ class BaseEmbedder(ABC):
             return ""
         
         # Get configuration parameters
-        from config_manager import get_config
+        from utils.config_manager import get_config
         config = get_config()
         truncation_ratio = config.get('embedder.text_preparation.truncation_ratio', 0.8)
         min_lines = config.get('embedder.text_preparation.min_lines_preserve', 1)

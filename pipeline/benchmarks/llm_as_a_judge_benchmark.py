@@ -5,7 +5,7 @@ import time
 import re
 import json
 import agents.prepare_agent as prepare_agent
-import config_manager
+import utils.config_manager as config_manager
 from pipeline.stats_collector import get_collector
 
 default_prompt = """Tu es un évaluateur strict pour une base de code d'entreprise.

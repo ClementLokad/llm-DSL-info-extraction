@@ -67,7 +67,7 @@ class GeminiEmbedder(BaseEmbedder):
         
         try:
             # Get API key from config manager
-            from config_manager import get_config
+            from utils.config_manager import get_config
             config = get_config()
             api_key = self.api_key or config.get_api_key('GOOGLE_API_KEY')
             
@@ -253,7 +253,7 @@ class GeminiEmbedder(BaseEmbedder):
                 metadata_parts.append(f"data sources: {', '.join(table_names)}")
             
             elif chunk.chunk_type == 'calculation' and 'variable_names' in chunk.metadata:
-                from config_manager import get_config
+                from utils.config_manager import get_config
                 config = get_config()
                 max_vars = config.get('embedder.text_preparation.max_variable_names', 3)
                 var_names = chunk.metadata['variable_names'][:max_vars]

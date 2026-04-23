@@ -3,7 +3,7 @@ from typing import Dict, Any
 
 import yaml
 
-from get_mapping import get_file_mapping
+from utils.get_mapping import get_file_mapping
 
 class ConfigLoader:
     @staticmethod

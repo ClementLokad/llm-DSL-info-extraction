@@ -114,7 +114,7 @@ class BaseChunker(ABC):
                    - overlap_lines: Number of lines to overlap when splitting large blocks
                    - preserve_boundaries: Whether to preserve logical boundaries
         """
-        from config_manager import get_config
+        from utils.config_manager import get_config
         
         if config is None:
             # Load from global configuration

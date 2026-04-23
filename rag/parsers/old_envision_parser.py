@@ -27,7 +27,7 @@ class EnvisionParser(BaseParser):
     """
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        from config_manager import get_config
+        from utils.config_manager import get_config
         
         if config is None:
             # Load from global configuration

@@ -1,7 +1,7 @@
 from typing import TypedDict, List, Optional, Dict, Any, Tuple
 from langgraph.graph import END, StateGraph, START
 from rag.core.base_retriever import RetrievalResult
-from config_manager import get_config
+from utils.config_manager import get_config
 
 from rich.console import Console
 from rich.panel import Panel

@@ -11,7 +11,7 @@ import os
 
 from rag.core.base_chunker import BaseChunker, CodeChunk
 from rag.core.base_parser import CodeBlock
-from get_mapping import get_file_mapping
+from utils.get_mapping import get_file_mapping
 
 logger = logging.getLogger(__name__)
 
@@ -359,7 +359,7 @@ class SemanticChunker(BaseChunker):
         # Add table context
         tables = list(set(dep for b in blocks for dep in self._extract_table_references(b.content)))
         if tables:
-            from config_manager import get_config
+            from utils.config_manager import get_config
             config = get_config()
             max_tables = config.get('embedder.text_preparation.max_table_names', 5)
             context_parts.append(f"Tables: {', '.join(tables[:max_tables])}")

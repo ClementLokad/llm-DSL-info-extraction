@@ -25,7 +25,7 @@ import re
 import time
 
 from langgraph.graph import END, StateGraph, START
-from config_manager import get_config
+from utils.config_manager import get_config
 from pipeline.agent_workflow.workflow_base import BaseAgentWorkflow
 from pipeline.langgraph_base import AgentGraphState, BasePipeline, GraphState
 from pipeline.answer_validation import (

@@ -1,6 +1,6 @@
 import os
 from typing import Dict
-from config_manager import get_config
+from utils.config_manager import get_config
 from pathlib import PurePath
 
 def get_file_mapping(mapping_file_path: str = None) -> Dict[str, str]:

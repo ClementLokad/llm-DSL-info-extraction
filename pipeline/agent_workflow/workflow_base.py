@@ -6,7 +6,7 @@ from pipeline.langgraph_base import AgentGraphState, ActionLog, KnowledgeElement
 from rag.core.base_retriever import RetrievalResult, BaseRetriever
 from rag.core.base_embedder import BaseEmbedder
 from agents.prepare_agent import *
-from config_manager import get_config
+from utils.config_manager import get_config
 
 from rich.console import Console
 

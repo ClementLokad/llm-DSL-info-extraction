@@ -3,8 +3,8 @@ import re
 from typing import List, Optional, Dict, Any
 
 from .workflow_base import BaseScriptFinderTool, _tool_desc
-from get_mapping import get_file_mapping
-from config_manager import get_config
+from utils.get_mapping import get_file_mapping
+from utils.config_manager import get_config
 
 class PathScriptFinder(BaseScriptFinderTool):
     """Script finder that searches for scripts in a the filesystem made of the folders listed in search dirs."""

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List
 from rag.core.base_retriever import RetrievalResult
 from rag.core.base_chunker import CodeChunk
-from get_mapping import get_file_mapping
+from utils.get_mapping import get_file_mapping
 from rag.utils.script_scanner import scan_script_for_references
 
 

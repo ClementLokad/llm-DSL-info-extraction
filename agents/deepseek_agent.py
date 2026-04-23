@@ -34,7 +34,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from .base import LLMAgent, rate_limited, ToolCallResult
-from config_manager import get_config
+from utils.config_manager import get_config
 
 
 class DeepSeekAgent(LLMAgent):

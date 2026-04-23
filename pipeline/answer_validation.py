@@ -4,7 +4,7 @@ import re
 from pathlib import PurePosixPath
 from typing import Any, Dict, List, Optional
 
-from get_mapping import get_inverse_mapping
+from utils.get_mapping import get_inverse_mapping
 
 
 def _collapse_spaces(value: str) -> str:

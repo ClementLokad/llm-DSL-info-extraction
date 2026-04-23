@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from config_manager import get_config
+from utils.config_manager import get_config
 from env_graph.api import EnvisionGraphAPI
 from pipeline.agent_workflow.workflow_base import Tool, _tool_desc
 

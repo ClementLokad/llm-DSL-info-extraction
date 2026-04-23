@@ -8,7 +8,7 @@ from rag.core.base_embedder import BaseEmbedder
 from rag.core.base_query_transformer import BaseQueryTransformer
 from rag.retrievers.qdrant_retriever import QdrantRetriever
 from rag.embedders.qdrant_embedder import QdrantEmbedder
-from config_manager import get_config
+from utils.config_manager import get_config
 from agents.prepare_agent import prepare_default_agent
 from rag.utils.script_scanner import replace_constants_in_script
 from pathlib import Path

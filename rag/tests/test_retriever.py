@@ -15,7 +15,7 @@ import shutil
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-from config_manager import ConfigManager
+from utils.config_manager import ConfigManager
 from rag.retrievers.faiss_retriever import FAISSRetriever
 from rag.tests.test_embedder import TestSentenceTransformerEmbedder
 

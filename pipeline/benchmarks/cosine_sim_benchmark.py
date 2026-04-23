@@ -3,7 +3,7 @@ import numpy as np
 from sentence_transformers import util
 from .base_benchmark import Benchmark
 from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
-from config_manager import get_config
+from utils.config_manager import get_config
 
 
 class CosineSimBenchmark(Benchmark):

@@ -12,7 +12,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-from config_manager import ConfigManager
+from utils.config_manager import ConfigManager
 
 class TestPipelineIntegration:
     """Integration tests for the complete pipeline."""

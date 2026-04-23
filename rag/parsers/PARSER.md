@@ -1,226 +1,270 @@
-# 📄 Parsers - Analyseurs de Code
+# 📝 Parser - Semantic Envision Extraction
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
-[![Envision](https://img.shields.io/badge/Envision-DSL-orange.svg)](https://lokad.com)
-[![Regex](https://img.shields.io/badge/Regex-Pattern_Matching-blue.svg)](https://docs.python.org/3/library/re.html)
+> Parse Envision scripts into semantic blocks with complete dependency tracking.
 
-> *Analyseurs spécialisés pour différents langages de programmation et DSL, avec support avancé pour Envision*
+## 📁 Folder Contents
 
----
-
-## 📁 Contenu du dossier
-
-Le dossier `rag/parsers` contient les analyseurs de code pour différents langages et DSL :
-
-### 📄 Fichiers principaux
-
-- **`__init__.py`** - Module d'initialisation exportant `EnvisionParser`
-- **`envision_parser.py`** - Parser moderne pour scripts Envision (.nvn)
-- **`old_envision_parser.py`** - Version précédente du parser Envision (legacy)
+- **`envision_parser.py`** - Envision DSL parser (production)
+- **`old_envision_parser.py`** - Previous version (archive)
 
 ---
 
-## 🎯 Types de parsers
+## 🎯 EnvisionParser (Production)
 
-### 1. 🧠 EnvisionParser (Moderne)
+Analyzes Envision scripts line by line and extracts semantic blocks with dependencies.
 
-**Parser spécialisé Envision** - Analyse sémantique des scripts DSL Lokad
+### How it Works
 
-#### ✨ Fonctionnalités
+```
+Input: Envision script (.nvn)
+         ↓
+    Identify block types (READ, ASSIGNMENT, etc.)
+         ↓
+    Extract dependencies (Tables/variables used)
+         ↓
+    Extract definitions (Tables/variables created)
+         ↓
+Output: 6078 CodeBlock with metadata
+```
 
-- 📝 **Extraction de blocs sémantiques** - Identification automatique des structures logiques
-- 🔗 **Analyse de dépendances** - Détection des références entre tables et variables
-- 📊 **Support complet Envision** - read, write, table, show, const, export, etc.
-- 🎯 **Filtrage intelligent** - Exclusion des mots-clés et propriétés communes
-- 🔍 **Extraction de contextes** - Analyse des environnements d'utilisation
+### Recognized Block Types
 
-#### 📋 Types de blocs reconnus
+| Type | Example | Dependencies | Defines |
+|------|---------|-------------|----------| 
+| `SECTION_HEADER` | `///===== DATA LOAD =====` | None | Section name |
+| `IMPORT` | `import "/path" as Tbl` | Path variables | `Tbl` |
+| `READ` | `read "file.ion" as Items` | Path variables | `Items` |
+| `WRITE` | `write Items into "out.ion"` | `Items`, paths | None |
+| `CONST` | `const path = "/data"` | Variables RHS | `path` |
+| `EXPORT` | `export table Result = ...` | Tables RHS | `Result` |
+| `TABLE_DEFINITION` | `table Sales = cross(Items, Week)` | `Items`, `Week` | `Sales` |
+| `ASSIGNMENT` | `Items.Total = sum(Orders.Amount)` | `Items`, `Orders` | `Items` (field) |
+| `SHOW` | `show table "Results"` | Tables referenced | None |
+| `KEEP_WHERE` | `keep where Orders.IsValid` | `Orders` | None |
+| `COMMENT` | `// Comment` | None | None |
+| `FORM_READ` | `read form with field : text` | None | None |
 
-| Type de bloc | Description | Exemple |
-|-------------|-------------|---------|
-| **📖 Comment** | Commentaires et documentation | `/// Commentaire` |
-| **📥 Import** | Importation de modules | `import "module"` |
-| **📊 Read** | Lecture de données | `read "/path/file.csv"` |
-| **📤 Write** | Écriture de données | `write "/path/output.csv"` |
-| **🔧 Const** | Constantes | `const PI = 3.14159` |
-| **📤 Export** | Exportation | `export Items` |
-| **📋 Table** | Définitions de table | `table Items = ...` |
-| **📈 Show** | Visualisations | `show table "Title"` |
-| **🎯 Assignment** | Assignations | `Items.Total = sum(Items.Amount)` |
+### Dependency Extraction (Algorithm)
 
-#### 💻 Utilisation
+**Goal**: Avoid false positives while capturing true dependencies
 
 ```python
-from rag.parsers import EnvisionParser
+# ❌ WRONG - Do not extract
+Items.Price = sum(Orders.Amount)
+# → Dependencies: {Orders}  (NOT {Items, Price, Orders, Amount})
 
-# Initialisation
+const path = "/Clean/Data" 
+# → Dependencies: {}  (NOT {Clean, Data})
+
+areValid = all(Items.Stock >= 0)
+# → Dependencies: {Items}  (NOT {Stock})
+
+# ✅ CORRECT - Extract
+show table "Sales" {unit: #(Region)}
+# → Dependencies: {Region}
+
+read "\{inputFolder}Items.ion" as Items
+# → Dependencies: {inputFolder}
+
+total = Items.Cost * markup
+# → Dependencies: {Items, markup}
+```
+
+**Techniques**:
+- Strip strings before extraction
+- Table.field → extract "Table" only
+- Filter built-ins (sum, max, where, etc.)
+- Context check (skip if defined, skip if in comment)
+- Length check (>=2 chars for standalone identifiers)
+
+### Simple Usage
+
+```python
+from rag.parsers.envision_parser import EnvisionParser
+
+# Parser
 parser = EnvisionParser()
-
-# Parsing d'un fichier
 blocks = parser.parse_file("script.nvn")
 
-# Parsing de contenu
-content = """
-/// Section principale
-read "/data/input.csv" as Items
-Items.Total = sum(Items.Amount)
-show table "Résultats" with Items.Total
-"""
-
-blocks = parser.parse_content(content, "script.nvn")
-
-# Analyse des résultats
+# Results
 for block in blocks:
-    print(f"Bloc: {block.block_type}")
-    print(f"Lignes: {block.line_start}-{block.line_end}")
-    print(f"Dépendances: {block.dependencies}")
-    print(f"Définitions: {block.definitions}")
+    print(f"{block.block_type.value}: '{block.name}'")
+    print(f"  Lines: {block.line_start}-{block.line_end}")
+    print(f"  Dependencies: {block.dependencies}")
+    print(f"  Defines: {block.definitions}")
+```
+
+### Metadata per Block
+
+```python
+block = CodeBlock(
+    content: str                      # Source code
+    block_type: BlockType             # IMPORT, READ, ASSIGNMENT, etc.
+    name: Optional[str]               # Identifier (table/var name)
+    line_start: int                   # Start line (1-indexed)
+    line_end: int                     # End line
+    file_path: str                    # /path/to/script.nvn
+    dependencies: Set[str]            # Tables/variables used
+    definitions: Set[str]             # Tables/variables created
+    metadata: Dict                    # Parser-specific data
+)
 ```
 
 ---
 
-### 2. 🏛️ EnvisionParser (Legacy)
+## 📊 Configuration
 
-**Parser Envision historique** - Version précédente avec configuration avancée
+Via `config.yaml` :
 
-#### ✨ Fonctionnalités
+```yaml
+parser:
+  supported_extensions:
+    - .nvn
+```
 
-- ⚙️ **Configuration flexible** - Paramètres regex configurables
-- 📑 **Sections hiérarchiques** - Analyse par sections délimitées
-- 🔤 **Patterns personnalisables** - Expressions régulières adaptables
-- 📏 **Validation de limites** - Respect des frontières de sections
-- 🔄 **Migration supportée** - Compatible avec l'ancienne architecture
+---
 
-#### ⚙️ Configuration avancée
+## 🔧 API Reference
+
+### EnvisionParser
 
 ```python
-config = {
-    'case_sensitive': False,              # Sensibilité à la casse
-    'multiline_patterns': True,           # Patterns multilignes
-    'supported_extensions': ['.nvn'],     # Extensions supportées
-    'section_delimiter': {
-        'min_chars': 20,                  # Longueur minimale délimiteur
-        'valid_chars': ['~', '=', '-'],   # Caractères valides
-        'pattern_prefix': '///'           # Préfixe des délimiteurs
-    }
+class EnvisionParser(BaseParser):
+    def __init__(self, config: Dict[str, Any] = None)
+    def parse_file(self, file_path: str) -> List[CodeBlock]
+    def parse_content(self, content: str, file_path: str = "") -> List[CodeBlock]
+```
+
+### CodeBlock
+
+```python
+# Properties
+block.content: str
+block.block_type: BlockType
+block.name: Optional[str]
+block.line_start: int
+block.line_end: int
+block.dependencies: Set[str]
+block.definitions: Set[str]
+
+# Methods
+block.get_token_count() -> int
+block.to_dict() -> Dict
+CodeBlock.from_dict(data: Dict) -> CodeBlock
+len(block) -> int  # number of lines
+```
+
+### BlockType Enum
+
+```python
+BlockType.COMMENT
+BlockType.SECTION_HEADER
+BlockType.IMPORT
+BlockType.READ
+BlockType.WRITE
+BlockType.CONST
+BlockType.EXPORT
+BlockType.TABLE_DEFINITION
+BlockType.ASSIGNMENT
+BlockType.SHOW
+BlockType.KEEP_WHERE
+BlockType.FORM_READ
+BlockType.CONTROL_FLOW
+BlockType.UNKNOWN
+```
+
+---
+
+## 📍 Real Usage in Project
+
+### Index Building
+
+All `build_*.py` scripts use the parser:
+
+```python
+from rag.parsers.envision_parser import EnvisionParser
+
+parser = EnvisionParser()
+for script_file in script_files:
+    blocks = parser.parse_file(script_file)
+    # → 6078 blocks produced total
+    # → Sent to chunker
+```
+
+### Complete RAG Workflow
+
+1. **Parsing** → `EnvisionParser.parse_file()` = **6078 CodeBlock**
+2. **Chunking** → `EnvisionChunker.chunk_blocks()` = 1084 CodeChunk
+3. **Embedding** → Vectorize chunk.content
+4. **Indexing** → Store in FAISS/Raptor/Qdrant
+5. **Retrieval** → Query → Top-k chunks → LLM context
+
+---
+
+## 🏗️ Internal Architecture
+
+### Parsing Strategy
+
+1. **Lexical scan**: Reads script line by line
+2. **Type detection**: Regex patterns to identify type (`PATTERNS` dict)
+3. **Multi-line handling**: Groups statements across multiple lines via parentheses/indentation
+4. **Dependency extraction**: 
+   - Table.field → extract "Table"
+   - Interpolated variables (#(Var))
+   - Paths with variables (\{Var})
+5. **Definition tracking**: LHS assignments and imports
+
+### Recognized Patterns (via regex)
+
+```python
+PATTERNS = {
+    'section_header': r'^///\s*[~=\-]{3,}',
+    'comment': r'^///|^//',
+    'import': r'^\s*import\s+',
+    'read': r'^\s*read\s+',
+    'write': r'^\s*write\s+',
+    'const': r'^\s*const\s+',
+    'export': r'^\s*export\s+',
+    'table': r'^\s*table\s+',
+    'show': r'^\s*show\s+',
+    'keep': r'^\s*keep\s+',
+    'where': r'^\s*where\s+',
+    'form_read': r'^\s*read\s+form\s+',
 }
 ```
 
-#### 📋 Structure de sections
+### Filtered Built-ins
 
-```envision
-/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Section d'importation des données
-/// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-read "/data/products.csv" as Products
-read "/data/sales.csv" as Sales
-
-/// ================================
-// Calculs et transformations
-/// ================================
-
-Products.TotalValue = Products.Quantity * Products.UnitPrice
-Sales.Profit = Sales.Revenue - Sales.Cost
-
-/// -------------------------------
-// Visualisations finales
-/// -------------------------------
-
-show table "Analyse Produits" with Products.TotalValue
-show linechart "Evolution Ventes" with Sales.Profit
-```
+`BUILTINS` set contains ~90+ Envision functions (sum, max, cross, etc.) to avoid false positive dependencies.
 
 ---
 
-## 🏗️ Architecture commune
+## 📋 Common Issues
 
-Tous les parsers héritent de `BaseParser` et implémentent l'interface unifiée :
-
-### 🔧 Méthodes principales
-
-- `parse_file(file_path)` - Analyse d'un fichier complet
-- `parse_content(content, file_path)` - Analyse de contenu texte
-- `supported_extensions` - Extensions de fichiers supportées
-
-### 📦 Structure des blocs
-
-Chaque `CodeBlock` contient :
-
-```python
-class CodeBlock:
-    content: str          # Contenu du bloc
-    block_type: BlockType # Type sémantique
-    line_start: int       # Ligne de début
-    line_end: int         # Ligne de fin
-    file_path: str        # Chemin du fichier source
-    dependencies: Set[str] # Dépendances détectées
-    definitions: Set[str] # Définitions créées
-    metadata: Dict        # Métadonnées additionnelles
-```
+| Issue | Solution |
+|----------|----------|
+| Missing dependencies | Check they're not in `BUILTINS` or `COMMON_PROPERTIES` |
+| False positives (field names) | Algorithm already filters via `Table.field` patterns |
+| Incorrectly categorized blocks | Check pattern order in `_parse_block()` |
+| Performance | ~1000+ lines/second, O(n) complexity |
 
 ---
 
-## 🔄 Intégration dans le pipeline
+## 📚 Related Resources
 
-Les parsers s'intègrent parfaitement dans le pipeline RAG :
+### RAG Pipeline Flow
+- [RAG Pipeline Overview](../RAG.md) - Complete parsing → chunking → embedding → retrieval flow
+- [Chunker Documentation](../chunkers/CHUNKERS.md) - How to chunk parsed blocks
 
-### 📋 Workflow typique
+### Related Components
+- [Embedders Documentation](../embedders/EMBEDDERS.md) - Embedding chunks from parser output
+- [Retrievers Documentation](../retrievers/RETRIEVERS.md) - Retrieving parsed and chunked code
+- [Query Transformers Documentation](../query_transformers/QUERY_TRANSFORMERS.md) - Query enhancement before search
 
-1. **📂 Lecture** - Chargement des fichiers source (.nvn, .py, etc.)
-2. **🔍 Analyse** - Extraction des blocs sémantiques
-3. **🏷️ Classification** - Attribution de types et métadonnées
-4. **🔗 Dépendances** - Analyse des relations entre blocs
-5. **📤 Chunking** - Découpage pour l'indexation
-
-### 🎯 Choix du parser
-
-| Langage/DSL | Parser recommandé | Avantages |
-|-------------|-------------------|-----------|
-| **Envision (.nvn)** | `EnvisionParser` | 📊 Analyse sémantique spécialisée |
-| **Python (.py)** | Extension future | 🔧 Support générique |
-| **JavaScript** | Extension future | 🌐 Analyse moderne |
-| **SQL** | Extension future | 🗃️ Requêtes complexes |
+### Configuration & Usage
+- [Configuration](../../config.yaml) - Global parameters
+- [Quick Start Tutorial](../../TUTORIAL.md) - Setup and usage
 
 ---
 
-## 📦 Dépendances
-
-### 🔧 Bibliothèques externes
-
-- **`re`** - Expressions régulières Python (parsing patterns)
-- **`typing`** - Annotations de types avancées
-- **`pathlib`** - Gestion moderne des chemins
-
-### 🔗 Modules internes
-
-- `rag.core.base_parser` - Classe de base abstraite
-- `config_manager` - Configuration centralisée
-- `rag.core.base_chunker` - Interface avec le chunking
-
----
-
-## 🔧 Extension pour nouveaux langages
-
-Pour ajouter un nouveau parser :
-
-```python
-from rag.core.base_parser import BaseParser, CodeBlock, BlockType
-
-class NewLanguageParser(BaseParser):
-    @property
-    def supported_extensions(self) -> List[str]:
-        return ['.ext']
-    
-    def parse_content(self, content: str, file_path: str = "") -> List[CodeBlock]:
-        # Implémentation personnalisée
-        blocks = []
-        # ... logique de parsing ...
-        return blocks
-```
-
-Puis ajouter au `__init__.py` :
-```python
-from rag.parsers.new_parser import NewLanguageParser
-__all__ = ["EnvisionParser", "NewLanguageParser"]
-```
+**Built for production RAG applications** 🚀

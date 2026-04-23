@@ -1,307 +1,375 @@
-# 🔮 Embedders - Générateurs d'Embeddings
+# 🧬 Embedders - Semantic Transformation into Vectors
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
-[![OpenAI](https://img.shields.io/badge/OpenAI-API-green.svg)](https://openai.com)
-[![Google](https://img.shields.io/badge/Google-Gemini-blue.svg)](https://ai.google.dev)
-[![SentenceTransformers](https://img.shields.io/badge/SentenceTransformers-Local-orange.svg)](https://sbert.net)
+> Convert code chunks into dense/sparse vector embeddings optimized for semantic search and RAG retrieval.
 
-> *Générateurs d'embeddings pour transformer les chunks de code en représentations vectorielles sémantiques*
+## 📁 Folder Contents
 
----
-
-## 📁 Contenu du dossier
-
-Le dossier `rag/embedders` contient les différents générateurs d'embeddings :
-
-### 📄 Fichiers principaux
-
-- **`__init__.py`** - Module d'initialisation avec imports conditionnels
-- **`sentence_transformer_embedder.py`** - Embedder local haute performance
-- **`openai_embedder.py`** - Embedder OpenAI avec gestion de quota
-- **`gemini_embedder.py`** - Embedder Google Gemini alternatif
-- **`qdrant_embedder.py`** - Embedder hybride dense + sparse
+- **`qdrant_embedder.py`** - Hybrid embedder (dense + sparse) for Qdrant - **PRODUCTION**
+- **`sentence_transformer_embedder.py`** - Local SentenceTransformer embedder
+- **`gemini_embedder.py`** - Google Gemini API embedder (optional)
+- **`openai_embedder.py`** - OpenAI API embedder (optional)
 
 ---
 
-## 🎯 Types d'embedders
+## 🎯 Embedders Overview
 
-### 1. 🏠 SentenceTransformerEmbedder
-
-**Embedder local haute performance** - Modèles sentence-transformers sans API
-
-#### ✨ Fonctionnalités
-
-- 🚀 **Traitement local** - Aucun appel API, pas de quota
-- 📊 **Volume élevé** - Idéal pour traiter de gros volumes de code
-- 🔧 **Modèles flexibles** - Support de nombreux modèles pré-entraînés
-- 💾 **Cache local** - Téléchargement et sauvegarde automatique des modèles
-- ⚡ **Accélération GPU** - Support optionnel du GPU
-
-#### ⚙️ Configuration
-
-```python
-config = {
-    "general": {
-        "sentence_transformer": {
-            "model_name": "all-MiniLM-L6-v2",    # Modèle à utiliser
-            "model_path": "data/sentence_transformer",  # Chemin local
-            "device": null,                      # null = auto-détection
-            "trust_remote_code": false,          # Sécurité du code distant
-            "show_progress_bar": true,           # Barre de progression
-            "convert_to_numpy": true             # Format de sortie
-        }
-    }
-}
-```
-
-#### 💻 Utilisation
-
-```python
-from rag.embedders import SentenceTransformerEmbedder
-
-# Initialisation
-embedder = SentenceTransformerEmbedder(config)
-embedder.initialize()
-
-# Embedding de chunks
-embeddings = embedder.embed_chunks(chunks)
-
-# Embedding de texte simple
-embedding = embedder.embed_text("def hello_world():")
-```
+| Embedder | Type | Model | Features | Usage |
+|----------|------|--------|------------------|-------|
+| **QdrantEmbedder** | Hybrid | all-MiniLM-L6-v2 + BM25 | Dense + Sparse, no API | **Production RAG** |
+| **SentenceTransformer** | Local | Configurable | Fast, no API | Alternative fallback |
+| **Gemini** | API | text-embedding-004 | High quality, quota | Experimental |
+| **OpenAI** | API | text-embedding-3-small | High quality, quota | Experimental |
 
 ---
 
-### 2. 🤖 OpenAIEmbedder
+## 🔌 QdrantEmbedder (Main Production)
 
-**Embedder OpenAI haute qualité** - API embeddings avec gestion de quota
+Hybrid embedder combining semantic dense search and keyword-based sparse search via BM25.
 
-#### ✨ Fonctionnalités
+### Hybrid Architecture
 
-- 🎯 **Qualité supérieure** - Meilleure compréhension sémantique
-- 📏 **Dimensions variables** - 1536 ou 3072 dimensions selon le modèle
-- 🔄 **Gestion de quota** - Rate limiting automatique
-- 🔁 **Retry automatique** - Gestion des erreurs temporaires
-- 📊 **Suivi d'usage** - Compteurs de requêtes et tokens
-
-#### ⚙️ Configuration
-
-```python
-config = {
-    "model_name": "text-embedding-3-small",     # Modèle OpenAI
-    "api_key": null,                           # null = variable d'environnement
-    "requests_per_minute": 3000,               # Limite requêtes/minute
-    "tokens_per_minute": 1000000,              # Limite tokens/minute
-    "max_retries": 3,                          # Nombre de tentatives
-    "retry_delay": 1.0                         # Délai entre tentatives
-}
+```
+Chunk: "Items.Total = sum(Orders.Amount)"
+  ↓
+  ├─ Dense (semantic)  → all-MiniLM-L6-v2   → [384-dim vector]
+  └─ Sparse (keyword)  → BM25 tokenization  → {word: score, ...}
+      ↓
+  Qdrant stores both for hybrid retrieval
 ```
 
-#### 💻 Utilisation
+### Default Models
 
 ```python
-from rag.embedders.openai_embedder import OpenAIEmbedder
+# Dense embeddings
+dense_model_name = "sentence-transformers/all-MiniLM-L6-v2"
+embedding_dimension = 384
 
-# Initialisation (avec clé API)
-embedder = OpenAIEmbedder(config)
-embedder.initialize()
-
-# Embedding avec gestion automatique du quota
-embeddings = embedder.embed_chunks(chunks)
+# Sparse embeddings (BM25)
+sparse_model_name = "Qdrant/bm25"
+disable_stemmer = True  # Keep exact keywords like "Items"
 ```
 
----
+### Main Methods
 
-### 3. 🌟 GeminiEmbedder
-
-**Embedder Google Gemini** - Alternative haute qualité à OpenAI
-
-#### ✨ Fonctionnalités
-
-- 🎯 **Qualité sémantique** - Bonne compréhension du code
-- 🔄 **Gestion de quota** - Rate limiting adapté à Gemini
-- 🔁 **Retry intelligent** - Gestion des erreurs API
-- 📏 **Dimension fixe** - 768 dimensions pour les modèles actuels
-- ☁️ **Cloud-native** - Intégration Google Cloud
-
-#### ⚙️ Configuration
-
-```python
-config = {
-    "model_name": "models/text-embedding-004",  # Modèle Gemini
-    "api_key": null,                           # null = variable d'environnement
-    "requests_per_minute": 1500,               # Limite Gemini
-    "max_retries": 3,                          # Tentatives de retry
-    "retry_delay": 1.0                         # Délai entre tentatives
-}
-```
-
-#### 💻 Utilisation
-
-```python
-from rag.embedders.gemini_embedder import GeminiEmbedder
-
-# Initialisation
-embedder = GeminiEmbedder(config)
-embedder.initialize()
-
-# Embedding de haute qualité
-embeddings = embedder.embed_chunks(chunks)
-```
-
----
-
-### 4. 🔄 QdrantEmbedder
-
-**Embedder hybride avancé** - Dense + Sparse pour recherche optimale
-
-#### ✨ Fonctionnalités
-
-- 🎯 **Embeddings denses** - Sémantique via sentence-transformers
-- 📝 **Embeddings sparse** - BM25 pour recherche par mots-clés
-- 🔄 **Fusion optimale** - Combinaison dense + sparse dans Qdrant
-- ⚡ **Performance ONNX** - Accélération via runtime ONNX
-- 🎛️ **Configuration flexible** - Modèles interchangeables
-
-#### ⚙️ Configuration
-
-```python
-config = {
-    "dense_model_name": "sentence-transformers/all-MiniLM-L6-v2",
-    "sparse_model_name": "Qdrant/bm25",
-    "disable_stemmer": true,                    # Désactiver le stemming
-    "embedding_dimension": 384                 # Dimension dense
-}
-```
-
-#### 💻 Utilisation
+#### 1. Semantic Embeddings (dense) - BaseEmbedder Interface
 
 ```python
 from rag.embedders.qdrant_embedder import QdrantEmbedder
 
-# Initialisation
 embedder = QdrantEmbedder(config)
 embedder.initialize()
 
-# Embedding standard (dense uniquement)
+# Dense embeddings only
+dense_vecs = embedder.embed_chunks(chunks)
+# Shape: (N, 384)
+
+query_embedding = embedder.embed_text(user_query)
+# Shape: (384,)
+```
+
+#### 2. Hybrid Retrieval (dense + sparse) - Qdrant-specific
+
+```python
+# For insertion into Qdrant
+hybrid_results = embedder.embed_chunks_hybrid(chunks)
+# Result: List[{
+#   "dense": [384-dim float list],
+#   "sparse": SparseEmbedding{word: score}
+# }]
+
+# For queries
+query_hybrid = embedder.embed_text_hybrid(
+    text="How to calculate revenue?",
+    keywords=["Items", "Orders", "calculate"]
+)
+# Result: {
+#   "dense": [384-dim vector],
+#   "sparse": {word: score}
+# }
+```
+
+### Configuration
+
+```yaml
+embeddings:
+  qdrant:
+    dense_model_name: "sentence-transformers/all-MiniLM-L6-v2"
+    sparse_model_name: "Qdrant/bm25"
+    embedding_dimension: 384
+    disable_stemmer: true
+    batch_size: 32
+```
+
+### Advantages
+
+| Advantage | Impact |
+|----------|--------|
+| **No API** | Zero quota, zero network latency |
+| **Hybrid** | Combines semantic + exact matching |
+| **Local** | Fast, private, reproducible |
+| **Versatile** | Dense for semantics, Sparse for syntax |
+| **ONNX Runtime** | Very fast (~1000 chunks/sec) |
+
+---
+
+## 📖 SentenceTransformerEmbedder
+
+Local embedder based on sentence-transformers (compatible with Hugging Face).
+
+### Supported Models
+
+```python
+model_name: 'all-MiniLM-L6-v2'      # Default - 384-dim, fast
+model_name: 'all-mpnet-base-v2'     # 768-dim, better quality
+model_name: 'multilingual-e5-base'  # Multilingual
+```
+
+### Usage
+
+```python
+from rag.embedders.sentence_transformer_embedder import SentenceTransformerEmbedder
+
+config = {
+    "general": {
+        "sentence_transformer": {
+            "model_name": "all-MiniLM-L6-v2",
+            "device": "cuda",  # GPU support
+            "show_progress_bar": True,
+            "normalize_embeddings": True
+        }
+    }
+}
+
+embedder = SentenceTransformerEmbedder(config)
+embedder.initialize()
+
+# Dense embeddings
 embeddings = embedder.embed_chunks(chunks)
+# Shape: (N, 384)
+```
 
-# Embedding hybride pour Qdrant
-hybrid = embedder.embed_text_hybrid("chercher fonction", ["def", "function"])
-# Retourne: {"dense": [...], "sparse": SparseVector(...)}
+### Features
+
+- **Local** : No API calls, no quota
+- **GPU-ready** : CUDA/Metal support for acceleration
+- **Normalization** : Optional L2 normalization
+- **Cache** : Model saved locally (`data/sentence_transformer/`)
+
+---
+
+## 🌐 GeminiEmbedder & OpenAIEmbedder (Optional)
+
+Cloud API-based embedders for high semantic quality.
+
+### Gemini
+
+```python
+model_name: "models/text-embedding-004"  # 768-dim
+requests_per_minute: 1500
+```
+
+**Advantages** : High quality, generous quota  
+**Disadvantages** : Network latency, limited quota, costs
+
+### OpenAI
+
+```python
+model_name: "text-embedding-3-small"   # 1536-dim
+model_name: "text-embedding-3-large"   # 3072-dim
+requests_per_minute: 3000
+```
+
+**Advantages** : Best-in-class quality  
+**Disadvantages** : Slower, higher costs, strict quotas
+
+### Basic Usage (same interface)
+
+```python
+embedder = OpenAIEmbedder(config)
+embedder.initialize()
+
+embeddings = embedder.embed_chunks(chunks)  # Same as local embedders
+query_emb = embedder.embed_text(query)
 ```
 
 ---
 
-## 🏗️ Architecture commune
+## 🏗️ Common Architecture
 
-Tous les embedders héritent de `BaseEmbedder` et implémentent l'interface unifiée :
-
-### 🔧 Méthodes principales
-
-- `initialize()` - Initialisation du modèle/API
-- `embed_chunks(chunks)` - Embedding d'une liste de chunks
-- `embed_text(text)` - Embedding d'un texte simple
-- `embed_batch(texts)` - Embedding par lot
-- `embedding_dimension` - Dimension des vecteurs produits
-
-### 📦 Interface standardisée
+All embedders inherit from `BaseEmbedder` and implement:
 
 ```python
-class BaseEmbedder:
-    def initialize(self) -> None: ...
-    def embed_chunks(self, chunks: List[CodeChunk]) -> np.ndarray: ...
-    def embed_text(self, text: str) -> np.ndarray: ...
-    def prepare_chunk_for_embedding(self, chunk: CodeChunk) -> str: ...
-    def prepare_text_for_embedding(self, text: str) -> str: ...
-```
-
----
-
-## 🔄 Intégration dans le pipeline
-
-Les embedders s'intègrent parfaitement dans le pipeline RAG :
-
-### 📋 Workflow typique
-
-1. **📄 Parsing** - Extraction des blocs de code sémantiques
-2. **✂️ Chunking** - Découpage en chunks de taille optimale
-3. **🔮 Embedding** - Transformation en vecteurs denses/sparse
-4. **💾 Indexation** - Stockage dans la base vectorielle
-5. **🔍 Recherche** - Récupération par similarité vectorielle
-
-### 🎯 Choix de l'embedder
-
-| Cas d'usage | Recommandation | Avantages | Inconvénients |
-|-------------|----------------|-----------|---------------|
-| **Production haute volumétrie** | SentenceTransformer | ⚡ Rapide, 📦 Local, 💰 Gratuit | 📊 Qualité moyenne |
-| **Qualité maximale** | OpenAI | 🎯 Excellente sémantique, 🔧 Fiable | 💰 Coût API, 📊 Quota |
-| **Alternative économique** | Gemini | 🎯 Bonne qualité, ☁️ Cloud | 📊 Quota Google |
-| **Recherche hybride** | QdrantEmbedder | 🔄 Dense + Sparse, ⚡ Performant | 🔧 Configuration complexe |
-
----
-
-## 📦 Dépendances
-
-### 🔧 Bibliothèques externes
-
-- **`sentence-transformers`** - Pour SentenceTransformerEmbedder (local)
-- **`openai`** - Pour OpenAIEmbedder (API)
-- **`google-generativeai`** - Pour GeminiEmbedder (API)
-- **`fastembed`** - Pour QdrantEmbedder (hybride)
-- **`numpy`** - Pour tous les embedders (calculs vectoriels)
-
-### 🔗 Modules internes
-
-- `rag.core.base_embedder` - Classe de base abstraite
-- `rag.core.base_chunker` - Gestion des chunks de code
-- `config_manager` - Configuration centralisée et clés API
-
----
-
-## ⚠️ Gestion des quotas et limites
-
-### 📊 Limites par fournisseur
-
-| Fournisseur | Requêtes/minute | Tokens/minute | Coût approximatif |
-|-------------|-----------------|---------------|-------------------|
-| **OpenAI** | 3,000 | 1,000,000 | $0.02/1M tokens |
-| **Gemini** | 1,500 | Variable | $0.01/1M tokens |
-| **Local** | ∞ | ∞ | $0 (électricité) |
-
-### 🛡️ Bonnes pratiques
-
-- **🔄 Rate limiting** - Respect automatique des limites API
-- **💾 Cache** - Stockage local des modèles téléchargés
-- **🔁 Retry** - Gestion automatique des erreurs temporaires
-- **📊 Monitoring** - Suivi de l'usage et des coûts
-- **⚡ Batching** - Traitement par lots pour optimiser les appels API
-
----
-
-## 🔧 Extension pour nouveaux modèles
-
-Pour ajouter un nouvel embedder :
-
-```python
-from rag.core.base_embedder import BaseEmbedder
-import numpy as np
-
-class NewEmbedder(BaseEmbedder):
-    def initialize(self) -> None:
-        # Initialisation du modèle
-        self.model = load_your_model()
-        self._is_initialized = True
+class BaseEmbedder(ABC):
+    @property
+    @abstractmethod
+    def embedding_dimension(self) -> int: ...
     
-    def _embed_batch_impl(self, texts: List[str]) -> np.ndarray:
-        # Implémentation spécifique
-        return np.array([self.model.encode(text) for text in texts])
+    @abstractmethod
+    def initialize(self) -> None: ...
+    
+    @abstractmethod
+    def embed_chunks(self, chunks: List[CodeChunk]) -> np.ndarray: ...
+    
+    @abstractmethod
+    def embed_text(self, text: str) -> np.ndarray: ...
 ```
 
-Puis ajouter au `__init__.py` :
+### Text Preparation
+
+All embedders apply before embedding:
+
 ```python
-try:
-    from rag.embedders.new_embedder import NewEmbedder
-except ImportError:
-    NewEmbedder = None
+# For chunks: use LLM summary if available, else raw content
+def prepare_chunk_for_embedding(chunk: CodeChunk) -> str:
+    if chunk.metadata.get('summary'):
+        return chunk.metadata['summary']
+    return chunk.content
+
+# For queries: basic cleanup
+def prepare_text_for_embedding(text: str) -> str:
+    return text.strip()[:512]  # Max 512 chars/tokens
 ```
+
+---
+
+## 📍 Real Usage in Project
+
+### Index Building (all `build_*.py`)
+
+```python
+from rag.embedders.qdrant_embedder import QdrantEmbedder
+
+embedder = QdrantEmbedder(config)
+embedder.initialize()
+
+for chunks_batch in chunk_batches:
+    # Dense embeddings (standard)
+    dense_vecs = embedder.embed_chunks(chunks_batch)
+    
+    # Hybrid (for Qdrant)
+    hybrid_vecs = embedder.embed_chunks_hybrid(chunks_batch)
+    
+    # → Insert into vector database
+```
+
+### Complete RAG Workflow
+
+```
+1. Parsing   → 6078 blocks
+2. Chunking  → 1084 chunks  
+3. Embedding → Dense [1084 × 384] + Sparse BM25
+              ↓
+4. Indexing  → Qdrant (dense + sparse search)
+              ↓
+5. Query     → Query embedding (same dual format)
+              ↓
+6. Search    → Hybrid retrieval → Top-k chunks → LLM
+```
+
+---
+
+## 🔍 Comparaison Hybrid vs Dense-only
+
+### Hybrid Search (QdrantEmbedder)
+
+```
+Query: "How calculate Items.Revenue?"
+  ├─ Dense: Semantic similarity [query ≈ 0.87 to chunk]
+  └─ Sparse: Keyword match "Items.Revenue" → BM25 score
+
+Result: Fusion scores → Better recall + precision
+```
+
+**Use cases** :
+- Search by variable name (Items, Orders)
+- Exact syntax search
+- Semantic + keyword combination
+
+### Dense-only (SentenceTransformer)
+
+```
+Query: "How calculate Items.Revenue?"
+  └─ Semantic embedding → find similar chunks
+
+Result: Pure semantics → Better for concepts
+```
+
+**Use cases** :
+- Conceptual search ("profit calculation")
+- Natural language queries
+- Search without specific keywords
+
+---
+
+## 📊 Performance
+
+| Metric | QdrantEmbedder | SentenceTransformer | OpenAI |
+|--------|----------------|-------------------|--------|
+| **Speed** | ~1000 chunks/sec (ONNX) | ~500 chunks/sec | ~10 chunks/sec (API) |
+| **Cost** | Free (local) | Free (local) | ~$0.02 per 1M tokens |
+| **Quality** | Good (384-dim) | Good (384-768-dim) | Excellent (1536-3072-dim) |
+| **Setup** | Instant | Instant | Requires API key |
+
+---
+
+## 🔧 API Reference
+
+### BaseEmbedder
+
+```python
+# Properties
+embedder.embedding_dimension: int           # Vector size
+embedder._is_initialized: bool              # Initialization state
+
+# Methods
+embedder.initialize()                       # Load model
+embedder.embed_chunks(chunks) -> ndarray    # (N, D) array
+embedder.embed_text(text) -> ndarray        # (D,) vector
+embedder.prepare_chunk_for_embedding(chunk) # Pre-process
+embedder.prepare_text_for_embedding(text)   # Pre-process
+```
+
+### QdrantEmbedder (Qdrant-specific)
+
+```python
+# Standard (from BaseEmbedder)
+embedder.embed_chunks(chunks) -> ndarray
+embedder.embed_text(text) -> ndarray
+
+# Qdrant hybrid (NEW)
+embedder.embed_chunks_hybrid(chunks) -> List[Dict]
+embedder.embed_text_hybrid(text, keywords) -> Dict
+```
+
+---
+
+## 📋 Troubleshooting
+
+| Issue | Solution |
+|----------|----------|
+| "Model not initialized" | Call `embedder.initialize()` |
+| OOM (out of memory) | Reduce `batch_size` |
+| Wrong dimension | Verify `embedding_dimension` vs `dense_model_name` |
+| Empty sparse embeddings | Ensure tokens exist in the text |
+
+---
+
+## 📚 Related Resources
+
+### RAG Pipeline Flow
+- [RAG Pipeline Overview](../RAG.md) - Complete pipeline with embedding step
+- [Chunker Documentation](../chunkers/CHUNKERS.md) - Chunks before embedding
+- [Retrievers Documentation](../retrievers/RETRIEVERS.md) - Using embeddings for retrieval
+
+### Related Components
+- [Parser Documentation](../parsers/PARSER.md) - Blocks before chunking
+- [Query Transformers Documentation](../query_transformers/QUERY_TRANSFORMERS.md) - Embedding transformed queries
+- [Agentic Workflow](../../pipeline/agent_workflow/AGENTIC_WORKFLOW.md) - Embeddings in agent reasoning
+
+### Configuration & Usage
+- [Configuration](../../config.yaml) - Embedder parameters
+- [Quick Start Tutorial](../../TUTORIAL.md) - Setup and usage
+
+---
+
+**Built for production RAG applications** 🚀

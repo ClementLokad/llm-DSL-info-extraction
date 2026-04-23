@@ -9,7 +9,7 @@ from rag.core.base_retriever import BaseRetriever, RetrievalResult
 from rag.core.base_chunker import CodeChunk
 from rag.core.base_parser import CodeBlock
 
-from config_manager import get_config
+from utils.config_manager import get_config
 
 class QdrantRetriever(BaseRetriever):
     """

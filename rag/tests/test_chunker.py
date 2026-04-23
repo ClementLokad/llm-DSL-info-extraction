@@ -13,7 +13,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-from config_manager import ConfigManager
+from utils.config_manager import ConfigManager
 from rag.chunkers.semantic_chunker import SemanticChunker
 from rag.tests.test_parser import TestEnvisionParser
 from rag.core.base_parser import CodeBlock

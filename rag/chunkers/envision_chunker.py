@@ -13,8 +13,8 @@ from typing import List, Dict, Any
 from rag.core.base_parser import BlockType, CodeBlock
 from rag.core.base_chunker import CodeChunk, BaseChunker
 from rag.parsers.envision_parser import EnvisionParser
-from config_manager import get_config
-from get_mapping import get_file_mapping
+from utils.config_manager import get_config
+from utils.get_mapping import get_file_mapping
 
 
 class EnvisionChunker(BaseChunker):
