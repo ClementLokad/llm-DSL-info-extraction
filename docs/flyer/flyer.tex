@@ -83,9 +83,9 @@
         \node[box, below right=0.2cm and 2.2cm of planner] (graph) {Graph Tool \\ \labelstyle{structural links}};
         
         % Processing
-        \node[box, right=1.8cm of rag] (distill) {Distillation \\ \labelstyle{LLM}};
-        \node[box, right=1.8cm of grep] (mainllm) {Main LLM \\ \labelstyle{drafts the answer}};
-        \node[box, below=1.2cm of mainllm] (final) {Final Answer \\ \labelstyle{evidence-based output}};
+        \node[box, right=1.8cm of grep] (distill) {Distillation \\ \labelstyle{LLM}};
+        \node[box, below right=2cm and 1.8cm of grep] (mainllm) {Main LLM \\ \labelstyle{drafts the answer}};
+        \node[box, below=1.8cm of planner] (final) {Final Answer \\ \labelstyle{evidence-based output}};
         
         \node[box, below=1.8cm of questions] (grader) {Answer Grader \\ \labelstyle{checks answer quality}};
         \node[box, below=1.2cm of grader] (benchmark) {Benchmark};
@@ -101,13 +101,13 @@
         \draw[arrow] (graph.east) -- (distill.west);
         
         \draw[arrow] (distill.south) -- (mainllm.north);
-        \draw[arrow] (planner.south) -- ++(0, -1.8) -| (final.west) node[pos=0.5, right] {\labelstyle{else}};
+        \draw[arrow] (planner.south) -- (final.north) node[pos=0.5, left] {\labelstyle{else}};
         
         \draw[arrow] (final.west) -- (grader.east);
         \draw[arrow] (grader.south) -- (benchmark.north);
 
         % Loops
-        \draw[arrow, dashed] (mainllm.west) -- node[above, font=\tiny] {feedback loop} (planner.east);
+        \draw[arrow, dashed] (mainllm.west) .. controls +(-2.5, 0) and +(1, -2.5) .. node[below, pos=0.2, font=\tiny] {feedback loop} (planner.south east);
         
     \end{tikzpicture}
 \end{center}
