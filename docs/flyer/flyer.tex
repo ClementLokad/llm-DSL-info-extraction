@@ -92,7 +92,7 @@
         
         % Arrows
         \draw[arrow] (questions) -- (planner);
-        \draw[arrow] (planner.east) -- (rag.west);
+        \draw[arrow] (planner.east) -- (rag.west) node[pos=0.7, left, yshift=0.3cm] {\labelstyle{\shortstack{first pass or \\ unsatisfactory answer}}};
         \draw[arrow] (planner.east) -- (grep.west);
         \draw[arrow] (planner.east) -- (graph.west);
         
