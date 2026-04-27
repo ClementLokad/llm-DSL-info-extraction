@@ -22,7 +22,7 @@ help:
 flyer:
 	@echo "Compiling flyer..."
 	cd $(FLYER_DIR) && pdflatex -interaction=nonstopmode flyer.tex
-	mv flyer.pdf ../../$(FLYER_OUT)
+	mv $(FLYER_DIR)/flyer.pdf $(FLYER_OUT)
 	@echo "Flyer PDF updated in $(FLYER_OUT)"
 
 push:
