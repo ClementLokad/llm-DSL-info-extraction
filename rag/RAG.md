@@ -410,7 +410,7 @@ query_transformer:
   amount_of_generated_instances: "several"
 
 agent:
-  type: "claude"  # or "deepseek", "groq", "mistral", "qwen"
+  type: "deepseek-v3"  # or "sonnet", "deepseek-r1", "mistral", "qwen"
   rate_limit_delay: 0.5
   verbose: false
 ```
